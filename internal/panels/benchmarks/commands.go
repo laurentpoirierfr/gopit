@@ -16,24 +16,28 @@ func (m *Model) Commands() []panel.Command {
 		{Title: "Revoir le dernier profil", Key: "P"},
 		{Title: "Changer l'exécution de référence", Key: "b"},
 		{Title: "Changer le nombre de répétitions (-count)", Key: "n"},
+		{Title: "Changer la durée de chaque mesure (-benchtime)", Key: "t"},
 		{Title: "Arrêter l'exécution", Key: "x"},
 	}
 }
 
 // State renvoie les réglages à garder d'une session à l'autre.
 func (m *Model) State() map[string]string {
-	return map[string]string{"count": strconv.Itoa(m.count())}
+	return map[string]string{"count": strconv.Itoa(m.count()), "benchtime": m.benchTime()}
 }
 
 // Restore applique les réglages enregistrés.
 func (m *Model) Restore(s map[string]string) {
-	n, err := strconv.Atoi(s["count"])
-	if err != nil {
-		return
+	if n, err := strconv.Atoi(s["count"]); err == nil {
+		for i, c := range counts {
+			if c == n {
+				m.countIdx = i
+			}
+		}
 	}
-	for i, c := range counts {
-		if c == n {
-			m.countIdx = i
+	for i, bt := range benchTimes {
+		if bt == s["benchtime"] {
+			m.timeIdx = i
 		}
 	}
 }

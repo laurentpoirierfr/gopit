@@ -26,6 +26,10 @@ const keepRuns = 50
 
 var counts = []int{1, 3, 5, 10}
 
+// benchTimes sont les durées de mesure proposées (-benchtime) ; 1s est la
+// valeur par défaut de go test.
+var benchTimes = []string{"200ms", "1s", "3s"}
+
 type historyMsg struct {
 	runs []*bench.Run
 	err  error
@@ -66,6 +70,7 @@ type Model struct {
 	runErr  error
 
 	countIdx int
+	timeIdx  int       // durée de mesure (benchTimes)
 	pr       profState // profilage et vue profil (profile.go)
 	rows     []row
 	cursor   int
@@ -74,7 +79,7 @@ type Model struct {
 }
 
 func New(th *theme.Theme, p *project.Project) *Model {
-	m := &Model{th: th, proj: p, base: -1, countIdx: 2}
+	m := &Model{th: th, proj: p, base: -1, countIdx: 2, timeIdx: 1}
 	m.hist, m.histErr = bench.HistoryFor(p.Module)
 	return m
 }
@@ -102,12 +107,14 @@ func (m *Model) Hints() []panel.Hint {
 	}
 	return []panel.Hint{
 		{Key: "a", Desc: "tout lancer"}, {Key: "Entrée", Desc: "lancer la sélection"},
-		{Key: "b", Desc: "référence"}, {Key: "n", Desc: "répétitions"},
+		{Key: "b", Desc: "référence"}, {Key: "n", Desc: "répétitions"}, {Key: "t", Desc: "durée"},
 		{Key: "p/m", Desc: "profil CPU/mémoire"},
 	}
 }
 
 func (m *Model) count() int { return counts[m.countIdx] }
+
+func (m *Model) benchTime() string { return benchTimes[m.timeIdx] }
 
 // last renvoie la dernière exécution enregistrée, ou nil.
 func (m *Model) last() *bench.Run {
@@ -144,6 +151,9 @@ func (m *Model) start(label string, o bench.Options) tea.Cmd {
 	}
 	if o.Count == 0 {
 		o.Count = m.count()
+	}
+	if o.BenchTime == "" {
+		o.BenchTime = m.benchTime()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	e, err := bench.Start(ctx, m.proj.Root, o)
@@ -337,6 +347,9 @@ func (m *Model) handleKey(s string) tea.Cmd {
 	case "n":
 		m.countIdx = (m.countIdx + 1) % len(counts)
 		return panel.Flash(fmt.Sprintf("Répétitions : -count=%d", m.count()), false)
+	case "t":
+		m.timeIdx = (m.timeIdx + 1) % len(benchTimes)
+		return panel.Flash("Durée de chaque mesure : -benchtime="+m.benchTime(), false)
 	case "b":
 		return m.cycleBase()
 	case "up", "k":
@@ -462,10 +475,23 @@ func (m *Model) deltaText(d bench.Delta) string {
 		return t.Dim.Render("≈")
 	case math.IsInf(d.Pct, 1):
 		return t.Err.Render("nouveau > 0")
+	case d.Pct <= -0.5 && d.New.Mean > 0:
+		// Gros gain : un rapport est plus parlant que « -99.9% ».
+		return t.OK.Render("÷" + ratio(d.Old.Mean/d.New.Mean))
+	case d.Pct >= 1:
+		return t.Err.Render("×" + ratio(d.New.Mean/d.Old.Mean))
 	case d.Pct < 0:
 		return t.OK.Render(fmt.Sprintf("%+.1f%%", 100*d.Pct))
 	}
 	return t.Err.Render(fmt.Sprintf("%+.1f%%", 100*d.Pct))
+}
+
+// ratio présente un facteur : « 2.4 », « 37 », « 2454 ».
+func ratio(r float64) string {
+	if r < 10 {
+		return fmt.Sprintf("%.1f", r)
+	}
+	return fmt.Sprintf("%.0f", r)
 }
 
 var sparks = []rune("▁▂▃▄▅▆▇█")
@@ -546,7 +572,8 @@ func (m *Model) viewSummary() string {
 	} else if len(m.runs) > 0 {
 		parts = append(parts, t.Dim.Render("sans référence"))
 	}
-	parts = append(parts, t.Dim.Render("-count=")+t.Value.Render(fmt.Sprint(m.count())),
+	parts = append(parts, t.Dim.Render("-count=")+t.Value.Render(fmt.Sprint(m.count()))+
+		t.Dim.Render(" -benchtime=")+t.Value.Render(m.benchTime()),
 		t.Dim.Render(fmt.Sprintf("%d exécution(s) enregistrée(s)", len(m.runs))))
 	if m.histErr != nil {
 		parts = append(parts, t.Err.Render("historique : "+m.histErr.Error()))
