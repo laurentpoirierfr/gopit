@@ -1,0 +1,543 @@
+// Package git est le panneau « Git » : état du dépôt, diff coloré, commits
+// récents ; indexation, désindexation et commit. Aucune action destructive
+// (pas d'annulation de modifications, pas de push).
+package git
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/laurentpoirierfr/gopit/internal/editor"
+	"github.com/laurentpoirierfr/gopit/internal/gitx"
+	"github.com/laurentpoirierfr/gopit/internal/panel"
+	"github.com/laurentpoirierfr/gopit/internal/project"
+	"github.com/laurentpoirierfr/gopit/internal/theme"
+)
+
+const (
+	logSize = 30
+	refresh = 3 * time.Second
+)
+
+type stateMsg struct {
+	status  *gitx.Status
+	commits []gitx.Commit
+	err     error
+}
+
+type detailMsg struct {
+	key, text string
+	err       error
+}
+
+type actionMsg struct {
+	done string // message de succès
+	err  error
+}
+
+type tickMsg struct{}
+
+// row est une ligne : en-tête de section, fichier (indexé ou non) ou commit.
+type row struct {
+	header string
+	change *gitx.Change
+	staged bool
+	commit *gitx.Commit
+}
+
+func (r row) key() string {
+	switch {
+	case r.change != nil:
+		return fmt.Sprintf("f|%v|%s", r.staged, r.change.Path)
+	case r.commit != nil:
+		return "c|" + r.commit.Hash
+	}
+	return ""
+}
+
+type Model struct {
+	th   *theme.Theme
+	proj *project.Project
+
+	status  *gitx.Status
+	commits []gitx.Commit
+	err     error
+	loaded  bool
+
+	rows   []row
+	cursor int
+	offset int
+
+	detailKey string
+	detail    string
+	detailErr error
+	detailOff int
+	detailH   int
+
+	typing  bool   // saisie du message de commit
+	message string // message en cours de saisie
+	busy    bool
+}
+
+func New(th *theme.Theme, p *project.Project) *Model {
+	return &Model{th: th, proj: p}
+}
+
+func (m *Model) Title() string   { return "Git" }
+func (m *Model) Icon() string    { return "" }
+func (m *Model) Capturing() bool { return m.typing }
+
+func (m *Model) Init() tea.Cmd {
+	return tea.Batch(m.load(), tea.Tick(refresh, func(time.Time) tea.Msg { return tickMsg{} }))
+}
+
+func (m *Model) Hints() []panel.Hint {
+	if m.typing {
+		return []panel.Hint{{Key: "Entrée", Desc: "commiter"}, {Key: "Échap", Desc: "annuler"}}
+	}
+	return []panel.Hint{{Key: "s", Desc: "indexer"}, {Key: "u", Desc: "désindexer"}, {Key: "A", Desc: "tout indexer"},
+		{Key: "c", Desc: "commit"}, {Key: "o", Desc: "ouvrir"}, {Key: "PgUp/PgDn", Desc: "diff"}}
+}
+
+func (m *Model) load() tea.Cmd {
+	root := m.proj.Root
+	return func() tea.Msg {
+		ctx := context.Background()
+		s, err := gitx.GetStatus(ctx, root)
+		if err != nil {
+			return stateMsg{err: err}
+		}
+		commits, err := gitx.Log(ctx, root, logSize)
+		return stateMsg{status: s, commits: commits, err: err}
+	}
+}
+
+// loadDetail charge le diff du fichier ou le contenu du commit sélectionné.
+func (m *Model) loadDetail(force bool) tea.Cmd {
+	r := m.selected()
+	if r == nil {
+		m.detailKey, m.detail = "", ""
+		return nil
+	}
+	key := r.key()
+	if key == m.detailKey && !force {
+		return nil
+	}
+	if key != m.detailKey {
+		m.detailOff = 0
+	}
+	m.detailKey = key
+	root, row := m.proj.Root, *r
+	return func() tea.Msg {
+		ctx := context.Background()
+		var text string
+		var err error
+		if row.commit != nil {
+			text, err = gitx.Show(ctx, root, row.commit.Hash)
+		} else {
+			text, err = gitx.Diff(ctx, root, *row.change, row.staged)
+		}
+		return detailMsg{key: key, text: text, err: err}
+	}
+}
+
+func (m *Model) act(done string, fn func(ctx context.Context, root string) error) tea.Cmd {
+	m.busy = true
+	root := m.proj.Root
+	return func() tea.Msg {
+		return actionMsg{done: done, err: fn(context.Background(), root)}
+	}
+}
+
+// ─── Update ──────────────────────────────────────────────────────────────────
+
+func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case stateMsg:
+		m.loaded, m.err = true, msg.err
+		if msg.status != nil {
+			m.status, m.commits = msg.status, msg.commits
+		}
+		m.rebuild()
+		return m, m.loadDetail(true)
+
+	case detailMsg:
+		if msg.key == m.detailKey {
+			m.detail, m.detailErr = msg.text, msg.err
+		}
+
+	case actionMsg:
+		m.busy = false
+		if msg.err != nil {
+			return m, tea.Batch(m.load(), panel.Flash(msg.err.Error(), true))
+		}
+		return m, tea.Batch(m.load(), panel.Flash(msg.done, false))
+
+	case tickMsg:
+		next := tea.Tick(refresh, func(time.Time) tea.Msg { return tickMsg{} })
+		if m.typing || m.busy || m.err == gitx.ErrNotRepo {
+			return m, next
+		}
+		return m, tea.Batch(m.load(), next)
+
+	case tea.KeyPressMsg:
+		cmd := m.handleKey(msg)
+		return m, tea.Batch(cmd, m.loadDetail(false))
+	}
+	return m, nil
+}
+
+func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
+	s := k.String()
+	if m.typing {
+		switch s {
+		case "esc":
+			m.typing, m.message = false, ""
+		case "enter":
+			msg := strings.TrimSpace(m.message)
+			m.typing, m.message = false, ""
+			if msg == "" {
+				return panel.Flash("Commit annulé : message vide", true)
+			}
+			return m.act("Commit créé", func(ctx context.Context, root string) error {
+				_, err := gitx.CommitStaged(ctx, root, msg)
+				return err
+			})
+		case "backspace":
+			if r := []rune(m.message); len(r) > 0 {
+				m.message = string(r[:len(r)-1])
+			}
+		default:
+			if k.Text != "" {
+				m.message += k.Text
+			}
+		}
+		return nil
+	}
+
+	r := m.selected()
+	switch s {
+	case "r", "f5":
+		return m.load()
+	case "up", "k":
+		m.move(-1)
+	case "down", "j":
+		m.move(1)
+	case "home", "g":
+		m.move(-len(m.rows))
+	case "end", "G":
+		m.move(len(m.rows))
+	case "pgup":
+		m.detailOff = max(0, m.detailOff-max(1, m.detailH/2))
+	case "pgdown":
+		m.detailOff += max(1, m.detailH/2)
+	case "s":
+		if r != nil && r.change != nil && !r.staged {
+			path := r.change.Path
+			return m.act("Indexé : "+path, func(ctx context.Context, root string) error { return gitx.Stage(ctx, root, path) })
+		}
+	case "u":
+		if r != nil && r.change != nil && r.staged {
+			path, hasCommit := r.change.Path, m.status != nil && m.status.Commit != ""
+			return m.act("Désindexé : "+path, func(ctx context.Context, root string) error {
+				return gitx.Unstage(ctx, root, hasCommit, path)
+			})
+		}
+	case "A":
+		return m.act("Toutes les modifications sont indexées", gitx.StageAll)
+	case "c":
+		if m.stagedCount() == 0 {
+			return panel.Flash("Rien à commiter : indexe d'abord des fichiers (s ou A)", true)
+		}
+		m.typing, m.message = true, ""
+	case "o", "enter":
+		if r != nil && r.change != nil {
+			return editor.Open(m.proj.Root, filepath.Join(m.proj.Root, r.change.Path), 0)
+		}
+	}
+	return nil
+}
+
+func (m *Model) stagedCount() int {
+	n := 0
+	if m.status != nil {
+		for _, c := range m.status.Changes {
+			if c.IsStaged() {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func (m *Model) selected() *row {
+	if m.cursor >= 0 && m.cursor < len(m.rows) && m.rows[m.cursor].header == "" {
+		return &m.rows[m.cursor]
+	}
+	return nil
+}
+
+func (m *Model) move(d int) {
+	var idx []int
+	for i, r := range m.rows {
+		if r.header == "" {
+			idx = append(idx, i)
+		}
+	}
+	if len(idx) == 0 {
+		return
+	}
+	pos := 0
+	for i, x := range idx {
+		if x == m.cursor {
+			pos = i
+		}
+	}
+	m.cursor = idx[min(max(pos+d, 0), len(idx)-1)]
+}
+
+// rebuild regroupe les fichiers (indexés, modifiés, conflits, non suivis)
+// puis les commits, en gardant la sélection.
+func (m *Model) rebuild() {
+	sel := ""
+	if r := m.selected(); r != nil {
+		sel = r.key()
+	}
+	m.rows = m.rows[:0]
+	if m.status != nil {
+		var staged, unstaged, conflicts, untracked []row
+		for i := range m.status.Changes {
+			c := &m.status.Changes[i]
+			switch {
+			case c.Conflict:
+				conflicts = append(conflicts, row{change: c})
+			case c.Untracked():
+				untracked = append(untracked, row{change: c})
+			default:
+				if c.IsStaged() {
+					staged = append(staged, row{change: c, staged: true})
+				}
+				if c.IsUnstaged() {
+					unstaged = append(unstaged, row{change: c})
+				}
+			}
+		}
+		section := func(title string, rows []row) {
+			if len(rows) > 0 {
+				m.rows = append(m.rows, row{header: fmt.Sprintf("%s (%d)", title, len(rows))})
+				m.rows = append(m.rows, rows...)
+			}
+		}
+		section("Conflits", conflicts)
+		section("Indexés", staged)
+		section("Modifiés", unstaged)
+		section("Non suivis", untracked)
+	}
+	if len(m.commits) > 0 {
+		m.rows = append(m.rows, row{header: "Commits récents"})
+		for i := range m.commits {
+			m.rows = append(m.rows, row{commit: &m.commits[i]})
+		}
+	}
+	m.cursor = -1
+	for i, r := range m.rows {
+		if r.header != "" {
+			continue
+		}
+		if m.cursor < 0 || r.key() == sel {
+			m.cursor = i
+		}
+		if r.key() == sel {
+			break
+		}
+	}
+}
+
+// ─── Vue ─────────────────────────────────────────────────────────────────────
+
+func (m *Model) View(width, height int) string {
+	t := m.th
+	switch {
+	case !m.loaded:
+		return t.Dim.Render("Lecture du dépôt…")
+	case m.err == gitx.ErrNotRepo:
+		return t.Dim.Render("Ce module n'est pas dans un dépôt git (git init pour en créer un).")
+	case m.status == nil:
+		return t.Err.Render("git : " + m.err.Error())
+	}
+
+	top := m.viewSummary(width)
+	bodyH := max(1, height-len(top)-1)
+	listW := min(max(32, width*40/100), 60)
+	detailW := max(10, width-listW-3)
+	sep := t.Dim.Render(strings.TrimSuffix(strings.Repeat("│\n", bodyH), "\n"))
+	return strings.Join(top, "\n") + "\n\n" +
+		lipgloss.JoinHorizontal(lipgloss.Top, m.viewList(listW, bodyH), " ", sep, " ", m.viewDetail(detailW, bodyH))
+}
+
+func (m *Model) viewSummary(width int) []string {
+	t := m.th
+	s := m.status
+	branch := s.Branch
+	if branch == "" {
+		branch = "HEAD détaché (" + s.Commit + ")"
+	}
+	line := t.Dim.Render("branche ") + t.Value.Render(branch)
+	if s.Upstream != "" {
+		line += t.Dim.Render(" → " + s.Upstream)
+		switch {
+		case s.Ahead == 0 && s.Behind == 0:
+			line += t.OK.Render("  à jour")
+		default:
+			if s.Ahead > 0 {
+				line += t.Warn.Render(fmt.Sprintf("  ↑%d à pousser", s.Ahead))
+			}
+			if s.Behind > 0 {
+				line += t.Err.Render(fmt.Sprintf("  ↓%d à récupérer", s.Behind))
+			}
+		}
+	} else if s.Branch != "" {
+		line += t.Dim.Render("  (pas de branche distante)")
+	}
+	changes := len(s.Changes)
+	if changes == 0 {
+		line += t.Dim.Render("   │   ") + t.OK.Render("✓ arbre propre")
+	} else {
+		line += t.Dim.Render("   │   ") + t.Text.Render(fmt.Sprintf("%d fichier(s) modifié(s), %d indexé(s)", changes, m.stagedCount()))
+	}
+	lines := []string{ansi.Truncate(line, width, "…")}
+	if m.typing {
+		input := t.Label.Render("Message du commit : ") + t.Value.Render(m.message) +
+			lipgloss.NewStyle().Foreground(t.P.Accent).Render("▌")
+		lines = append(lines, ansi.Truncate(input, width, "…"))
+	}
+	return lines
+}
+
+// mark renvoie le symbole et la couleur d'un état de fichier.
+func (m *Model) mark(code byte) string {
+	t := m.th
+	switch code {
+	case 'A':
+		return t.OK.Render("A")
+	case 'D':
+		return t.Err.Render("D")
+	case 'R', 'C':
+		return lipgloss.NewStyle().Foreground(t.P.Blue).Render(string(code))
+	case '?':
+		return t.Dim.Render("?")
+	case 'U':
+		return t.Err.Render("U")
+	}
+	return t.Warn.Render(string(code))
+}
+
+func (m *Model) viewList(w, h int) string {
+	t := m.th
+	if m.cursor < m.offset {
+		m.offset = m.cursor
+	}
+	if m.cursor >= m.offset+h {
+		m.offset = m.cursor - h + 1
+	}
+	if m.offset > 0 && m.cursor == m.offset && m.rows[m.offset-1].header != "" {
+		m.offset--
+	}
+	m.offset = min(max(m.offset, 0), max(0, len(m.rows)-h))
+
+	lines := make([]string, 0, h)
+	for i := m.offset; i < len(m.rows) && len(lines) < h; i++ {
+		r := m.rows[i]
+		var line string
+		switch {
+		case r.header != "":
+			line = t.Label.Bold(true).Render(r.header)
+		case r.change != nil:
+			code := r.change.Worktree
+			if r.staged {
+				code = r.change.Staged
+			}
+			if r.change.Conflict {
+				code = 'U'
+			}
+			name := r.change.Path
+			if r.change.OrigPath != "" {
+				name = r.change.OrigPath + " → " + name
+			}
+			line = "  " + m.mark(code) + " " + t.Text.Render(name)
+		case r.commit != nil:
+			c := r.commit
+			line = "  " + lipgloss.NewStyle().Foreground(t.P.Accent).Render(c.Hash) + " " +
+				t.Text.Render(c.Subject) + t.Dim.Render("  "+ago(c.When))
+		}
+		line = ansi.Truncate(line, w, "…")
+		if i == m.cursor {
+			line = lipgloss.NewStyle().Background(t.P.Surface0).Width(w).Render(line)
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		lines = append(lines, t.Dim.Render("Aucun commit pour l'instant."))
+	}
+	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
+}
+
+// ago présente une date de façon relative (« il y a 5 min »).
+func ago(tm time.Time) string {
+	d := time.Since(tm)
+	switch {
+	case d < time.Minute:
+		return "à l'instant"
+	case d < time.Hour:
+		return fmt.Sprintf("il y a %d min", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("il y a %d h", int(d.Hours()))
+	case d < 30*24*time.Hour:
+		return fmt.Sprintf("il y a %d j", int(d.Hours()/24))
+	}
+	return tm.Format("02/01/2006")
+}
+
+func (m *Model) viewDetail(w, h int) string {
+	t := m.th
+	m.detailH = h
+	box := lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h)
+	switch {
+	case m.selected() == nil:
+		return box.Render(t.Dim.Render("Aucune sélection"))
+	case m.detailErr != nil:
+		return box.Render(t.Err.Render(m.detailErr.Error()))
+	case m.detail == "":
+		return box.Render(t.Dim.Render("(pas de différence)"))
+	}
+	var lines []string
+	for l := range strings.SplitSeq(strings.TrimRight(m.detail, "\n"), "\n") {
+		lines = append(lines, ansi.Truncate(m.colorize(strings.ReplaceAll(l, "\t", "    ")), w, "…"))
+	}
+	m.detailOff = min(m.detailOff, max(0, len(lines)-h))
+	return box.Render(strings.Join(lines[m.detailOff:], "\n"))
+}
+
+func (m *Model) colorize(l string) string {
+	t := m.th
+	switch {
+	case strings.HasPrefix(l, "+++"), strings.HasPrefix(l, "---"),
+		strings.HasPrefix(l, "diff "), strings.HasPrefix(l, "index "),
+		strings.HasPrefix(l, "new file"), strings.HasPrefix(l, "deleted file"):
+		return t.Dim.Render(l)
+	case strings.HasPrefix(l, "@@"):
+		return lipgloss.NewStyle().Foreground(t.P.Blue).Render(l)
+	case strings.HasPrefix(l, "+"):
+		return t.OK.Render(l)
+	case strings.HasPrefix(l, "-"):
+		return t.Err.Render(l)
+	}
+	return t.Text.Render(l)
+}

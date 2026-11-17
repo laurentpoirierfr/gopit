@@ -17,6 +17,7 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/panels/benchmarks"
 	"github.com/laurentpoirierfr/gopit/internal/panels/diagnostics"
 	"github.com/laurentpoirierfr/gopit/internal/panels/docs"
+	"github.com/laurentpoirierfr/gopit/internal/panels/git"
 	"github.com/laurentpoirierfr/gopit/internal/panels/home"
 	"github.com/laurentpoirierfr/gopit/internal/panels/modules"
 	"github.com/laurentpoirierfr/gopit/internal/panels/tests"
@@ -66,6 +67,7 @@ func New(p *project.Project) *Model {
 			modules.New(th, p),
 			docs.New(th, p),
 			benchmarks.New(th, p),
+			git.New(th, p),
 		},
 	}
 }

@@ -39,6 +39,7 @@ jusqu'au premier `go.mod`.
 | Modules — dépendances, mises à jour (`go get` après confirmation), `go mod why`, `govulncheck` | ✅ |
 | Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
 | Benchmarks — `go test -bench`, historique des exécutions, comparaison avec une référence (Δ % et bruit), évolution en sparkline, profils CPU et mémoire (`p`, `m`) avec code source annoté | ✅ |
+| Git — état du dépôt, diff coloré, commits récents ; indexer (`s`, `A`), désindexer (`u`), commiter (`c`) — sans action destructive ni push | ✅ |
 
 ## Architecture
 
@@ -46,7 +47,7 @@ jusqu'au premier `go.mod`.
 cmd/gopit/            point d'entrée (options, détection du module)
 internal/app/         cadre de l'application : navigation, barres, focus
 internal/panel/       interface Panel commune à tous les modules
-internal/panels/      un paquet par module (home, tests, diagnostics, modules, docs, benchmarks)
+internal/panels/      un paquet par module (home, tests, diagnostics, modules, docs, benchmarks, git)
 internal/project/     lecture de go.mod
 internal/theme/       palette Catppuccin claire / sombre et styles
 internal/version/     version injectée par le Makefile
@@ -58,6 +59,7 @@ internal/gomod/       go list -m, go mod why, go get, govulncheck
 internal/godoc/       documentation d'un paquet en Markdown (go/doc)
 internal/bench/       go test -bench : lecture, comparaison, historique
 internal/prof/        profils pprof : coût par fonction et par ligne
+internal/gitx/        git status / diff / log / add / restore / commit
 internal/cover/       profils de couverture
 internal/watch/       surveillance des fichiers .go
 internal/editor/      ouverture de $VISUAL / $EDITOR à une ligne donnée
