@@ -1,7 +1,10 @@
 package gotest
 
 import (
+	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -138,5 +141,35 @@ func TestRunPattern(t *testing.T) {
 		if got := RunPattern(in); got != want {
 			t.Errorf("RunPattern(%q) = %q, attendu %q", in, got, want)
 		}
+	}
+}
+
+func TestDependents(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"go.mod":  "module ex\n\ngo 1.24\n",
+		"a/a.go":  "package a\n\nfunc A() {}\n",
+		"b/b.go":  "package b\n\nimport \"ex/a\"\n\nfunc B() { a.A() }\n",
+		"c/c.go":  "package c\n\nimport \"ex/b\"\n\nfunc C() { b.B() }\n", // dépend de a via b
+		"d/d.go":  "package d\n\nfunc D() {}\n",
+		"main.go": "package main\n\nimport \"ex/d\"\n\nfunc main() { d.D() }\n",
+	}
+	for name, src := range files {
+		p := filepath.Join(root, name)
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		if err := os.WriteFile(p, []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := Dependents(context.Background(), root, []string{"ex/a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"ex/a", "ex/b", "ex/c"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("dépendants de ex/a = %v, attendu %v", got, want)
+	}
+	got, _ = Dependents(context.Background(), root, []string{"ex/d"})
+	if want := []string{"ex", "ex/d"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("dépendants de ex/d = %v, attendu %v", got, want)
 	}
 }

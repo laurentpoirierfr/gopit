@@ -358,3 +358,39 @@ func drain(sc *bufio.Scanner, r io.Reader, ch chan<- Event) {
 		_, _ = io.Copy(io.Discard, r)
 	}
 }
+
+// ─── Paquets à relancer après une modification ───────────────────────────────
+
+// Dependents renvoie, parmi les paquets du module (./...), ceux qui sont dans
+// pkgs ou qui en dépendent, directement ou non. Le résultat est trié.
+func Dependents(ctx context.Context, root string, pkgs []string) ([]string, error) {
+	want := map[string]bool{}
+	for _, p := range pkgs {
+		want[p] = true
+	}
+	cmd := exec.CommandContext(ctx, "go", "list", "-e", "-f", "{{.ImportPath}}{{range .Deps}} {{.}}{{end}}", "./...")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil && len(out) == 0 {
+		return nil, err
+	}
+	var res []string
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		hit := want[fields[0]]
+		for _, dep := range fields[1:] {
+			if hit {
+				break
+			}
+			hit = want[dep]
+		}
+		if hit {
+			res = append(res, fields[0])
+		}
+	}
+	sort.Strings(res)
+	return res, nil
+}

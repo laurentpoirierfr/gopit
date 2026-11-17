@@ -22,6 +22,7 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
+	"github.com/laurentpoirierfr/gopit/internal/watch"
 )
 
 // ─── Messages ────────────────────────────────────────────────────────────────
@@ -35,6 +36,18 @@ type eventsMsg struct {
 }
 
 type spinMsg struct{ run int }
+
+// changeMsg signale des fichiers Go modifiés (surveillance active).
+type changeMsg struct {
+	dirs   []string
+	closed bool
+}
+
+// affectedMsg donne les paquets à relancer après une modification.
+type affectedMsg struct {
+	pkgs []string
+	err  error
+}
 
 // openMsg demande l'ouverture de l'éditeur une fois le fichier localisé.
 type openMsg struct {
@@ -73,6 +86,9 @@ type Model struct {
 	noCache bool
 	showAll bool // afficher aussi les paquets sans tests
 
+	watcher *watch.Watcher  // surveillance des fichiers (touche w)
+	queued  map[string]bool // paquets modifiés pendant une exécution
+
 	rows      []row
 	cursor    int
 	offset    int
@@ -83,7 +99,7 @@ type Model struct {
 }
 
 func New(th *theme.Theme, p *project.Project) *Model {
-	return &Model{th: th, proj: p, res: gotest.NewResults(), expanded: map[string]bool{}}
+	return &Model{th: th, proj: p, res: gotest.NewResults(), expanded: map[string]bool{}, queued: map[string]bool{}}
 }
 
 func (m *Model) Title() string { return "Tests" }
@@ -97,7 +113,7 @@ func (m *Model) Hints() []panel.Hint {
 	return []panel.Hint{
 		{Key: "a", Desc: "tout"}, {Key: "Entrée", Desc: "lancer la sélection"},
 		{Key: "f", Desc: "échecs"}, {Key: "o", Desc: "ouvrir l'erreur"},
-		{Key: "c", Desc: "cache"}, {Key: "h", Desc: "paquets sans tests"},
+		{Key: "w", Desc: "surveillance"}, {Key: "c", Desc: "cache"}, {Key: "h", Desc: "paquets sans tests"},
 	}
 }
 
@@ -151,6 +167,69 @@ func wait(id int, run *gotest.Run) tea.Cmd {
 
 func spin(id int) tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg { return spinMsg{id} })
+}
+
+// ─── Surveillance des fichiers ───────────────────────────────────────────────
+
+func (m *Model) toggleWatch() tea.Cmd {
+	if m.watcher != nil {
+		m.watcher.Close()
+		m.watcher, m.queued = nil, map[string]bool{}
+		return panel.Flash("Surveillance arrêtée", false)
+	}
+	w, err := watch.New(m.proj.Root, 300*time.Millisecond)
+	if err != nil {
+		return panel.Flash("Surveillance impossible : "+err.Error(), true)
+	}
+	m.watcher = w
+	return tea.Batch(waitChange(w), panel.Flash("Surveillance active : les tests se relancent à chaque enregistrement", false))
+}
+
+func waitChange(w *watch.Watcher) tea.Cmd {
+	return func() tea.Msg {
+		dirs, ok := <-w.Changes
+		return changeMsg{dirs: dirs, closed: !ok}
+	}
+}
+
+// affected traduit les répertoires modifiés en paquets, puis ajoute ceux qui
+// en dépendent (go list).
+func (m *Model) affected(dirs []string) tea.Cmd {
+	root, module := m.proj.Root, m.proj.Module
+	return func() tea.Msg {
+		var pkgs []string
+		for _, d := range dirs {
+			if d == watch.AllDirs {
+				return affectedMsg{pkgs: []string{"./..."}}
+			}
+			rel, err := filepath.Rel(root, d)
+			if err != nil || strings.HasPrefix(rel, "..") {
+				continue
+			}
+			if rel == "." {
+				pkgs = append(pkgs, module)
+			} else {
+				pkgs = append(pkgs, module+"/"+filepath.ToSlash(rel))
+			}
+		}
+		deps, err := gotest.Dependents(context.Background(), root, pkgs)
+		return affectedMsg{pkgs: deps, err: err}
+	}
+}
+
+// runPkgs relance les tests des paquets donnés (relance automatique).
+func (m *Model) runPkgs(pkgs []string) tea.Cmd {
+	if len(pkgs) == 1 && pkgs[0] == "./..." {
+		return m.runAll()
+	}
+	for _, p := range pkgs {
+		m.res.ResetPackage(p)
+	}
+	scope := "modifié : " + strings.TrimPrefix(strings.TrimPrefix(pkgs[0], m.proj.Module), "/")
+	if len(pkgs) > 1 {
+		scope = fmt.Sprintf("modifiés : %d paquets", len(pkgs))
+	}
+	return m.start(scope, pkgs...)
 }
 
 func (m *Model) runAll() tea.Cmd {
@@ -221,14 +300,47 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		m.running, m.cancel, m.run = false, nil, nil
 		m.elapsed, m.runErr = time.Since(m.started), msg.err
 		c := m.res.Counts()
+		var flash tea.Cmd
 		switch {
 		case msg.err != nil:
-			return m, panel.Flash("Tests : "+msg.err.Error(), msg.err != gotest.ErrInterrupted)
+			flash = panel.Flash("Tests : "+msg.err.Error(), msg.err != gotest.ErrInterrupted)
 		case c.Fail > 0:
-			return m, panel.Flash(fmt.Sprintf("%d test(s) en échec", c.Fail), true)
+			flash = panel.Flash(fmt.Sprintf("%d test(s) en échec", c.Fail), true)
 		default:
-			return m, panel.Flash("Tests réussis", false)
+			flash = panel.Flash("Tests réussis", false)
 		}
+		// Des fichiers ont changé pendant l'exécution : relancer ces paquets.
+		if len(m.queued) > 0 && msg.err != gotest.ErrInterrupted {
+			pkgs := make([]string, 0, len(m.queued))
+			for p := range m.queued {
+				pkgs = append(pkgs, p)
+			}
+			m.queued = map[string]bool{}
+			sort.Strings(pkgs)
+			return m, tea.Batch(flash, m.runPkgs(pkgs))
+		}
+		return m, flash
+
+	case changeMsg:
+		if msg.closed || m.watcher == nil {
+			return m, nil
+		}
+		return m, tea.Batch(m.affected(msg.dirs), waitChange(m.watcher))
+
+	case affectedMsg:
+		if msg.err != nil {
+			return m, panel.Flash("Surveillance : "+msg.err.Error(), true)
+		}
+		if len(msg.pkgs) == 0 || m.watcher == nil {
+			return m, nil
+		}
+		if m.running {
+			for _, p := range msg.pkgs {
+				m.queued[p] = true
+			}
+			return m, nil
+		}
+		return m, m.runPkgs(msg.pkgs)
 
 	case spinMsg:
 		if msg.run == m.runID && m.running {
@@ -250,6 +362,8 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 
 func (m *Model) handleKey(s string) tea.Cmd {
 	switch s {
+	case "w":
+		return m.toggleWatch()
 	case "a", "f5":
 		return m.runAll()
 	case "enter":
@@ -469,6 +583,12 @@ func (m *Model) viewSummary(width int) string {
 		cache = t.Dim.Render("cache ") + t.Warn.Render("off")
 	}
 	line := counts + t.Dim.Render("   │   ") + state + t.Dim.Render("   │   ") + cache
+	if m.watcher != nil {
+		line += t.Dim.Render("   │   ") + t.OK.Render("◉ surveillance")
+		if len(m.queued) > 0 {
+			line += t.Dim.Render(fmt.Sprintf(" (%d en attente)", len(m.queued)))
+		}
+	}
 	return ansi.Truncate(line, width, "…")
 }
 
