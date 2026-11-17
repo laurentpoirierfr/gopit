@@ -1,0 +1,46 @@
+# Publication à chaque tag vX.Y.Z : binaires Linux/macOS/Windows (amd64,
+# arm64) et sommes de contrôle attachés à une release GitHub, via GoReleaser.
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  check:
+    name: make check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - run: make check
+
+  goreleaser:
+    name: GoReleaser
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # création de la release et envoi des archives
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # historique complet pour le changelog
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

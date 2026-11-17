@@ -1,0 +1,49 @@
+# Intégration continue : formatage, go vet et tests à chaque push et pull
+# request, plus une validation à blanc de GoReleaser.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: make check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Formatage, vet et tests
+        run: make check
+
+      - name: Tests avec le détecteur de concurrence
+        run: go test -race ./...
+
+      - name: Compilation
+        run: make build && ./bin/gopit --version
+
+  goreleaser:
+    name: GoReleaser (validation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Vérification de la configuration et build snapshot
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean

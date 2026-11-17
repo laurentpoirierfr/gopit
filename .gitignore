@@ -2,6 +2,9 @@
 /bin/
 /gopit
 
+# Sorties de GoReleaser (make release-snapshot)
+/dist/
+
 # Binaires laissés par le débogueur (dlv / extension Go de VS Code)
 __debug_bin*
 

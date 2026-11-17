@@ -1,0 +1,3 @@
+# Configuration de act (tests locaux des GitHub Actions) — voir « make act ».
+# Image proche du runner ubuntu-latest de GitHub (Node, git, outils usuels).
+-P ubuntu-latest=catthehacker/ubuntu:act-latest

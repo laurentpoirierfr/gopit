@@ -1,0 +1,49 @@
+# Configuration GoReleaser (v2) — publiée par .github/workflows/release.yml
+# à chaque tag vX.Y.Z. Essai local, sans rien publier : make release-snapshot
+version: 2
+
+project_name: gopit
+
+builds:
+  - id: gopit
+    main: ./cmd/gopit
+    binary: gopit
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    # {{ .Version }} est le tag sans le « v » (0.1.0), comme avec make build
+    ldflags:
+      - -s -w -X github.com/laurentpoirierfr/gopit/internal/version.Version={{ .Version }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: gopit
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto
