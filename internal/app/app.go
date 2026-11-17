@@ -14,6 +14,7 @@ import (
 
 	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
+	"github.com/laurentpoirierfr/gopit/internal/panels/benchmarks"
 	"github.com/laurentpoirierfr/gopit/internal/panels/diagnostics"
 	"github.com/laurentpoirierfr/gopit/internal/panels/docs"
 	"github.com/laurentpoirierfr/gopit/internal/panels/home"
@@ -64,6 +65,7 @@ func New(p *project.Project) *Model {
 			diagnostics.New(th, p),
 			modules.New(th, p),
 			docs.New(th, p),
+			benchmarks.New(th, p),
 		},
 	}
 }
@@ -308,7 +310,7 @@ func (m *Model) viewStatus() string {
 
 func (m *Model) viewHints() string {
 	t := m.th
-	hints := []panel.Hint{{Key: "↑↓/1-5", Desc: "module"}, {Key: "Tab", Desc: "focus"}}
+	hints := []panel.Hint{{Key: fmt.Sprintf("↑↓/1-%d", len(m.panels)), Desc: "module"}, {Key: "Tab", Desc: "focus"}}
 	hints = append(hints, m.panels[m.cur].Hints()...)
 	hints = append(hints, panel.Hint{Key: "e", Desc: "éditeur"}, panel.Hint{Key: "q", Desc: "quitter"})
 

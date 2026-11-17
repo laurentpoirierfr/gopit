@@ -38,6 +38,7 @@ jusqu'au premier `go.mod`.
 | Diagnostics — `go vet`, staticcheck, gopls et gofmt, fusionnés, avec extrait du code | ✅ |
 | Modules — dépendances, mises à jour (`go get` après confirmation), `go mod why`, `govulncheck` | ✅ |
 | Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
+| Benchmarks — `go test -bench`, historique des exécutions, comparaison avec une référence (Δ % et bruit), évolution en sparkline | ✅ |
 
 ## Architecture
 
@@ -45,7 +46,7 @@ jusqu'au premier `go.mod`.
 cmd/gopit/            point d'entrée (options, détection du module)
 internal/app/         cadre de l'application : navigation, barres, focus
 internal/panel/       interface Panel commune à tous les modules
-internal/panels/      un paquet par module (home, tests, diagnostics, modules, docs)
+internal/panels/      un paquet par module (home, tests, diagnostics, modules, docs, benchmarks)
 internal/project/     lecture de go.mod
 internal/theme/       palette Catppuccin claire / sombre et styles
 internal/version/     version injectée par le Makefile
@@ -55,6 +56,9 @@ internal/gotest/      go test -json : exécution et état des tests
 internal/diag/        go vet, staticcheck, gopls, gofmt : lecture et fusion
 internal/gomod/       go list -m, go mod why, go get, govulncheck
 internal/godoc/       documentation d'un paquet en Markdown (go/doc)
+internal/bench/       go test -bench : lecture, comparaison, historique
+internal/cover/       profils de couverture
+internal/watch/       surveillance des fichiers .go
 internal/editor/      ouverture de $VISUAL / $EDITOR à une ligne donnée
 ```
 

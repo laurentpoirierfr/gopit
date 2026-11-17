@@ -119,7 +119,7 @@ func (m *Model) View(width, height int) string {
 		row("Git", val(factGit)),
 		"",
 		t.Label.Render("Modules du cockpit"),
-		t.Dim.Render("Choisis un module dans la colonne de gauche (↑↓ ou 1-5)."),
+		t.Dim.Render("Choisis un module dans la colonne de gauche (↑↓ ou son numéro)."),
 	}
 	return lipgloss.NewStyle().MaxWidth(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
 }
