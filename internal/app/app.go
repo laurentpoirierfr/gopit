@@ -14,6 +14,7 @@ import (
 
 	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
+	"github.com/laurentpoirierfr/gopit/internal/panels/diagnostics"
 	"github.com/laurentpoirierfr/gopit/internal/panels/home"
 	"github.com/laurentpoirierfr/gopit/internal/panels/soon"
 	"github.com/laurentpoirierfr/gopit/internal/panels/tests"
@@ -59,11 +60,7 @@ func New(p *project.Project) *Model {
 		panels: []panel.Panel{
 			home.New(th, p),
 			tests.New(th, p),
-			soon.New(th, "Diagnostics", "",
-				"Rassemble les problèmes signalés par les outils d'analyse.",
-				"go vet, staticcheck et diagnostics gopls",
-				"filtre par gravité et par paquet",
-				"Entrée : ouvrir l'éditeur sur l'erreur"),
+			diagnostics.New(th, p),
 			soon.New(th, "Modules", "",
 				"Explore les dépendances du module.",
 				"dépendances directes et indirectes (go list -m)",
