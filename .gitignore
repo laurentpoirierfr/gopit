@@ -1,2 +1,24 @@
+# Binaires compilés
 /bin/
+/gopit
+
+# Binaires laissés par le débogueur (dlv / extension Go de VS Code)
+__debug_bin*
+
+# Couverture de tests
 coverage.out
+*.coverprofile
+
+# Profils (go test -cpuprofile / -memprofile, pprof)
+*.prof
+*.pprof
+
+# VS Code : réglages personnels ignorés, configuration de débogage partagée
+.vscode/*
+!.vscode/launch.json
+
+# Autres éditeurs et système
+.idea/
+*.swp
+*~
+.DS_Store
