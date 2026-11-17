@@ -16,6 +16,7 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/panels/diagnostics"
 	"github.com/laurentpoirierfr/gopit/internal/panels/home"
+	"github.com/laurentpoirierfr/gopit/internal/panels/modules"
 	"github.com/laurentpoirierfr/gopit/internal/panels/soon"
 	"github.com/laurentpoirierfr/gopit/internal/panels/tests"
 	"github.com/laurentpoirierfr/gopit/internal/project"
@@ -61,11 +62,7 @@ func New(p *project.Project) *Model {
 			home.New(th, p),
 			tests.New(th, p),
 			diagnostics.New(th, p),
-			soon.New(th, "Modules", "",
-				"Explore les dépendances du module.",
-				"dépendances directes et indirectes (go list -m)",
-				"mises à jour disponibles",
-				"vulnérabilités connues (govulncheck)"),
+			modules.New(th, p),
 			soon.New(th, "Docs", "",
 				"Lit la documentation Go sans quitter le terminal.",
 				"go doc d'un paquet ou d'un symbole",

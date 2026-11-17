@@ -34,7 +34,7 @@ jusqu'au premier `go.mod`.
 | Accueil — résumé du module (version Go, paquets, fichiers, git) | ✅ |
 | Tests — `go test -json` en direct, relance ciblée, ouverture de l'erreur | ✅ |
 | Diagnostics — `go vet`, staticcheck, gopls et gofmt, fusionnés, avec extrait du code | ✅ |
-| Modules — dépendances, mises à jour, `govulncheck` | prévu |
+| Modules — dépendances, mises à jour (`go get` après confirmation), `go mod why`, `govulncheck` | ✅ |
 | Docs — `go doc` rendu avec Glamour | prévu |
 
 ## Architecture
