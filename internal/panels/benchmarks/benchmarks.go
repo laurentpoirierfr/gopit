@@ -66,6 +66,7 @@ type Model struct {
 	runErr  error
 
 	countIdx int
+	pr       profState // profilage et vue profil (profile.go)
 	rows     []row
 	cursor   int
 	offset   int
@@ -93,12 +94,16 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Hints() []panel.Hint {
-	if m.exec != nil {
+	switch {
+	case m.pr.open:
+		return m.profileHints()
+	case m.exec != nil:
 		return []panel.Hint{{Key: "x", Desc: "arrêter"}}
 	}
 	return []panel.Hint{
 		{Key: "a", Desc: "tout lancer"}, {Key: "Entrée", Desc: "lancer la sélection"},
 		{Key: "b", Desc: "référence"}, {Key: "n", Desc: "répétitions"},
+		{Key: "p/m", Desc: "profil CPU/mémoire"},
 	}
 }
 
@@ -137,7 +142,9 @@ func (m *Model) start(label string, o bench.Options) tea.Cmd {
 	if m.cancel != nil {
 		m.cancel()
 	}
-	o.Count = m.count()
+	if o.Count == 0 {
+		o.Count = m.count()
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	e, err := bench.Start(ctx, m.proj.Root, o)
 	if err != nil {
@@ -179,10 +186,12 @@ func spin(id int) tea.Cmd {
 }
 
 func (m *Model) runAll() tea.Cmd {
+	m.abortProfile()
 	return m.start("tous les benchmarks", bench.Options{})
 }
 
 func (m *Model) runSelected() tea.Cmd {
+	m.abortProfile()
 	r := m.selected()
 	if r == nil {
 		return m.runAll()
@@ -275,6 +284,9 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 			m.rebuild()
 			return m, wait(m.runID, m.exec)
 		}
+		if m.pr.kind != "" {
+			return m, m.finishProfile(msg.err)
+		}
 		return m, m.finish(msg.err)
 
 	case spinMsg:
@@ -302,7 +314,18 @@ func useful(l string) bool {
 }
 
 func (m *Model) handleKey(s string) tea.Cmd {
+	if m.pr.open {
+		return m.profileKey(s)
+	}
 	switch s {
+	case "p":
+		return m.startProfile("cpu")
+	case "m":
+		return m.startProfile("mem")
+	case "P":
+		if m.pr.report != nil {
+			m.pr.open = true
+		}
 	case "a", "f5":
 		return m.runAll()
 	case "enter":
@@ -473,6 +496,9 @@ func sparkline(vals []float64) string {
 var spinner = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 func (m *Model) View(width, height int) string {
+	if m.pr.open && m.pr.report != nil {
+		return m.viewProfile(width, height)
+	}
 	t := m.th
 	top := ansi.Truncate(m.viewSummary(), width, "…") + "\n\n"
 	bodyH := max(1, height-2)

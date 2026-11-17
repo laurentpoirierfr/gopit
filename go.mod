@@ -8,6 +8,7 @@ require (
 	charm.land/lipgloss/v2 v2.1.1
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/fsnotify/fsnotify v1.10.1
+	github.com/google/pprof v0.0.0-20261111200114-fac431ef4d26
 	golang.org/x/mod v0.43.0
 )
 

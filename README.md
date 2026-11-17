@@ -38,7 +38,7 @@ jusqu'au premier `go.mod`.
 | Diagnostics — `go vet`, staticcheck, gopls et gofmt, fusionnés, avec extrait du code | ✅ |
 | Modules — dépendances, mises à jour (`go get` après confirmation), `go mod why`, `govulncheck` | ✅ |
 | Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
-| Benchmarks — `go test -bench`, historique des exécutions, comparaison avec une référence (Δ % et bruit), évolution en sparkline | ✅ |
+| Benchmarks — `go test -bench`, historique des exécutions, comparaison avec une référence (Δ % et bruit), évolution en sparkline, profils CPU et mémoire (`p`, `m`) avec code source annoté | ✅ |
 
 ## Architecture
 
@@ -57,6 +57,7 @@ internal/diag/        go vet, staticcheck, gopls, gofmt : lecture et fusion
 internal/gomod/       go list -m, go mod why, go get, govulncheck
 internal/godoc/       documentation d'un paquet en Markdown (go/doc)
 internal/bench/       go test -bench : lecture, comparaison, historique
+internal/prof/        profils pprof : coût par fonction et par ligne
 internal/cover/       profils de couverture
 internal/watch/       surveillance des fichiers .go
 internal/editor/      ouverture de $VISUAL / $EDITOR à une ligne donnée
