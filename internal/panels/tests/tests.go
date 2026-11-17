@@ -5,7 +5,9 @@ package tests
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -17,6 +19,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/laurentpoirierfr/gopit/internal/cover"
 	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/gotest"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
@@ -86,6 +89,10 @@ type Model struct {
 	noCache bool
 	showAll bool // afficher aussi les paquets sans tests
 
+	cover     bool           // mesure de la couverture (touche v)
+	coverFile string         // profil de l'exécution en cours
+	prof      *cover.Profile // couverture cumulée des dernières exécutions
+
 	watcher *watch.Watcher  // surveillance des fichiers (touche w)
 	queued  map[string]bool // paquets modifiés pendant une exécution
 
@@ -113,7 +120,7 @@ func (m *Model) Hints() []panel.Hint {
 	return []panel.Hint{
 		{Key: "a", Desc: "tout"}, {Key: "Entrée", Desc: "lancer la sélection"},
 		{Key: "f", Desc: "échecs"}, {Key: "o", Desc: "ouvrir l'erreur"},
-		{Key: "w", Desc: "surveillance"}, {Key: "c", Desc: "cache"}, {Key: "h", Desc: "paquets sans tests"},
+		{Key: "w", Desc: "surveillance"}, {Key: "v", Desc: "couverture"}, {Key: "c", Desc: "cache"}, {Key: "h", Desc: "paquets sans tests"},
 	}
 }
 
@@ -126,6 +133,19 @@ func (m *Model) start(scope string, args ...string) tea.Cmd {
 	}
 	if m.noCache {
 		args = append([]string{"-count=1"}, args...)
+	}
+	if m.coverFile != "" {
+		os.Remove(m.coverFile) // profil d'une exécution interrompue
+		m.coverFile = ""
+	}
+	if m.cover {
+		f, err := os.CreateTemp("", "gopit-cover-*.out")
+		if err != nil {
+			return panel.Flash("Couverture : "+err.Error(), true)
+		}
+		f.Close()
+		m.coverFile = f.Name()
+		args = append([]string{"-covermode=set", "-coverprofile=" + m.coverFile}, args...)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	run, err := gotest.Start(ctx, m.proj.Root, args...)
@@ -167,6 +187,84 @@ func wait(id int, run *gotest.Run) tea.Cmd {
 
 func spin(id int) tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg { return spinMsg{id} })
+}
+
+// ─── Couverture ──────────────────────────────────────────────────────────────
+
+// readCoverage lit le profil de l'exécution terminée et le fusionne avec la
+// couverture déjà connue.
+func (m *Model) readCoverage() {
+	if m.coverFile == "" {
+		return
+	}
+	defer func() {
+		os.Remove(m.coverFile)
+		m.coverFile = ""
+	}()
+	f, err := os.Open(m.coverFile)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	p, err := cover.Parse(f)
+	if err != nil || len(p.Files) == 0 {
+		return
+	}
+	if m.prof == nil {
+		m.prof = cover.New()
+	}
+	m.prof.Merge(p)
+}
+
+func (m *Model) coverStyle(pct float64) lipgloss.Style {
+	switch {
+	case pct >= 80:
+		return m.th.OK
+	case pct >= 50:
+		return m.th.Warn
+	}
+	return m.th.Err
+}
+
+// coverLines renvoie le tableau de couverture d'un paquet, fichier par
+// fichier (du moins couvert au plus couvert).
+func (m *Model) coverLines(pkg string, w int) []string {
+	if m.prof == nil {
+		return nil
+	}
+	files := m.prof.PackageFiles(pkg)
+	if len(files) == 0 {
+		return nil
+	}
+	t := m.th
+	const barW = 12
+	lines := []string{t.Label.Render("Couverture par fichier")}
+	for _, f := range files {
+		pct := f.Percent()
+		full := int(pct/100*barW + 0.5)
+		bar := m.coverStyle(pct).Render(strings.Repeat("█", full)) + t.Dim.Render(strings.Repeat("░", barW-full))
+		c, tot := f.Stmts()
+		line := m.coverStyle(pct).Render(fmt.Sprintf("%5.1f%%", pct)) + " " + bar + " " +
+			t.Text.Render(path.Base(f.Name)) + t.Dim.Render(fmt.Sprintf("  %d/%d", c, tot))
+		lines = append(lines, ansi.Truncate(line, w, "…"))
+	}
+	return append(lines, t.Dim.Render("o : ouvrir le premier bloc non couvert"), "")
+}
+
+// firstUncovered renvoie le premier bloc non couvert du fichier le moins
+// couvert du paquet.
+func (m *Model) firstUncovered(pkg string) (file string, line int, ok bool) {
+	if m.prof == nil {
+		return "", 0, false
+	}
+	for _, f := range m.prof.PackageFiles(pkg) {
+		if u := f.Uncovered(); len(u) > 0 {
+			if p, ok := cover.DiskPath(m.proj.Root, m.proj.Module, f.Name); ok {
+				return p, u[0].StartLine, true
+			}
+		}
+	}
+	return "", 0, false
 }
 
 // ─── Surveillance des fichiers ───────────────────────────────────────────────
@@ -299,6 +397,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		}
 		m.running, m.cancel, m.run = false, nil, nil
 		m.elapsed, m.runErr = time.Since(m.started), msg.err
+		m.readCoverage()
 		c := m.res.Counts()
 		var flash tea.Cmd
 		switch {
@@ -364,6 +463,12 @@ func (m *Model) handleKey(s string) tea.Cmd {
 	switch s {
 	case "w":
 		return m.toggleWatch()
+	case "v":
+		m.cover = !m.cover
+		if m.cover {
+			return panel.Flash("Couverture activée : elle sera mesurée aux prochaines exécutions (a pour tout relancer)", false)
+		}
+		return panel.Flash("Couverture désactivée", false)
 	case "a", "f5":
 		return m.runAll()
 	case "enter":
@@ -503,6 +608,11 @@ func (m *Model) openFailure() tea.Cmd {
 			break
 		}
 	}
+	if file == "" && r.test == nil {
+		if f, l, ok := m.firstUncovered(r.pkg.Path); ok {
+			return editor.Open(m.proj.Root, f, l)
+		}
+	}
 	if file == "" {
 		return panel.Flash("Aucun emplacement fichier:ligne dans cette sortie", true)
 	}
@@ -583,6 +693,19 @@ func (m *Model) viewSummary(width int) string {
 		cache = t.Dim.Render("cache ") + t.Warn.Render("off")
 	}
 	line := counts + t.Dim.Render("   │   ") + state + t.Dim.Render("   │   ") + cache
+	if m.cover || m.prof != nil {
+		cov := t.Dim.Render("couverture ")
+		switch {
+		case m.prof != nil && len(m.prof.Files) > 0:
+			cov += m.coverStyle(m.prof.Total()).Render(fmt.Sprintf("%.1f%%", m.prof.Total()))
+		case m.cover:
+			cov += t.Value.Render("on")
+		}
+		if !m.cover {
+			cov += t.Dim.Render(" (off)")
+		}
+		line += t.Dim.Render("   │   ") + cov
+	}
 	if m.watcher != nil {
 		line += t.Dim.Render("   │   ") + t.OK.Render("◉ surveillance")
 		if len(m.queued) > 0 {
@@ -638,6 +761,11 @@ func (m *Model) viewList(w, h int) string {
 
 		left := m.icon(status) + " " + name
 		right := t.Dim.Render(extra)
+		if r.test == nil && m.prof != nil {
+			if pct, ok := m.prof.PackagePercent(r.pkg.Path); ok {
+				right = m.coverStyle(pct).Render(fmt.Sprintf("%5.1f%%", pct)) + " " + right
+			}
+		}
 		room := w - lipgloss.Width(right) - 1
 		left = ansi.Truncate(left, max(1, room), "…")
 		pad := strings.Repeat(" ", max(1, w-lipgloss.Width(left)-lipgloss.Width(right)))
@@ -686,6 +814,9 @@ func (m *Model) viewDetail(w, h int) string {
 	}
 
 	head := []string{ansi.Truncate(t.Value.Render(title), w, "…"), ""}
+	if r.test == nil {
+		head = append(head, m.coverLines(r.pkg.Path, w)...)
+	}
 	avail := max(1, h-len(head))
 	m.detailOff = min(m.detailOff, max(0, len(lines)-avail))
 	end := len(lines) - m.detailOff
