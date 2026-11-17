@@ -18,6 +18,7 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/gitx"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
+	"github.com/laurentpoirierfr/gopit/internal/scroll"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
 )
 
@@ -75,11 +76,12 @@ type Model struct {
 	cursor int
 	offset int
 
-	detailKey string
-	detail    string
-	detailErr error
-	detailOff int
-	detailH   int
+	detailKey   string
+	detail      string
+	detailErr   error
+	detailOff   int
+	detailH     int // hauteur visible du détail (dernier rendu)
+	detailTotal int // nombre de lignes du détail une fois replié
 
 	typing  bool   // saisie du message de commit
 	message string // message en cours de saisie
@@ -103,7 +105,7 @@ func (m *Model) Hints() []panel.Hint {
 		return []panel.Hint{{Key: "Entrée", Desc: "commiter"}, {Key: "Échap", Desc: "annuler"}}
 	}
 	return []panel.Hint{{Key: "s", Desc: "indexer"}, {Key: "u", Desc: "désindexer"}, {Key: "A", Desc: "tout indexer"},
-		{Key: "c", Desc: "commit"}, {Key: "o", Desc: "ouvrir"}, {Key: "PgUp/PgDn", Desc: "diff"}}
+		{Key: "c", Desc: "commit"}, {Key: "o", Desc: "ouvrir"}, {Key: "PgUp/PgDn Maj+↑↓ molette", Desc: "défiler"}}
 }
 
 func (m *Model) load() tea.Cmd {
@@ -190,6 +192,14 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	case tea.KeyPressMsg:
 		cmd := m.handleKey(msg)
 		return m, tea.Batch(cmd, m.loadDetail(false))
+
+	case tea.MouseWheelMsg:
+		switch tea.Mouse(msg).Button {
+		case tea.MouseWheelUp:
+			m.scrollDetail(-3)
+		case tea.MouseWheelDown:
+			m.scrollDetail(3)
+		}
 	}
 	return m, nil
 }
@@ -234,10 +244,14 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 		m.move(-len(m.rows))
 	case "end", "G":
 		m.move(len(m.rows))
-	case "pgup":
-		m.detailOff = max(0, m.detailOff-max(1, m.detailH/2))
-	case "pgdown":
-		m.detailOff += max(1, m.detailH/2)
+	case "pgup", "ctrl+u":
+		m.scrollDetail(-max(1, m.detailH/2))
+	case "pgdown", "ctrl+d":
+		m.scrollDetail(max(1, m.detailH/2))
+	case "shift+up":
+		m.scrollDetail(-1)
+	case "shift+down":
+		m.scrollDetail(1)
 	case "s":
 		if r != nil && r.change != nil && !r.staged {
 			path := r.change.Path
@@ -263,6 +277,11 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 	return nil
+}
+
+// scrollDetail fait défiler le détail de d lignes, sans dépasser la fin.
+func (m *Model) scrollDetail(d int) {
+	m.detailOff = scroll.Clamp(m.detailOff+d, m.detailH, m.detailTotal)
 }
 
 func (m *Model) stagedCount() int {
@@ -507,37 +526,69 @@ func ago(tm time.Time) string {
 
 func (m *Model) viewDetail(w, h int) string {
 	t := m.th
-	m.detailH = h
 	box := lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h)
+	r := m.selected()
 	switch {
-	case m.selected() == nil:
+	case r == nil:
 		return box.Render(t.Dim.Render("Aucune sélection"))
 	case m.detailErr != nil:
 		return box.Render(t.Err.Render(m.detailErr.Error()))
 	case m.detail == "":
 		return box.Render(t.Dim.Render("(pas de différence)"))
 	}
+
+	// Lignes repliées à la largeur disponible (moins la colonne de l'ascenseur),
+	// en gardant la couleur de chaque ligne d'origine.
+	textW := max(10, w-2)
 	var lines []string
 	for l := range strings.SplitSeq(strings.TrimRight(m.detail, "\n"), "\n") {
-		lines = append(lines, ansi.Truncate(m.colorize(strings.ReplaceAll(l, "\t", "    ")), w, "…"))
+		st := m.lineStyle(l)
+		plain := strings.ReplaceAll(l, "\t", "    ")
+		for seg := range strings.SplitSeq(ansi.Hardwrap(plain, textW, true), "\n") {
+			lines = append(lines, st.Render(seg))
+		}
 	}
-	m.detailOff = min(m.detailOff, max(0, len(lines)-h))
-	return box.Render(strings.Join(lines[m.detailOff:], "\n"))
+
+	viewH := max(1, h-1) // une ligne d'en-tête
+	m.detailH, m.detailTotal = viewH, len(lines)
+	m.detailOff = scroll.Clamp(m.detailOff, viewH, len(lines))
+	end := min(len(lines), m.detailOff+viewH)
+
+	title := ""
+	switch {
+	case r.commit != nil:
+		title = "commit " + r.commit.Hash
+	case r.staged:
+		title = r.change.Path + " (indexé)"
+	default:
+		title = r.change.Path
+	}
+	pos := ""
+	if len(lines) > viewH {
+		pos = fmt.Sprintf("lignes %d–%d / %d", m.detailOff+1, end, len(lines))
+	}
+	head := ansi.Truncate(t.Value.Render(title), max(1, w-lipgloss.Width(pos)-2), "…")
+	head += strings.Repeat(" ", max(1, w-lipgloss.Width(head)-lipgloss.Width(pos))) + t.Dim.Render(pos)
+
+	body := scroll.Render(lines[m.detailOff:end], textW, viewH, len(lines), m.detailOff,
+		lipgloss.NewStyle().Foreground(t.P.Surface1), lipgloss.NewStyle().Foreground(t.P.Accent))
+	return box.Render(head + "\n" + body)
 }
 
-func (m *Model) colorize(l string) string {
+// lineStyle choisit la couleur d'une ligne de diff ou de commit.
+func (m *Model) lineStyle(l string) lipgloss.Style {
 	t := m.th
 	switch {
 	case strings.HasPrefix(l, "+++"), strings.HasPrefix(l, "---"),
 		strings.HasPrefix(l, "diff "), strings.HasPrefix(l, "index "),
 		strings.HasPrefix(l, "new file"), strings.HasPrefix(l, "deleted file"):
-		return t.Dim.Render(l)
+		return t.Dim
 	case strings.HasPrefix(l, "@@"):
-		return lipgloss.NewStyle().Foreground(t.P.Blue).Render(l)
+		return lipgloss.NewStyle().Foreground(t.P.Blue)
 	case strings.HasPrefix(l, "+"):
-		return t.OK.Render(l)
+		return t.OK
 	case strings.HasPrefix(l, "-"):
-		return t.Err.Render(l)
+		return t.Err
 	}
-	return t.Text.Render(l)
+	return t.Text
 }

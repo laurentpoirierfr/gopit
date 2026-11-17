@@ -122,6 +122,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.handleClick(mo.X, mo.Y)
 		}
 		return m, nil
+
+	case tea.MouseWheelMsg:
+		// La molette fait défiler le module affiché (et lui seul).
+		if m.pal.open {
+			return m, nil
+		}
+		return m, m.toPanel(msg)
 	}
 
 	// Les autres messages (résultats asynchrones…) vont à tous les panneaux.
