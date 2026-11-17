@@ -30,6 +30,13 @@ type Panel interface {
 	Hints() []Hint
 }
 
+// Capturer est implémenté par les panneaux qui ont une saisie de texte
+// (recherche…) : tant que Capturing renvoie true, toutes les touches leur
+// sont transmises (sauf Ctrl+C), y compris q, e, Tab et les chiffres.
+type Capturer interface {
+	Capturing() bool
+}
+
 // FlashMsg permet à un panneau d'afficher un message temporaire dans la barre
 // d'état.
 type FlashMsg struct {

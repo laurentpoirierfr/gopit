@@ -10,6 +10,8 @@ et ouvre ton éditeur (`$VISUAL` / `$EDITOR`) quand il faut modifier du code.
 Construit avec la pile [Charm](https://charm.land/) : Bubble Tea v2,
 Lip Gloss v2.
 
+![gopit : le module Tests en cours d'exécution sur gopit lui-même](assets/screenshot.png)
+
 ## Utilisation
 
 ```sh
@@ -35,7 +37,7 @@ jusqu'au premier `go.mod`.
 | Tests — `go test -json` en direct, relance ciblée, ouverture de l'erreur | ✅ |
 | Diagnostics — `go vet`, staticcheck, gopls et gofmt, fusionnés, avec extrait du code | ✅ |
 | Modules — dépendances, mises à jour (`go get` après confirmation), `go mod why`, `govulncheck` | ✅ |
-| Docs — `go doc` rendu avec Glamour | prévu |
+| Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
 
 ## Architecture
 
@@ -43,14 +45,22 @@ jusqu'au premier `go.mod`.
 cmd/gopit/            point d'entrée (options, détection du module)
 internal/app/         cadre de l'application : navigation, barres, focus
 internal/panel/       interface Panel commune à tous les modules
-internal/panels/      un paquet par module (home, soon…)
+internal/panels/      un paquet par module (home, tests, diagnostics, modules, docs)
 internal/project/     lecture de go.mod
 internal/theme/       palette Catppuccin claire / sombre et styles
 internal/version/     version injectée par le Makefile
+
+Logique sans interface (testable seule) :
+internal/gotest/      go test -json : exécution et état des tests
+internal/diag/        go vet, staticcheck, gopls, gofmt : lecture et fusion
+internal/gomod/       go list -m, go mod why, go get, govulncheck
+internal/godoc/       documentation d'un paquet en Markdown (go/doc)
+internal/editor/      ouverture de $VISUAL / $EDITOR à une ligne donnée
 ```
 
 Ajouter un module : créer `internal/panels/<nom>` qui implémente
-`panel.Panel`, puis l'enregistrer dans `app.New`.
+`panel.Panel`, puis l'enregistrer dans `app.New`. Un module qui a une saisie
+de texte implémente aussi `panel.Capturer` pour recevoir toutes les touches.
 
 ## Développement
 

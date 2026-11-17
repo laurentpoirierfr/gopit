@@ -15,9 +15,9 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/panels/diagnostics"
+	"github.com/laurentpoirierfr/gopit/internal/panels/docs"
 	"github.com/laurentpoirierfr/gopit/internal/panels/home"
 	"github.com/laurentpoirierfr/gopit/internal/panels/modules"
-	"github.com/laurentpoirierfr/gopit/internal/panels/soon"
 	"github.com/laurentpoirierfr/gopit/internal/panels/tests"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
@@ -63,11 +63,7 @@ func New(p *project.Project) *Model {
 			tests.New(th, p),
 			diagnostics.New(th, p),
 			modules.New(th, p),
-			soon.New(th, "Docs", "",
-				"Lit la documentation Go sans quitter le terminal.",
-				"go doc d'un paquet ou d'un symbole",
-				"rendu Markdown avec Glamour",
-				"recherche dans les paquets du module"),
+			docs.New(th, p),
 		},
 	}
 }
@@ -134,6 +130,13 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 
 func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
+	if s == "ctrl+c" {
+		return tea.Quit
+	}
+	// Saisie en cours dans le panneau : il reçoit toutes les touches.
+	if c, ok := m.panels[m.cur].(panel.Capturer); ok && c.Capturing() {
+		return m.toPanel(k)
+	}
 	switch s {
 	case "ctrl+c", "q":
 		return tea.Quit
@@ -179,6 +182,10 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 func (m *Model) toPanel(msg tea.Msg) tea.Cmd {
 	np, cmd := m.panels[m.cur].Update(msg)
 	m.panels[m.cur] = np
+	// Une saisie qui commence (ex. « / » depuis la navigation) prend le focus.
+	if c, ok := np.(panel.Capturer); ok && c.Capturing() {
+		m.focus = focusContent
+	}
 	return cmd
 }
 

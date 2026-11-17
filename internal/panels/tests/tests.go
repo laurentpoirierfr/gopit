@@ -92,7 +92,7 @@ func (m *Model) Init() tea.Cmd { return nil }
 
 func (m *Model) Hints() []panel.Hint {
 	if m.running {
-		return []panel.Hint{{Key: "x", Desc: "arrêter"}, {Key: "Entrée", Desc: "replier"}}
+		return []panel.Hint{{Key: "x", Desc: "arrêter"}, {Key: "Entrée", Desc: "relancer la sélection"}}
 	}
 	return []panel.Hint{
 		{Key: "a", Desc: "tout"}, {Key: "Entrée", Desc: "lancer la sélection"},

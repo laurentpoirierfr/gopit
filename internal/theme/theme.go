@@ -38,7 +38,8 @@ func newPalette(isDark bool) Palette {
 // Theme regroupe la palette et les styles. Les panneaux gardent un pointeur
 // vers le même Theme : Set le met à jour pour tout le monde.
 type Theme struct {
-	P Palette
+	P    Palette
+	Dark bool // fond sombre (choix du style Markdown, etc.)
 
 	// Cadre de l'application
 	Brand, TopBar, TopInfo           lipgloss.Style
@@ -64,7 +65,7 @@ func New() *Theme {
 func (t *Theme) Set(isDark bool) {
 	p := newPalette(isDark)
 	ns := lipgloss.NewStyle
-	*t = Theme{P: p}
+	*t = Theme{P: p, Dark: isDark}
 
 	t.Brand = ns().Bold(true).Foreground(p.Base).Background(p.Accent).Padding(0, 1)
 	t.TopBar = ns().Background(p.Mantle).Foreground(p.Text)
