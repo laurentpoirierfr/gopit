@@ -48,3 +48,24 @@ type FlashMsg struct {
 func Flash(text string, isErr bool) tea.Cmd {
 	return func() tea.Msg { return FlashMsg{Text: text, Error: isErr} }
 }
+
+// Command est une action d'un module, proposée dans la palette (Ctrl+P).
+// L'exécuter revient à afficher le module et à lui envoyer la touche Key
+// (au format de tea.KeyPressMsg.String : « a », « enter », « f5 »…).
+type Command struct {
+	Title string
+	Key   string
+}
+
+// Commander est implémenté par les modules qui exposent des commandes à la
+// palette.
+type Commander interface {
+	Commands() []Command
+}
+
+// Persister est implémenté par les modules qui ont des réglages à garder
+// d'une session à l'autre (enregistrés dans ~/.config/gopit/config.json).
+type Persister interface {
+	State() map[string]string
+	Restore(state map[string]string)
+}

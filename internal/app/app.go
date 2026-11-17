@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/laurentpoirierfr/gopit/internal/config"
 	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/panels/benchmarks"
@@ -52,12 +53,15 @@ type Model struct {
 	flash    string
 	flashErr bool
 	flashID  int
+
+	pal palette        // palette de commandes (palette.go)
+	cfg *config.Config // préférences, enregistrées en quittant
 }
 
 // New crée le cockpit pour le projet p.
 func New(p *project.Project) *Model {
 	th := theme.New()
-	return &Model{
+	m := &Model{
 		th:   th,
 		proj: p,
 		panels: []panel.Panel{
@@ -70,6 +74,8 @@ func New(p *project.Project) *Model {
 			git.New(th, p),
 		},
 	}
+	m.restoreConfig()
+	return m
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -135,15 +141,23 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
 	if s == "ctrl+c" {
-		return tea.Quit
+		return m.quit()
+	}
+	// Palette de commandes : prioritaire sur tout le reste.
+	if m.pal.open {
+		return m.paletteKey(k)
+	}
+	if s == "ctrl+p" {
+		m.openPalette()
+		return nil
 	}
 	// Saisie en cours dans le panneau : il reçoit toutes les touches.
 	if c, ok := m.panels[m.cur].(panel.Capturer); ok && c.Capturing() {
 		return m.toPanel(k)
 	}
 	switch s {
-	case "ctrl+c", "q":
-		return tea.Quit
+	case "q":
+		return m.quit()
 	case "tab", "shift+tab":
 		if m.focus == focusNav {
 			m.focus = focusContent
@@ -232,7 +246,52 @@ func (m *Model) View() tea.View {
 func (m *Model) render() string {
 	bodyH := max(5, m.h-topH-footerH)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, m.viewNav(bodyH), m.viewContent(bodyH))
-	return lipgloss.JoinVertical(lipgloss.Left, m.viewTop(), body, m.viewStatus(), m.viewHints())
+	base := lipgloss.JoinVertical(lipgloss.Left, m.viewTop(), body, m.viewStatus(), m.viewHints())
+	if !m.pal.open {
+		return base
+	}
+	box := m.viewPalette()
+	x := max(0, (m.w-lipgloss.Width(box))/2)
+	y := max(0, min(4, m.h-lipgloss.Height(box)))
+	return lipgloss.NewCompositor(lipgloss.NewLayer(base), lipgloss.NewLayer(box).X(x).Y(y).Z(1)).Render()
+}
+
+// ─── Préférences ─────────────────────────────────────────────────────────────
+
+// restoreConfig relit les préférences : dernier module affiché et réglages
+// de chaque module.
+func (m *Model) restoreConfig() {
+	cfg, _ := config.Load() // préférences illisibles : on repart de zéro
+	m.cfg = cfg
+	for i, p := range m.panels {
+		if p.Title() == cfg.LastModule {
+			m.cur = i
+		}
+		if ps, ok := p.(panel.Persister); ok {
+			if st := cfg.Panels[p.Title()]; st != nil {
+				ps.Restore(st)
+			}
+		}
+	}
+}
+
+func (m *Model) saveConfig() error {
+	if m.cfg == nil {
+		return nil
+	}
+	m.cfg.LastModule = m.panels[m.cur].Title()
+	for _, p := range m.panels {
+		if ps, ok := p.(panel.Persister); ok {
+			m.cfg.Panels[p.Title()] = ps.State()
+		}
+	}
+	return m.cfg.Save()
+}
+
+// quit enregistre les préférences puis quitte.
+func (m *Model) quit() tea.Cmd {
+	_ = m.saveConfig() // une erreur d'écriture ne doit pas empêcher de quitter
+	return tea.Quit
 }
 
 // fill complète une ligne avec des espaces stylés jusqu'à la largeur w.
@@ -314,7 +373,7 @@ func (m *Model) viewHints() string {
 	t := m.th
 	hints := []panel.Hint{{Key: fmt.Sprintf("↑↓/1-%d", len(m.panels)), Desc: "module"}, {Key: "Tab", Desc: "focus"}}
 	hints = append(hints, m.panels[m.cur].Hints()...)
-	hints = append(hints, panel.Hint{Key: "e", Desc: "éditeur"}, panel.Hint{Key: "q", Desc: "quitter"})
+	hints = append(hints, panel.Hint{Key: "Ctrl+P", Desc: "commandes"}, panel.Hint{Key: "e", Desc: "éditeur"}, panel.Hint{Key: "q", Desc: "quitter"})
 
 	parts := make([]string, len(hints))
 	for i, h := range hints {

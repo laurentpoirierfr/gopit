@@ -24,10 +24,18 @@ jusqu'au premier `go.mod`.
 
 | Touche | Action |
 |---|---|
-| `↑` `↓` ou `1`…`5` | choisir un module |
+| `↑` `↓` ou `1`…`7` | choisir un module |
+| `Ctrl+P` | palette de commandes : toutes les actions de tous les modules |
 | `Tab` / `Échap` | passer de la navigation au module et inversement |
 | `e` | ouvrir l'éditeur sur le projet |
 | `q` | quitter |
+
+## Préférences
+
+Les réglages (dernier module affiché, couverture, cache, filtres,
+répétitions des benchmarks…) sont enregistrés en quittant dans
+`~/.config/gopit/config.json` et relus au démarrage. L'historique des
+benchmarks est rangé dans `~/.cache/gopit/bench/`.
 
 ## Modules
 
@@ -60,6 +68,7 @@ internal/godoc/       documentation d'un paquet en Markdown (go/doc)
 internal/bench/       go test -bench : lecture, comparaison, historique
 internal/prof/        profils pprof : coût par fonction et par ligne
 internal/gitx/        git status / diff / log / add / restore / commit
+internal/config/      préférences (~/.config/gopit/config.json)
 internal/cover/       profils de couverture
 internal/watch/       surveillance des fichiers .go
 internal/editor/      ouverture de $VISUAL / $EDITOR à une ligne donnée
@@ -67,7 +76,9 @@ internal/editor/      ouverture de $VISUAL / $EDITOR à une ligne donnée
 
 Ajouter un module : créer `internal/panels/<nom>` qui implémente
 `panel.Panel`, puis l'enregistrer dans `app.New`. Un module qui a une saisie
-de texte implémente aussi `panel.Capturer` pour recevoir toutes les touches.
+de texte implémente aussi `panel.Capturer` pour recevoir toutes les touches,
+`panel.Commander` pour apparaître dans la palette (Ctrl+P) et
+`panel.Persister` pour garder ses réglages d'une session à l'autre.
 
 ## Développement
 
