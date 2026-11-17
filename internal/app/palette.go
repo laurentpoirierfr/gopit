@@ -68,6 +68,7 @@ func (m *Model) openPalette() {
 			}},
 		paletteItem{title: "Quitter gopit", key: "q", run: func(m *Model) tea.Cmd { return m.quit() }},
 	)
+	m.menu.open = -1
 	m.pal = palette{open: true, items: items}
 	m.filterPalette()
 }

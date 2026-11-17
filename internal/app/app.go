@@ -1,5 +1,6 @@
-// Package app assemble le cockpit : barre du haut, navigation entre modules
-// à gauche, module actif à droite, barre d'état et raccourcis en bas.
+// Package app assemble le cockpit : barre de menus en haut, module affiché
+// (avec une barre latérale des modules, masquable), barre d'état et
+// raccourcis en bas.
 package app
 
 import (
@@ -24,7 +25,6 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/panels/tests"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
-	"github.com/laurentpoirierfr/gopit/internal/version"
 )
 
 type focus int
@@ -35,9 +35,8 @@ const (
 )
 
 const (
-	topH    = 1  // barre du haut
-	footerH = 2  // barre d'état + raccourcis
-	navW    = 24 // largeur de la navigation (bordures comprises)
+	topH = 1  // barre de menus
+	navW = 24 // largeur de la barre latérale (bordures comprises)
 )
 
 type clearFlashMsg int
@@ -54,8 +53,12 @@ type Model struct {
 	flashErr bool
 	flashID  int
 
-	pal palette        // palette de commandes (palette.go)
-	cfg *config.Config // préférences, enregistrées en quittant
+	pal       palette        // palette de commandes (palette.go)
+	menu      menuState      // barre de menus (menu.go)
+	modal     modalKind      // fenêtre d'aide ouverte
+	sidebar   bool           // barre latérale des modules
+	hideHints bool           // ligne des raccourcis masquée
+	cfg       *config.Config // préférences, enregistrées en quittant
 }
 
 // New crée le cockpit pour le projet p.
@@ -73,10 +76,24 @@ func New(p *project.Project) *Model {
 			benchmarks.New(th, p),
 			git.New(th, p),
 		},
+		menu:  menuState{open: -1},
+		focus: focusContent,
 	}
 	m.restoreConfig()
 	return m
 }
+
+// footerH renvoie la hauteur du bas de l'écran (barre d'état et raccourcis).
+func (m *Model) footerH() int {
+	if m.hideHints {
+		return 1
+	}
+	return 2
+}
+
+// resize est appelé quand la place disponible change (lignes masquées…) :
+// les modules recalculent leur affichage au prochain rendu.
+func (m *Model) resize() tea.Cmd { return nil }
 
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{tea.RequestBackgroundColor}
@@ -119,13 +136,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseClickMsg:
 		mo := tea.Mouse(msg)
 		if mo.Button == tea.MouseLeft {
-			m.handleClick(mo.X, mo.Y)
+			return m, m.handleClick(mo.X, mo.Y)
 		}
 		return m, nil
 
 	case tea.MouseWheelMsg:
 		// La molette fait défiler le module affiché (et lui seul).
-		if m.pal.open {
+		if m.pal.open || m.menu.open >= 0 || m.modal != modalNone {
 			return m, nil
 		}
 		return m, m.toPanel(msg)
@@ -150,13 +167,33 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	if s == "ctrl+c" {
 		return m.quit()
 	}
-	// Palette de commandes : prioritaire sur tout le reste.
+	// Fenêtres superposées, dans l'ordre : palette, aide, menu ouvert.
 	if m.pal.open {
 		return m.paletteKey(k)
 	}
-	if s == "ctrl+p" {
+	if m.modal != modalNone {
+		m.modal = modalNone // n'importe quelle touche ferme l'aide
+		return nil
+	}
+	if m.menu.open >= 0 {
+		return m.menuKey(s)
+	}
+	switch s {
+	case "ctrl+p":
 		m.openPalette()
 		return nil
+	case "f10":
+		m.openMenu(0)
+		return nil
+	case "f1":
+		m.modal = modalHelp
+		return nil
+	}
+	for i, mn := range m.menus() {
+		if mn.hotkey != "" && s == mn.hotkey {
+			m.openMenu(i)
+			return nil
+		}
 	}
 	// Saisie en cours dans le panneau : il reçoit toutes les touches.
 	if c, ok := m.panels[m.cur].(panel.Capturer); ok && c.Capturing() {
@@ -166,12 +203,14 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	case "q":
 		return m.quit()
 	case "tab", "shift+tab":
-		if m.focus == focusNav {
-			m.focus = focusContent
-		} else {
-			m.focus = focusNav
+		if m.sidebar {
+			if m.focus == focusNav {
+				m.focus = focusContent
+			} else {
+				m.focus = focusNav
+			}
+			return nil
 		}
-		return nil
 	case "e":
 		return editor.Open(m.proj.Root, "", 0)
 	}
@@ -182,7 +221,7 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	if m.focus == focusNav {
+	if m.sidebar && m.focus == focusNav {
 		switch s {
 		case "up", "k":
 			m.cur = (m.cur - 1 + len(m.panels)) % len(m.panels)
@@ -196,11 +235,7 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	}
-
-	if s == "esc" {
-		m.focus = focusNav
-		return nil
-	}
+	// Échap va au module (fermer une vue, effacer un filtre…).
 	return m.toPanel(k)
 }
 
@@ -214,18 +249,29 @@ func (m *Model) toPanel(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-func (m *Model) handleClick(x, y int) {
-	if y < topH || y >= m.h-footerH {
-		return
+func (m *Model) handleClick(x, y int) tea.Cmd {
+	switch {
+	case m.pal.open:
+		return nil
+	case m.modal != modalNone:
+		m.modal = modalNone
+		return nil
 	}
-	if x < navW {
+	if cmd, ok := m.menuClick(x, y); ok {
+		return cmd
+	}
+	if y < topH || y >= m.h-m.footerH() {
+		return nil
+	}
+	if m.sidebar && x < navW {
 		if i := y - topH - 1; i >= 0 && i < len(m.panels) {
 			m.cur = i
 		}
 		m.focus = focusNav
-		return
+		return nil
 	}
 	m.focus = focusContent
+	return nil
 }
 
 func (m *Model) setFlash(s string, isErr bool) tea.Cmd {
@@ -251,16 +297,16 @@ func (m *Model) View() tea.View {
 }
 
 func (m *Model) render() string {
-	bodyH := max(5, m.h-topH-footerH)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, m.viewNav(bodyH), m.viewContent(bodyH))
-	base := lipgloss.JoinVertical(lipgloss.Left, m.viewTop(), body, m.viewStatus(), m.viewHints())
-	if !m.pal.open {
-		return base
+	bodyH := max(5, m.h-topH-m.footerH())
+	body := m.viewContent(bodyH)
+	if m.sidebar {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, m.viewNav(bodyH), body)
 	}
-	box := m.viewPalette()
-	x := max(0, (m.w-lipgloss.Width(box))/2)
-	y := max(0, min(4, m.h-lipgloss.Height(box)))
-	return lipgloss.NewCompositor(lipgloss.NewLayer(base), lipgloss.NewLayer(box).X(x).Y(y).Z(1)).Render()
+	parts := []string{m.viewMenuBar(), body, m.viewStatus()}
+	if !m.hideHints {
+		parts = append(parts, m.viewHints())
+	}
+	return m.overlays(lipgloss.JoinVertical(lipgloss.Left, parts...))
 }
 
 // ─── Préférences ─────────────────────────────────────────────────────────────
@@ -270,6 +316,7 @@ func (m *Model) render() string {
 func (m *Model) restoreConfig() {
 	cfg, _ := config.Load() // préférences illisibles : on repart de zéro
 	m.cfg = cfg
+	m.sidebar, m.hideHints = cfg.Sidebar, cfg.HideHints
 	for i, p := range m.panels {
 		if p.Title() == cfg.LastModule {
 			m.cur = i
@@ -287,6 +334,7 @@ func (m *Model) saveConfig() error {
 		return nil
 	}
 	m.cfg.LastModule = m.panels[m.cur].Title()
+	m.cfg.Sidebar, m.cfg.HideHints = m.sidebar, m.hideHints
 	for _, p := range m.panels {
 		if ps, ok := p.(panel.Persister); ok {
 			m.cfg.Panels[p.Title()] = ps.State()
@@ -307,13 +355,6 @@ func fill(st lipgloss.Style, s string, w int) string {
 		return s + st.Render(strings.Repeat(" ", gap))
 	}
 	return ansi.Truncate(s, w, "…")
-}
-
-func (m *Model) viewTop() string {
-	t := m.th
-	left := t.Brand.Render(" gopit") + t.TopBar.Render(" ") + t.TopBar.Bold(true).Render(m.proj.Module)
-	right := t.TopInfo.Render(fmt.Sprintf("go %s · gopit %s ", m.proj.GoVersion, version.Version))
-	return fill(t.TopBar, left, m.w-lipgloss.Width(right)) + right
 }
 
 func (m *Model) viewNav(h int) string {
@@ -340,7 +381,10 @@ func (m *Model) viewNav(h int) string {
 
 func (m *Model) viewContent(h int) string {
 	t := m.th
-	w := max(10, m.w-navW)
+	w := m.w
+	if m.sidebar {
+		w = max(10, m.w-navW)
+	}
 	iw, ih := w-4, h-2 // bordures + marge intérieure
 	p := m.panels[m.cur]
 
@@ -356,9 +400,9 @@ func (m *Model) viewContent(h int) string {
 
 func (m *Model) viewStatus() string {
 	t := m.th
-	mode := "NAVIGATION"
-	if m.focus == focusContent {
-		mode = strings.ToUpper(m.panels[m.cur].Title())
+	mode := strings.ToUpper(m.panels[m.cur].Title())
+	if m.sidebar && m.focus == focusNav {
+		mode = "NAVIGATION"
 	}
 	left := t.Badge.Render(mode)
 	switch {
@@ -378,9 +422,12 @@ func (m *Model) viewStatus() string {
 
 func (m *Model) viewHints() string {
 	t := m.th
-	hints := []panel.Hint{{Key: fmt.Sprintf("↑↓/1-%d", len(m.panels)), Desc: "module"}, {Key: "Tab", Desc: "focus"}}
+	hints := []panel.Hint{{Key: "F10", Desc: "menus"}, {Key: fmt.Sprintf("1-%d", len(m.panels)), Desc: "module"}}
+	if m.sidebar {
+		hints = append(hints, panel.Hint{Key: "Tab", Desc: "focus"})
+	}
 	hints = append(hints, m.panels[m.cur].Hints()...)
-	hints = append(hints, panel.Hint{Key: "Ctrl+P", Desc: "commandes"}, panel.Hint{Key: "e", Desc: "éditeur"}, panel.Hint{Key: "q", Desc: "quitter"})
+	hints = append(hints, panel.Hint{Key: "Ctrl+P", Desc: "commandes"}, panel.Hint{Key: "F1", Desc: "aide"}, panel.Hint{Key: "q", Desc: "quitter"})
 
 	parts := make([]string, len(hints))
 	for i, h := range hints {

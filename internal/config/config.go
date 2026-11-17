@@ -14,6 +14,10 @@ import (
 type Config struct {
 	// LastModule est le titre du dernier module affiché.
 	LastModule string `json:"last_module,omitempty"`
+	// Sidebar affiche la barre latérale des modules.
+	Sidebar bool `json:"sidebar,omitempty"`
+	// HideHints masque la ligne des raccourcis en bas de l'écran.
+	HideHints bool `json:"hide_hints,omitempty"`
 	// Panels contient les réglages de chaque module, par titre.
 	Panels map[string]map[string]string `json:"panels,omitempty"`
 }
