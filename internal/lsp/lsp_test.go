@@ -80,8 +80,7 @@ func newFake(t *testing.T, onDiag func(Diagnostics)) (*Client, *fakeServer) {
 
 func TestProtocol(t *testing.T) {
 	diags := make(chan Diagnostics, 1)
-	c, s := newFake(t, func(d Diagnostics) { diags <- d })
-	c.encoding = "utf-16"
+	c, s := newFake(t, func(d Diagnostics) { diags <- d }) // encodage par défaut : UTF-16
 
 	// Document ouvert : ses lignes servent aux conversions.
 	go c.Open("/p/a.go", "package a\nvar 😀x = y\n", 1)

@@ -21,6 +21,16 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Les tests de l'éditeur et du client LSP dialoguent avec le vrai gopls
+      # (ils sont sautés sans lui) : version fixée, pour des résultats stables.
+      - name: Installer gopls
+        run: |
+          go install golang.org/x/tools/gopls@v0.24.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Vérifier gopls
+        run: gopls version
+
       - name: Formatage, vet et tests
         run: make check
 

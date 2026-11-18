@@ -76,9 +76,9 @@ type Client struct {
 	texts  map[string][]string // lignes des documents ouverts, par chemin
 	err    error               // arrêt du serveur
 	done   chan struct{}
+	enc    string // encodage des colonnes : utf-8, utf-16 ou utf-32
 
-	encoding string // utf-8, utf-16 ou utf-32
-	onDiag   func(Diagnostics)
+	onDiag func(Diagnostics)
 }
 
 type response struct {
@@ -129,7 +129,7 @@ func Start(ctx context.Context, root string, onDiag func(Diagnostics)) (*Client,
 // newClient crée un client sur une connexion déjà ouverte (tests).
 func newClient(in io.WriteCloser, out io.Reader, onDiag func(Diagnostics)) *Client {
 	c := &Client{in: in, calls: map[int64]chan response{}, texts: map[string][]string{},
-		done: make(chan struct{}), encoding: "utf-16", onDiag: onDiag}
+		done: make(chan struct{}), enc: "utf-16", onDiag: onDiag}
 	go c.read(bufio.NewReader(out))
 	return c
 }
@@ -163,7 +163,9 @@ func (c *Client) initialize(ctx context.Context, root string) error {
 		return err
 	}
 	if e := res.Capabilities.PositionEncoding; e != "" {
-		c.encoding = e
+		c.mu.Lock()
+		c.enc = e
+		c.mu.Unlock()
 	}
 	return c.notify("initialized", struct{}{})
 }
@@ -382,30 +384,34 @@ func (c *Client) Completion(ctx context.Context, path string, p Pos, trigger str
 
 // ─── Positions ───────────────────────────────────────────────────────────────
 
-// lineOf renvoie la ligne d'un document ouvert, ou lue sur le disque.
-func (c *Client) lineOf(path string, line int) string {
+// lineOf renvoie la ligne d'un document ouvert (ou lue sur le disque) et
+// l'encodage des colonnes.
+func (c *Client) lineOf(path string, line int) (string, string) {
 	c.mu.Lock()
 	lines, ok := c.texts[path]
+	enc := c.enc
 	c.mu.Unlock()
 	if !ok {
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return ""
+			return "", enc
 		}
 		lines = strings.Split(string(data), "\n")
 	}
 	if line < 0 || line >= len(lines) {
-		return ""
+		return "", enc
 	}
-	return lines[line]
+	return lines[line], enc
 }
 
 func (c *Client) toWire(path string, p Pos) wirePos {
-	return wirePos{Line: p.Line, Character: unitsOf(c.lineOf(path, p.Line), p.Col, c.encoding)}
+	line, enc := c.lineOf(path, p.Line)
+	return wirePos{Line: p.Line, Character: unitsOf(line, p.Col, enc)}
 }
 
 func (c *Client) fromWire(path string, w wirePos) Pos {
-	return Pos{Line: w.Line, Col: runesOf(c.lineOf(path, w.Line), w.Character, c.encoding)}
+	line, enc := c.lineOf(path, w.Line)
+	return Pos{Line: w.Line, Col: runesOf(line, w.Character, enc)}
 }
 
 // unitsOf convertit une colonne en runes en unités de l'encodage.
