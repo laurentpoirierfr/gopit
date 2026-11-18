@@ -550,4 +550,7 @@ var en = map[string]string{
 	"Aucun emplacement fichier:ligne sur cette ligne":        "No file:line location on this line",
 	"Tape une commande (go build, make, go run .…) puis Entrée ; elle s'exécute dans le répertoire du projet.": "Type a command (go build, make, go run .…) then Enter; it runs in the project directory.",
 	" en cours… %.0fs · Ctrl+C pour arrêter": " running… %.0fs · Ctrl+C to stop",
+
+	// Barre d'état
+	" (détaché)": " (detached)",
 }

@@ -550,4 +550,7 @@ var es = map[string]string{
 	"Aucun emplacement fichier:ligne sur cette ligne":        "Ninguna ubicación archivo:línea en esta línea",
 	"Tape une commande (go build, make, go run .…) puis Entrée ; elle s'exécute dans le répertoire du projet.": "Escribe un comando (go build, make, go run .…) y pulsa Intro; se ejecuta en el directorio del proyecto.",
 	" en cours… %.0fs · Ctrl+C pour arrêter": " en curso… %.0fs · Ctrl+C para detener",
+
+	// Barre d'état
+	" (détaché)": " (separado)",
 }

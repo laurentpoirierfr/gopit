@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/laurentpoirierfr/gopit/internal/config"
 	"github.com/laurentpoirierfr/gopit/internal/editor"
+	"github.com/laurentpoirierfr/gopit/internal/gitx"
 	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/panels/benchmarks"
@@ -44,6 +46,15 @@ const (
 
 type clearFlashMsg int
 
+// gitMsg apporte l'état du dépôt pour la barre d'état (nil : pas de dépôt).
+type gitMsg struct{ s *gitx.Status }
+
+// gitTickMsg relance la lecture de l'état du dépôt.
+type gitTickMsg struct{}
+
+// gitEvery : la branche peut changer hors de gopit (terminal, autre fenêtre).
+const gitEvery = 5 * time.Second
+
 type Model struct {
 	th     *theme.Theme
 	proj   *project.Project
@@ -66,6 +77,8 @@ type Model struct {
 	langSet   bool           // langue choisie dans les menus : à enregistrer
 	dragging  bool           // glissement de la souris commencé dans le module
 	cfg       *config.Config // préférences, enregistrées en quittant
+	git       *gitx.Status   // branche courante (nil : pas de dépôt)
+	gitBusy   bool           // lecture de l'état du dépôt en cours
 }
 
 // New crée le cockpit pour le projet p.
@@ -108,7 +121,7 @@ func (m *Model) footerH() int {
 func (m *Model) resize() tea.Cmd { return nil }
 
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, m.refreshGit()}
 	for _, p := range m.panels {
 		cmds = append(cmds, p.Init())
 	}
@@ -129,6 +142,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case panel.FlashMsg:
 		return m, m.setFlash(msg.Text, msg.Error)
+
+	case gitMsg:
+		m.git, m.gitBusy = msg.s, false
+		return m, tea.Tick(gitEvery, func(time.Time) tea.Msg { return gitTickMsg{} })
+
+	case gitTickMsg:
+		return m, m.refreshGit()
+
+	case panel.SavedMsg: // fichier enregistré : l'état du dépôt a pu changer
+		return m, tea.Batch(m.broadcast(msg), m.refreshGit())
 
 	case clearFlashMsg:
 		if int(msg) == m.flashID {
@@ -381,6 +404,47 @@ func (m *Model) unsaved() []string {
 	return out
 }
 
+// refreshGit lit la branche courante en arrière-plan (une lecture à la fois).
+func (m *Model) refreshGit() tea.Cmd {
+	if m.gitBusy {
+		return nil
+	}
+	m.gitBusy = true
+	root := m.proj.Root
+	return func() tea.Msg {
+		s, err := gitx.GetBranch(context.Background(), root)
+		if err != nil {
+			return gitMsg{}
+		}
+		return gitMsg{s}
+	}
+}
+
+// gitInfo résume le dépôt : branche (ou commit si HEAD est détaché), « ● »
+// s'il y a des modifications, commits à pousser / à récupérer.
+func (m *Model) gitInfo() string {
+	g := m.git
+	if g == nil || (g.Branch == "" && g.Commit == "") {
+		return ""
+	}
+	base := m.th.StatusInfo.UnsetPadding()
+	name := ansi.Truncate(g.Branch, 32, "…")
+	if name == "" {
+		name = g.Commit + i18n.T(" (détaché)")
+	}
+	s := base.Render("\ue0a0 " + name) // symbole de branche (Nerd Font)
+	if len(g.Changes) > 0 {
+		s += base.Foreground(m.th.P.Yellow).Render(" ●")
+	}
+	if g.Ahead > 0 {
+		s += base.Render(fmt.Sprintf(" ↑%d", g.Ahead))
+	}
+	if g.Behind > 0 {
+		s += base.Render(fmt.Sprintf(" ↓%d", g.Behind))
+	}
+	return s + base.Render(" · ")
+}
+
 func (m *Model) setFlash(s string, isErr bool) tea.Cmd {
 	m.flashID++
 	id := m.flashID
@@ -532,7 +596,8 @@ func (m *Model) viewStatus() string {
 	default:
 		left += t.StatusBar.Render(" " + homeRel(m.proj.Root))
 	}
-	right := t.StatusInfo.Render(fmt.Sprintf(i18n.T("%d dép. directes"), m.proj.Requires))
+	base := t.StatusInfo.UnsetPadding()
+	right := base.Render(" ") + m.gitInfo() + base.Render(fmt.Sprintf(i18n.T("%d dép. directes"), m.proj.Requires)+" ")
 	if lipgloss.Width(left)+lipgloss.Width(right) > m.w {
 		left = ansi.Truncate(left, max(0, m.w-lipgloss.Width(right)), "…")
 	}

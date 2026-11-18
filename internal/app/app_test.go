@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -390,5 +391,61 @@ func TestIcons(t *testing.T) {
 			t.Errorf("%s et %s : même icône", other, p.Title())
 		}
 		seen[icon] = p.Title()
+	}
+}
+
+func TestGitBranchInStatus(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git absent")
+	}
+	m := newApp(t, nil)
+	refresh := func() {
+		t.Helper()
+		cmd := m.refreshGit()
+		if cmd == nil {
+			t.Fatal("lecture de l'état du dépôt attendue")
+		}
+		if m.refreshGit() != nil {
+			t.Error("une seule lecture à la fois")
+		}
+		m.Update(cmd())
+	}
+
+	// Pas de dépôt : rien n'est affiché.
+	refresh()
+	if strings.Contains(ansi.Strip(m.viewStatus()), "") {
+		t.Errorf("hors dépôt :\n%s", ansi.Strip(m.viewStatus()))
+	}
+
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = m.proj.Root
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v : %v\n%s", args, err, out)
+		}
+	}
+	git("init", "-q", "-b", "principale")
+	refresh()
+	status := ansi.Strip(m.viewStatus())
+	if !strings.Contains(status, " principale ·") || strings.Contains(status, "●") {
+		t.Errorf("branche sans modification :\n%s", status)
+	}
+
+	git("add", "a.go")
+	refresh()
+	if status := ansi.Strip(m.viewStatus()); !strings.Contains(status, "principale ●") {
+		t.Errorf("modification indexée :\n%s", status)
+	}
+
+	git("commit", "-q", "-m", "init")
+	git("checkout", "-q", "--detach")
+	refresh()
+	if status := ansi.Strip(m.viewStatus()); !strings.Contains(status, m.git.Commit+" (détaché)") || m.git.Commit == "" {
+		t.Errorf("HEAD détaché :\n%s", status)
+	}
+	if w := ansi.StringWidth(m.viewStatus()); w != width {
+		t.Errorf("largeur de la barre d'état : %d", w)
 	}
 }

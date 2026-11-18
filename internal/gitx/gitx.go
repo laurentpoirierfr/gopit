@@ -84,6 +84,17 @@ func GetStatus(ctx context.Context, dir string) (*Status, error) {
 	return ParseStatus(out)
 }
 
+// GetBranch lit la branche courante et l'état du dépôt sans lister les
+// fichiers non suivis (plus rapide que GetStatus) : de quoi résumer le
+// dépôt dans la barre d'état.
+func GetBranch(ctx context.Context, dir string) (*Status, error) {
+	out, err := Run(ctx, dir, "status", "--porcelain=v2", "--branch", "-z", "--untracked-files=no")
+	if err != nil {
+		return nil, err
+	}
+	return ParseStatus(out)
+}
+
 // ParseStatus lit la sortie de « git status --porcelain=v2 --branch -z ».
 func ParseStatus(out []byte) (*Status, error) {
 	s := &Status{}
