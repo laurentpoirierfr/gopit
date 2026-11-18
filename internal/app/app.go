@@ -202,6 +202,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case panel.ShowMsg:
 		return m, m.show(msg)
 
+	case panel.OutputMsg: // sortie du programme débogué, hors du module Débogage
+		if _, inDebug := m.panels[m.cur].(panel.Debugger); inDebug {
+			return m, nil
+		}
+		return m, m.setFlash("▸ "+msg.Line, msg.Err)
+
 	case tea.PasteMsg:
 		// Un collage ne concerne que le module affiché.
 		if m.pal.open || m.menu.open >= 0 || m.modal != modalNone {

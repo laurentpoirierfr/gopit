@@ -241,6 +241,13 @@ type Debugger interface {
 	DebugKey(key string) tea.Cmd
 }
 
+// OutputMsg est une ligne écrite par le programme débogué : le cadre
+// l'affiche dans la barre d'état quand le module Débogage n'est pas affiché.
+type OutputMsg struct {
+	Line string
+	Err  bool // sortie d'erreur
+}
+
 // BreakpointsMsg est diffusé quand les points d'arrêt d'un fichier changent.
 type BreakpointsMsg struct{ Path string }
 

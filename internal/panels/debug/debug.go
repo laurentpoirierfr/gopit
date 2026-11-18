@@ -36,7 +36,7 @@ const (
 )
 
 const (
-	maxOutput   = 2000 // lignes de sortie gardées
+	maxOutput   = 5000 // lignes de sortie gardées
 	stackLevels = 50
 )
 
@@ -108,13 +108,20 @@ type Model struct {
 	cursor   int     // dans les variables affichées
 	offset   int
 
-	output  []string
-	partial string // fin de sortie sans retour à la ligne
-	varsH   int
+	output   []string
+	outKind  []outKind // origine de chaque ligne de output
+	partial  string    // fin de sortie sans retour à la ligne
+	partKind outKind
+
+	outView   bool // sortie en plein écran (s)
+	outOff    int  // première ligne affichée de la sortie
+	outFollow bool // suivre la fin de la sortie
+	lastH     int  // hauteur du dernier rendu
+	varsH     int
 }
 
 func New(th *theme.Theme, p *project.Project) *Model {
-	return &Model{th: th, proj: p, state: panel.NewDebugState(), start: dap.Start, varsH: 10}
+	return &Model{th: th, proj: p, state: panel.NewDebugState(), start: dap.Start, varsH: 10, outFollow: true}
 }
 
 func (m *Model) Title() string { return i18n.N("Débogage") }
@@ -133,15 +140,20 @@ func (m *Model) Hints() []panel.Hint {
 	if m.choices != nil {
 		return []panel.Hint{{Key: "↑↓", Desc: i18n.T("choisir")}, {Key: "Entrée", Desc: i18n.T("déboguer")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	}
+	if m.outView {
+		return []panel.Hint{{Key: "s / Échap", Desc: i18n.T("pile et variables")}, {Key: "↑↓ PgUp/PgDn", Desc: i18n.T("défiler")},
+			{Key: "F5", Desc: i18n.T("continuer")}, {Key: "F6 F7 F8", Desc: i18n.T("pas à pas")}}
+	}
 	switch m.status {
 	case paused:
 		return []panel.Hint{{Key: "F5", Desc: i18n.T("continuer")}, {Key: "F6", Desc: i18n.T("pas à pas")},
 			{Key: "F7", Desc: i18n.T("entrer")}, {Key: "F8", Desc: i18n.T("sortir")}, {Key: "Maj+F5", Desc: i18n.T("arrêter")},
-			{Key: "u / d", Desc: i18n.T("pile")}, {Key: "→ ←", Desc: i18n.T("déplier / replier")}}
+			{Key: "u / d", Desc: i18n.T("pile")}, {Key: "→ ←", Desc: i18n.T("déplier / replier")}, {Key: "s", Desc: i18n.T("sortie")}}
 	case running, starting:
-		return []panel.Hint{{Key: "F5", Desc: i18n.T("pause")}, {Key: "Maj+F5", Desc: i18n.T("arrêter")}}
+		return []panel.Hint{{Key: "F5", Desc: i18n.T("pause")}, {Key: "Maj+F5", Desc: i18n.T("arrêter")}, {Key: "s", Desc: i18n.T("sortie")}}
 	}
-	return []panel.Hint{{Key: "F5", Desc: i18n.T("lancer")}, {Key: "c", Desc: i18n.T("cible")}, {Key: "F9", Desc: i18n.T("point d'arrêt (éditeur)")}}
+	return []panel.Hint{{Key: "F5", Desc: i18n.T("lancer")}, {Key: "c", Desc: i18n.T("cible")}, {Key: "s", Desc: i18n.T("sortie")},
+		{Key: "F9", Desc: i18n.T("point d'arrêt (éditeur)")}}
 }
 
 func (m *Model) Commands() []panel.Command {
@@ -297,7 +309,7 @@ func (m *Model) launchTarget(target string) tea.Cmd {
 	for _, f := range state.Files() {
 		bps[f] = state.Lines(f)
 	}
-	m.output = nil
+	m.output, m.outKind, m.outOff, m.outFollow = nil, nil, 0, true
 	m.addOutput(fmt.Sprintf(i18n.T("Compilation et lancement de %s…"), target) + "\n")
 	m.mark = len(m.output)
 	return tea.Batch(func() tea.Msg {
@@ -467,8 +479,18 @@ func (m *Model) onEvent(e dap.Event) tea.Cmd {
 		// stdout et stderr du programme (et de la compilation) ; les
 		// messages de Delve lui-même (« console ») n'apprennent rien.
 		var o dap.Output
-		if json.Unmarshal(e.Body, &o) == nil && o.Category != "console" {
-			m.addOutput(o.Output)
+		if json.Unmarshal(e.Body, &o) != nil || o.Category == "console" {
+			return nil
+		}
+		k := outProgram
+		if o.Category == "stderr" {
+			k = outStderr
+		}
+		m.addOutputKind(o.Output, k)
+		// Hors du module Débogage, la dernière ligne s'affiche dans la barre
+		// d'état (voir panel.OutputMsg).
+		if line := lastLine(o.Output); line != "" && m.c != nil {
+			return func() tea.Msg { return panel.OutputMsg{Line: line, Err: k == outStderr} }
 		}
 	case "stopped":
 		var s dap.Stopped
@@ -549,16 +571,46 @@ func (m *Model) selectFrame() tea.Cmd {
 	return tea.Batch(show, load)
 }
 
-func (m *Model) addOutput(s string) {
+// outKind est l'origine d'une ligne de sortie.
+type outKind uint8
+
+const (
+	outInfo    outKind = iota // messages du module (compilation, fin…)
+	outProgram                // sortie standard du programme
+	outStderr                 // sortie d'erreur du programme (ou de la compilation)
+)
+
+// addOutput ajoute un message du module à la sortie.
+func (m *Model) addOutput(s string) { m.addOutputKind(s, outInfo) }
+
+func (m *Model) addOutputKind(s string, k outKind) {
+	if m.partial == "" {
+		m.partKind = k
+	}
 	s = m.partial + s
 	lines := strings.Split(s, "\n")
 	m.partial = lines[len(lines)-1]
 	for _, l := range lines[:len(lines)-1] {
 		m.output = append(m.output, strings.ReplaceAll(ansi.Strip(l), "\t", "    "))
+		m.outKind = append(m.outKind, m.partKind)
+		m.partKind = k
 	}
 	if extra := len(m.output) - maxOutput; extra > 0 {
-		m.output = m.output[extra:]
+		m.output, m.outKind = m.output[extra:], m.outKind[extra:]
+		m.outOff = max(0, m.outOff-extra)
+		m.mark = max(0, m.mark-extra)
 	}
+}
+
+// lastLine renvoie la dernière ligne non vide d'un morceau de sortie.
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if l := strings.TrimSpace(ansi.Strip(lines[i])); l != "" {
+			return l
+		}
+	}
+	return ""
 }
 
 // ─── Touches du module ───────────────────────────────────────────────────────
@@ -600,8 +652,31 @@ func (m *Model) key(s string) tea.Cmd {
 		}
 		return nil
 	}
+	if m.outView {
+		page := max(1, m.outH()-1)
+		switch s {
+		case "s", "esc":
+			m.outView = false
+		case "up", "k":
+			m.scrollOut(-1)
+		case "down", "j":
+			m.scrollOut(1)
+		case "pgup":
+			m.scrollOut(-page)
+		case "pgdown":
+			m.scrollOut(page)
+		case "home", "g":
+			m.scrollOut(-len(m.output))
+		case "end", "G":
+			m.scrollOut(len(m.output))
+		}
+		return nil
+	}
 	rows := m.rows()
 	switch s {
+	case "s":
+		m.outView = true
+		return nil
 	case "c":
 		m.typing, m.input = true, m.target
 	case "up", "k":
@@ -677,6 +752,10 @@ func (m *Model) View(width, height int) string {
 	if height < 6 {
 		return ""
 	}
+	m.lastH = height
+	if m.outView && m.choices == nil && !m.typing {
+		return m.viewStatus(width) + "\n" + m.viewOutput(width, height-1)
+	}
 	var b []string
 	b = append(b, m.viewStatus(width), "")
 	if m.choices != nil {
@@ -734,13 +813,10 @@ func (m *Model) View(width, height int) string {
 		b = append(b, "")
 	}
 
-	b = append(b, "", t.Label.Render(i18n.T("Sortie")))
-	out := m.output
-	if m.partial != "" {
-		out = append(out[:len(out):len(out)], m.partial)
-	}
-	for _, l := range out[max(0, len(out)-(outH-1)):] {
-		b = append(b, ansi.Truncate(t.Text.Render(l), width, "…"))
+	b = append(b, "", t.Label.Render(i18n.T("Sortie"))+t.Dim.Render(i18n.T("  (s : plein écran)")))
+	out := m.allOutput()
+	for i := max(0, len(out)-(outH-1)); i < len(out); i++ {
+		b = append(b, m.outLine(i, out[i], width))
 	}
 	return lipgloss.NewStyle().Height(height).MaxHeight(height).Render(strings.Join(b, "\n"))
 }
@@ -777,6 +853,71 @@ func (m *Model) viewStatus(w int) string {
 			t.Dim.Render(i18n.T("   ex. « . », « ./cmd/outil -- arg », « test ./pkg -run TestX » ; vide : automatique"))
 	}
 	return ansi.Truncate(s, w, "…")
+}
+
+// outH est la hauteur de la sortie en plein écran (mise à jour au rendu).
+func (m *Model) outH() int { return max(1, m.lastH-2) }
+
+// scrollOut fait défiler la sortie en plein écran ; arrivée en bas, elle
+// suit de nouveau la fin.
+func (m *Model) scrollOut(d int) {
+	total := len(m.allOutput())
+	m.outOff = min(max(0, m.outOff+d), max(0, total-m.outH()))
+	m.outFollow = m.outOff >= total-m.outH()
+}
+
+// allOutput renvoie toute la sortie, ligne en cours comprise, avec
+// l'origine de chaque ligne.
+func (m *Model) allOutput() []string {
+	out := m.output
+	if m.partial != "" {
+		out = append(out[:len(out):len(out)], m.partial)
+	}
+	return out
+}
+
+func (m *Model) kindOf(i int) outKind {
+	if i < len(m.outKind) {
+		return m.outKind[i]
+	}
+	return m.partKind
+}
+
+// outLine colore une ligne de sortie selon son origine.
+func (m *Model) outLine(i int, text string, w int) string {
+	t := m.th
+	text = ansi.Truncate(text, w, "…")
+	switch m.kindOf(i) {
+	case outStderr:
+		return lipgloss.NewStyle().Foreground(t.P.Red).Render(text)
+	case outInfo:
+		return t.Dim.Render(text)
+	}
+	return t.Text.Render(text)
+}
+
+// viewOutput affiche la sortie en plein écran.
+func (m *Model) viewOutput(w, h int) string {
+	t := m.th
+	out := m.allOutput()
+	bodyH := max(1, h-2)
+	if m.outFollow {
+		m.outOff = max(0, len(out)-bodyH)
+	}
+	m.outOff = min(m.outOff, max(0, len(out)-bodyH))
+	title := t.Label.Render(i18n.T("Sortie du programme"))
+	pos := ""
+	if len(out) > bodyH {
+		pos = t.Dim.Render(fmt.Sprintf(i18n.T("  lignes %d–%d / %d"), m.outOff+1, min(len(out), m.outOff+bodyH), len(out)))
+	}
+	lines := []string{ansi.Truncate(title+pos, w, "…"), ""}
+	if len(out) == 0 {
+		lines = append(lines, t.Dim.Render(i18n.T("  (rien pour l'instant)")))
+	}
+	for i := m.outOff; i < len(out) && i < m.outOff+bodyH; i++ {
+		lines = append(lines, m.outLine(i, out[i], w))
+	}
+	return lipgloss.NewStyle().Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
 }
 
 // targetLabel décrit la cible : choisie, ou automatique.

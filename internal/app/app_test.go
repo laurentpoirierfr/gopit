@@ -535,3 +535,22 @@ func TestSwitchBranch(t *testing.T) {
 		t.Errorf("refus attendu : %q", m.flash)
 	}
 }
+
+func TestDebugOutputInStatusBar(t *testing.T) {
+	m := newApp(t, nil)
+	press(m, "2") // Éditeur
+	m.Update(panel.OutputMsg{Line: "bonjour"})
+	if m.flash != "▸ bonjour" || m.flashErr {
+		t.Errorf("hors du module Débogage : %q", m.flash)
+	}
+	m.Update(panel.OutputMsg{Line: "erreur", Err: true})
+	if !m.flashErr {
+		t.Error("sortie d'erreur : en rouge")
+	}
+	press(m, "5") // Débogage : la sortie y est déjà affichée
+	m.flash = ""
+	m.Update(panel.OutputMsg{Line: "ignorée"})
+	if m.flash != "" {
+		t.Errorf("dans le module Débogage : %q", m.flash)
+	}
+}

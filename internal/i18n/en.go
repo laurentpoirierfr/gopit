@@ -622,4 +622,12 @@ var en = map[string]string{
 	"   ex. « . », « ./cmd/outil -- arg », « test ./pkg -run TestX » ; vide : automatique": "   e.g. \".\", \"./cmd/tool -- arg\", \"test ./pkg -run TestX\"; empty: automatic",
 	"(cible automatique : le programme ou les tests du fichier affiché)":                   "(automatic target: the program or tests of the file shown)",
 	"Aucun programme (package main) dans le module : ouvre un fichier _test.go pour déboguer ses tests, ou indique une cible avec c (ex. « test ./pkg »)": "No program (package main) in the module: open a _test.go file to debug its tests, or set a target with c (e.g. \"test ./pkg\")",
+
+	// Débogage : sortie
+	"pile et variables":       "stack and variables",
+	"sortie":                  "output",
+	"  (s : plein écran)":     "  (s: full screen)",
+	"Sortie du programme":     "Program output",
+	"  lignes %d–%d / %d":     "  lines %d–%d / %d",
+	"  (rien pour l'instant)": "  (nothing yet)",
 }

@@ -309,3 +309,106 @@ func TestBuildFailureIsExplained(t *testing.T) {
 		t.Errorf("« programme terminé » après un échec :\n%s", out)
 	}
 }
+
+func TestOutputView(t *testing.T) {
+	m := New(theme.New(), &project.Project{Root: t.TempDir()})
+	m.addOutput("Compilation…\n")
+	for i := 1; i <= 100; i++ {
+		m.addOutputKind(fmt.Sprintf("ligne %d\n", i), outProgram)
+	}
+	m.addOutputKind("oups\n", outStderr)
+	m.addOutputKind("sans fin de ligne", outProgram)
+	if m.kindOf(0) != outInfo || m.kindOf(101) != outStderr || len(m.allOutput()) != 103 {
+		t.Fatalf("origines : %v… (%d lignes)", m.outKind[:3], len(m.allOutput()))
+	}
+
+	// Vue normale : seulement la fin, et l'invitation à agrandir.
+	if out := ansi.Strip(m.View(80, 30)); strings.Contains(out, "ligne 50\n") || !strings.Contains(out, "s : plein écran") {
+		t.Errorf("vue normale :\n%s", out)
+	}
+
+	// s : plein écran, qui suit la fin.
+	m.key("s")
+	out := ansi.Strip(m.View(80, 30))
+	if !m.outView || !strings.Contains(out, "sans fin de ligne") || !strings.Contains(out, "oups") || !strings.Contains(out, "/ 103") {
+		t.Fatalf("plein écran :\n%s", out)
+	}
+	// Remonter jusqu'au début : la première ligne réapparaît, la fin n'est plus suivie.
+	m.key("home")
+	out = ansi.Strip(m.View(80, 30))
+	if !strings.Contains(out, "Compilation…") || m.outFollow {
+		t.Errorf("début de la sortie :\n%s", out)
+	}
+	m.addOutputKind("nouvelle\n", outProgram)
+	if out := ansi.Strip(m.View(80, 30)); strings.Contains(out, "nouvelle") {
+		t.Error("en lecture du début, la nouvelle sortie ne fait pas défiler")
+	}
+	m.key("end")
+	if out := ansi.Strip(m.View(80, 30)); !strings.Contains(out, "nouvelle") || !m.outFollow {
+		t.Errorf("fin : de nouveau suivie :\n%s", out)
+	}
+	m.key("esc")
+	if m.outView {
+		t.Error("Échap revient à la pile et aux variables")
+	}
+}
+
+func TestProgramOutputWithDelve(t *testing.T) {
+	root := writeModule(t, map[string]string{"main.go": `package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	fmt.Println("vers stdout")
+	fmt.Fprintln(os.Stderr, "vers stderr")
+}
+`})
+	m := newDebugger(t, root)
+	var lines []panel.OutputMsg
+	msgs := make(chan tea.Msg, 64)
+	run := func(c tea.Cmd) {
+		if c != nil {
+			go func() { msgs <- c() }()
+		}
+	}
+	run(m.DebugKey("f5"))
+	deadline := time.After(2 * time.Minute)
+	for m.status != ended {
+		select {
+		case msg := <-msgs:
+			switch msg := msg.(type) {
+			case tea.BatchMsg:
+				for _, c := range msg {
+					run(c)
+				}
+			case panel.OutputMsg:
+				lines = append(lines, msg)
+			case nil, panel.FlashMsg, panel.ShowMsg:
+			default:
+				_, c := m.Update(msg)
+				run(c)
+			}
+		case <-deadline:
+			t.Fatalf("délai dépassé (état %d)", m.status)
+		}
+	}
+	// Chaque ligne du programme est annoncée (pour la barre d'état), avec son origine.
+	got := map[string]bool{}
+	for _, l := range lines {
+		got[l.Line] = l.Err
+	}
+	if err, ok := got["vers stdout"]; !ok || err {
+		t.Errorf("stdout : %+v", lines)
+	}
+	if err, ok := got["vers stderr"]; !ok || !err {
+		t.Errorf("stderr : %+v", lines)
+	}
+	for i, l := range m.output {
+		if l == "vers stderr" && m.kindOf(i) != outStderr {
+			t.Error("ligne de stderr non marquée")
+		}
+	}
+}
