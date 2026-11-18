@@ -84,6 +84,8 @@ func key(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: 'w', Mod: tea.ModCtrl}
 	case "ctrl+f":
 		return tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl}
+	case "ctrl+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	case "end":
 		return tea.KeyPressMsg{Code: tea.KeyEnd}
 	}
@@ -293,5 +295,32 @@ func TestTabCloseCross(t *testing.T) {
 	}
 	if out := ansi.Strip(m.View(100, 20)); !strings.Contains(out, "b.txt ×") || !strings.Contains(out, "▸") && !strings.Contains(out, "b.txt") {
 		t.Errorf("rendu :\n%s", out)
+	}
+}
+
+func TestCtrlCCopies(t *testing.T) {
+	m, dir := newModel(t)
+	if m.CopiesOnCtrlC() {
+		t.Error("aucun fichier ouvert : Ctrl+C quitte")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n\nvar x = 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if cmd := m.OpenFile("a.go", 3); cmd != nil {
+		t.Fatalf("ouverture : %v", cmd())
+	}
+	for _, editing := range []bool{true, false} {
+		if !m.CopiesOnCtrlC() {
+			t.Fatalf("fichier affiché (édition : %v) : Ctrl+C copie", editing)
+		}
+		m.clip = ""
+		m.Update(key("ctrl+c"))
+		if m.clip != "var x = 1\n" {
+			t.Errorf("sans sélection, la ligne est copiée (édition : %v) : %q", editing, m.clip)
+		}
+		m.Update(key("esc")) // passe en lecture
+	}
+	if m.doc().buf.Dirty() {
+		t.Error("copier ne modifie pas le texte")
 	}
 }

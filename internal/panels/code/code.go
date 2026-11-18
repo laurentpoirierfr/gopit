@@ -105,6 +105,12 @@ func (m *Model) Capturing() bool {
 	return (m.editing && !m.tree.focus) || m.picker != nil || m.prompt != promptNone
 }
 
+// CopiesOnCtrlC : Ctrl+C copie dès qu'un fichier est affiché et que le texte
+// a le focus (en lecture comme en édition) ; ailleurs, il quitte.
+func (m *Model) CopiesOnCtrlC() bool {
+	return m.doc() != nil && !m.tree.focus && m.picker == nil && m.prompt == promptNone
+}
+
 // doc renvoie le fichier affiché (nil : aucun).
 func (m *Model) doc() *doc {
 	if m.cur < 0 || m.cur >= len(m.docs) {
@@ -336,7 +342,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 var keyActions = map[string]panel.EditAction{
 	"ctrl+s": panel.ActSave, "ctrl+o": panel.ActOpen, "ctrl+w": panel.ActClose, "ctrl+f4": panel.ActClose,
 	"ctrl+z": panel.ActUndo, "ctrl+y": panel.ActRedo, "ctrl+shift+z": panel.ActRedo,
-	"ctrl+x": panel.ActCut, "ctrl+insert": panel.ActCopy, "alt+c": panel.ActCopy,
+	"ctrl+x": panel.ActCut, "ctrl+c": panel.ActCopy, "ctrl+insert": panel.ActCopy, "alt+c": panel.ActCopy,
 	"ctrl+v": panel.ActPaste, "shift+insert": panel.ActPaste,
 	"ctrl+a": panel.ActSelectAll, "ctrl+f": panel.ActFind, "f3": panel.ActFindNext,
 	"ctrl+g": panel.ActGoto, "ctrl+/": panel.ActComment, "ctrl+_": panel.ActComment,

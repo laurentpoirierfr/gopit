@@ -66,7 +66,7 @@ func (m *Model) openPalette() {
 				}
 				return editor.Open(m.proj.Root, p, 0)
 			}},
-		paletteItem{title: "Quitter gopit", key: "q", run: func(m *Model) tea.Cmd { return m.quit() }},
+		paletteItem{title: "Quitter gopit", key: "Ctrl+Q", run: func(m *Model) tea.Cmd { return m.quit() }},
 	)
 	m.menu.open = -1
 	m.pal = palette{open: true, items: items}

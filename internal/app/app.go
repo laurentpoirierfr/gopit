@@ -193,10 +193,16 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 
 func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
-	if s != "q" && s != "ctrl+c" {
+	if s == "ctrl+c" && !m.pal.open && m.modal == modalNone && m.menu.open < 0 {
+		if c, ok := m.panels[m.cur].(panel.Copier); ok && c.CopiesOnCtrlC() {
+			m.quitArmed = false
+			return m.toPanel(k)
+		}
+	}
+	if s != "q" && s != "ctrl+c" && s != "ctrl+q" {
 		m.quitArmed = false
 	}
-	if s == "ctrl+c" {
+	if s == "ctrl+c" || s == "ctrl+q" {
 		return m.quit()
 	}
 	// Fenêtres superposées, dans l'ordre : palette, aide, menu ouvert.
@@ -443,7 +449,7 @@ func (m *Model) quit() tea.Cmd {
 		if len(u) > 1 {
 			what = fmt.Sprintf("%d fichiers", len(u))
 		}
-		return m.setFlash(what+" non enregistré(s) : q ou Ctrl+C encore pour quitter sans enregistrer", true)
+		return m.setFlash(what+" non enregistré(s) : q ou Ctrl+Q encore pour quitter sans enregistrer", true)
 	}
 	_ = m.saveConfig() // une erreur d'écriture ne doit pas empêcher de quitter
 	return tea.Quit

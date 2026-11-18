@@ -53,7 +53,7 @@ func (m *Model) menus() []menu {
 	}
 	edit := []menuItem{
 		act("Annuler", "Ctrl+Z", panel.ActUndo), act("Rétablir", "Ctrl+Y", panel.ActRedo), {sep: true},
-		act("Couper", "Ctrl+X", panel.ActCut), act("Copier", "Ctrl+Insert", panel.ActCopy),
+		act("Couper", "Ctrl+X", panel.ActCut), act("Copier", "Ctrl+C", panel.ActCopy),
 		act("Coller", "Ctrl+V", panel.ActPaste), act("Tout sélectionner", "Ctrl+A", panel.ActSelectAll), {sep: true},
 		act("Rechercher", "Ctrl+F", panel.ActFind), act("Occurrence suivante", "F3", panel.ActFindNext),
 		act("Aller à la ligne", "Ctrl+G", panel.ActGoto), {sep: true},
@@ -99,7 +99,7 @@ func (m *Model) menus() []menu {
 				return editor.Open(m.proj.Root, p, 0)
 			}},
 			{sep: true},
-			{label: "Quitter", key: "q", run: func(m *Model) tea.Cmd { return m.quit() }},
+			{label: "Quitter", key: "Ctrl+Q", run: func(m *Model) tea.Cmd { return m.quit() }},
 		}},
 		{title: "Édition", hotkey: "alt+e", items: edit},
 		{title: "Affichage", hotkey: "alt+a", items: []menuItem{
@@ -328,7 +328,7 @@ func (m *Model) viewModal() string {
 			row("F1", "cette aide"),
 			row("e", "éditeur externe"),
 			row("Ctrl+O", "ouvrir un fichier dans l'éditeur intégré"),
-			row("q / Ctrl+C", "quitter"),
+			row("q / Ctrl+Q", "quitter (Ctrl+C hors de l'éditeur)"),
 			"",
 			title.Render("Module " + m.panels[m.cur].Title()),
 		}

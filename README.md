@@ -30,7 +30,7 @@ jusqu'au premier `go.mod`.
 | `Ctrl+O` | ouvrir un fichier du projet dans l'éditeur intégré |
 | `Tab` / `Échap` | passer de la navigation au module et inversement |
 | `e` | ouvrir l'éditeur externe sur le projet |
-| `q` | quitter (confirmation s'il reste des fichiers non enregistrés) |
+| `q` / `Ctrl+Q` | quitter (confirmation s'il reste des fichiers non enregistrés) ; `Ctrl+C` quitte aussi, sauf dans l'éditeur où il copie |
 
 ## Préférences
 
@@ -68,7 +68,7 @@ ou un clic ; `Échap` pour en sortir).
 | `Ctrl+E` | passer du texte à l'arborescence et inversement |
 | `Ctrl+PgDn` / `Ctrl+PgUp` | fichier suivant / précédent |
 | `Ctrl+Z` / `Ctrl+Y` | annuler / rétablir |
-| `Ctrl+X` / `Ctrl+Insert` / `Ctrl+V` | couper (la ligne sans sélection) / copier / coller |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | couper / copier (la ligne sans sélection) / coller |
 | `Ctrl+F`, `F3`, `Maj+F3` | rechercher, occurrence suivante, précédente |
 | `Ctrl+G` | aller à la ligne |
 | `Tab` / `Maj+Tab` | indenter / désindenter (bloc sélectionné) |

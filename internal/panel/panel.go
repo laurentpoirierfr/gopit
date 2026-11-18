@@ -32,9 +32,17 @@ type Panel interface {
 
 // Capturer est implémenté par les panneaux qui ont une saisie de texte
 // (recherche…) : tant que Capturing renvoie true, toutes les touches leur
-// sont transmises (sauf Ctrl+C), y compris q, e, Tab et les chiffres.
+// sont transmises (sauf Ctrl+C et Ctrl+Q), y compris q, e, Tab et les
+// chiffres.
 type Capturer interface {
 	Capturing() bool
+}
+
+// Copier est implémenté par les panneaux où Ctrl+C copie au lieu de quitter
+// (l'éditeur) : tant que CopiesOnCtrlC renvoie true, Ctrl+C leur est transmis.
+// Ctrl+Q quitte toujours.
+type Copier interface {
+	CopiesOnCtrlC() bool
 }
 
 // FlashMsg permet à un panneau d'afficher un message temporaire dans la barre
