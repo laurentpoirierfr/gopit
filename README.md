@@ -61,7 +61,7 @@ préférences ; `gopit -lang en` l'impose pour une session.
 | Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
 | Benchmarks — `go test -bench`, historique des exécutions, comparaison avec une référence (Δ % et bruit), évolution en sparkline, profils CPU et mémoire (`p`, `m`) avec code source annoté | ✅ |
 | Git — état du dépôt, diff coloré, commits récents ; indexer (`s`, `A`), désindexer (`u`), commiter (`c`) — sans action destructive ni push | ✅ |
-| Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration Go, indentation automatique, gofmt à l'enregistrement, erreurs soulignées pendant la frappe (gopls), recherche et remplacement, sélection à la souris, annuler/rétablir, aller à la définition et documentation des symboles (gopls) | ✅ |
+| Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration Go, indentation automatique, gofmt à l'enregistrement, erreurs soulignées pendant la frappe et complétion (gopls), recherche et remplacement, sélection à la souris, annuler/rétablir, aller à la définition et documentation des symboles (gopls) | ✅ |
 
 ### Éditeur intégré
 
@@ -86,6 +86,7 @@ ou un clic ; `Échap` pour en sortir).
 | `Tab` / `Maj+Tab` | indenter / désindenter (bloc sélectionné) |
 | `Ctrl+/` | commenter / décommenter |
 | `Alt+Maj+F` | formater sans enregistrer |
+| `Ctrl+Espace` | complétion (gopls), aussi après un `.` : `↑` `↓` pour choisir, `Entrée` ou `Tab` pour insérer, `Échap` pour fermer |
 | `F12` ou `Ctrl+]` | aller à la définition du symbole sous le curseur (aussi `d` en lecture) |
 | `Ctrl+T` | revenir à la position d'avant le saut |
 | `Ctrl+K` | documentation du symbole sous le curseur (aussi `K` en lecture) |

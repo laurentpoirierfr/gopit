@@ -94,6 +94,8 @@ func key(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	case "end":
 		return tea.KeyPressMsg{Code: tea.KeyEnd}
+	case "home":
+		return tea.KeyPressMsg{Code: tea.KeyHome}
 	}
 	return tea.KeyPressMsg{Code: []rune(s)[0], Text: s}
 }
@@ -554,5 +556,77 @@ func TestLSP(t *testing.T) {
 	pump(cmd, func() bool { return m.doc().buf.Cursor().Line == 3 })
 	if c := m.doc().buf.Cursor(); c != (textbuf.Pos{Line: 3, Col: 5}) {
 		t.Errorf("définition : %v", c)
+	}
+
+	// Complétion après « strings. » tapé dans l'éditeur.
+	m.doc().buf.SetText("package m\n\nimport \"strings\"\n\nvar s = strings\n")
+	m.editing = true
+	m.doc().buf.SetCursor(textbuf.Pos{Line: 4, Col: 15}, false)
+	_, cmd = m.Update(key("."))
+	pump(cmd, func() bool { return m.compl != nil })
+	for _, r := range "Repe" {
+		m.Update(key(string(r)))
+	}
+	if m.compl == nil || m.compl.items[m.compl.shown[0]].Label != "Repeat" {
+		t.Fatalf("« Repeat » attendu en tête : %+v", m.compl)
+	}
+	m.Update(key("enter"))
+	if got := m.doc().buf.Line(4); got != "var s = strings.Repeat" {
+		t.Errorf("après complétion : %q", got)
+	}
+}
+
+func TestCompletionList(t *testing.T) {
+	m, dir := newModel(t)
+	os.WriteFile(filepath.Join(dir, "c.go"), []byte("package c\n\nvar s = strings.Re\n"), 0o600)
+	m.OpenFile("c.go", 3)
+	m.Update(key("end"))
+	path := m.doc().path
+	items := []lsp.Item{
+		{Label: "Repeat", Filter: "Repeat", Text: "Repeat", Kind: lsp.KindFunction, Detail: "func(s string, count int) string"},
+		{Label: "Replace", Filter: "Replace", Text: "Replace", Kind: lsp.KindFunction},
+		{Label: "Reader", Filter: "Reader", Text: "Reader", Kind: lsp.KindStruct},
+	}
+	// Réponse de gopls pour le curseur après « Re » : le mot commence en 16.
+	m.Update(complMsg{path: path, at: m.doc().buf.Cursor(), explicit: true, items: items})
+	if m.compl == nil || len(m.compl.shown) != 3 || m.compl.start.Col != 16 {
+		t.Fatalf("liste attendue : %+v", m.compl)
+	}
+	if out := ansi.Strip(m.View(80, 12)); !strings.Contains(out, "f Repeat") || !strings.Contains(out, "t Reader") {
+		t.Errorf("liste non affichée :\n%s", out)
+	}
+
+	// La frappe filtre ; ↓ choisit sans bouger le curseur ; Tab insère.
+	m.Update(key("p"))
+	if len(m.compl.shown) != 2 {
+		t.Fatalf("après « Rep » : %d propositions", len(m.compl.shown))
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if got := m.doc().buf.Line(2); got != "var s = strings.Replace" || m.compl != nil {
+		t.Errorf("après insertion : %q (liste %v)", got, m.compl != nil)
+	}
+
+	// Un caractère hors identifiant ferme la liste.
+	m.Update(complMsg{path: path, at: m.doc().buf.Cursor(), explicit: true, items: items})
+	m.Update(key("("))
+	if m.compl != nil {
+		t.Error("« ( » ferme la liste")
+	}
+	// Échap ferme la liste sans quitter l'édition.
+	m.Update(complMsg{path: path, at: m.doc().buf.Cursor(), explicit: true, items: items})
+	m.Update(key("esc"))
+	if m.compl != nil || !m.editing {
+		t.Errorf("Échap : liste %v, édition %v", m.compl != nil, m.editing)
+	}
+	// Réponse arrivée après que le curseur est parti : ignorée.
+	at := m.doc().buf.Cursor()
+	m.Update(key("home"))
+	if c := m.doc().buf.Cursor(); c.Col >= at.Col {
+		t.Fatalf("Début : curseur %v", c)
+	}
+	m.Update(complMsg{path: path, at: at, explicit: true, items: items})
+	if m.compl != nil {
+		t.Error("réponse périmée affichée")
 	}
 }

@@ -509,4 +509,11 @@ var es = map[string]string{
 	// Connexion à gopls
 	"gopls s'est arrêté": "gopls se ha detenido",
 	"%s : %s":            "%s: %s",
+
+	// Complétion
+	"insérer":   "insertar",
+	"compléter": "completar",
+	"Complétion indisponible : gopls n'est pas connecté": "Autocompletado no disponible: gopls no está conectado",
+	"Aucune proposition": "Ninguna sugerencia",
+	"Compléter (gopls)":  "Completar (gopls)",
 }

@@ -102,8 +102,9 @@ type Model struct {
 	events   chan tea.Msg                // messages de la connexion
 	diags    map[string][]lsp.Diagnostic // par chemin
 
-	back []mark // positions d'avant les sauts vers une définition (Ctrl+T)
-	info string // documentation affichée sur le texte (vide : aucune)
+	back  []mark      // positions d'avant les sauts vers une définition (Ctrl+T)
+	info  string      // documentation affichée sur le texte (vide : aucune)
+	compl *completion // liste de complétion ouverte (complete.go)
 
 	// Géométrie du dernier rendu (souris, pages).
 	textH, gutterW int
@@ -363,18 +364,42 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 		return m.action(msg.Action)
 	case defMsg:
 		return m.onDefinition(msg)
+	case complMsg:
+		return m.onCompletion(msg)
 	case tea.PasteMsg:
+		m.compl = nil
 		m.paste(msg.Content)
 		return nil
 	case tea.MouseWheelMsg:
 		mo := tea.Mouse(msg)
 		m.wheel(mo.Button == tea.MouseWheelUp, mo.X < m.treeW)
 	case panel.ClickMsg:
+		m.compl = nil
 		m.click(msg)
 	case tea.KeyPressMsg:
-		return m.key(msg)
+		return m.keyWithCompletion(msg)
 	}
 	return nil
+}
+
+// keyWithCompletion traite une touche, puis tient la liste de complétion à
+// jour : filtrée si le mot a changé, fermée si le curseur en est sorti, et
+// ouverte après un « . ».
+func (m *Model) keyWithCompletion(k tea.KeyPressMsg) tea.Cmd {
+	var ver int
+	var cur textbuf.Pos
+	if d := m.doc(); d != nil {
+		ver, cur = d.buf.Version(), d.buf.Cursor()
+	}
+	cmd := m.key(k)
+	d := m.doc()
+	if m.compl != nil && (d == nil || d.buf.Version() != ver || d.buf.Cursor() != cur) && !m.refilter() {
+		m.compl = nil
+	}
+	if d != nil && m.editing && isGo(d) && k.Text == "." && d.buf.Version() != ver {
+		cmd = tea.Batch(cmd, m.requestCompletion("."))
+	}
+	return cmd
 }
 
 // keyActions associe les raccourcis aux actions, en lecture comme en édition.
@@ -388,6 +413,7 @@ var keyActions = map[string]panel.EditAction{
 	"ctrl+g": panel.ActGoto, "ctrl+/": panel.ActComment, "ctrl+_": panel.ActComment,
 	"alt+shift+f": panel.ActFormat, "alt+F": panel.ActFormat,
 	"f12": panel.ActDefinition, "ctrl+]": panel.ActDefinition, "ctrl+t": panel.ActBack, "ctrl+k": panel.ActDoc,
+	"ctrl+space": actComplete, "ctrl+@": actComplete,
 }
 
 // moves associe les touches de déplacement (sans Maj) aux mouvements.
@@ -417,6 +443,11 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
 	if s != "ctrl+w" && s != "ctrl+f4" {
 		m.closeArmed = false
+	}
+	if m.compl != nil {
+		if handled, cmd := m.complKey(s); handled {
+			return cmd
+		}
 	}
 	if m.info != "" { // la documentation se ferme à la touche suivante
 		m.info = ""
@@ -572,6 +603,9 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 	b := d.buf
 	m.follow = true
 	switch a {
+	case actComplete:
+		m.editing = true
+		return m.requestCompletion("")
 	case panel.ActDefinition:
 		return m.lookup(true)
 	case panel.ActDoc:
@@ -890,6 +924,8 @@ func (m *Model) Hints() []panel.Hint {
 		return []panel.Hint{{Key: "↑↓", Desc: i18n.T("choisir")}, {Key: "Entrée", Desc: i18n.T("ouvrir")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	case m.prompt == promptFind:
 		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("valider")}, {Key: "F3 / ↓", Desc: i18n.T("suivante")}, {Key: "Maj+F3 / ↑", Desc: i18n.T("précédente")}, {Key: "Échap", Desc: i18n.T("annuler")}}
+	case m.compl != nil:
+		return []panel.Hint{{Key: "↑↓", Desc: i18n.T("choisir")}, {Key: "Entrée / Tab", Desc: i18n.T("insérer")}, {Key: "Échap", Desc: i18n.T("fermer")}}
 	case m.prompt == promptGoto:
 		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("aller")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	case m.prompt == promptReplace || m.prompt == promptWith:
@@ -904,7 +940,7 @@ func (m *Model) Hints() []panel.Hint {
 		return []panel.Hint{{Key: "Entrée / Ctrl+O", Desc: i18n.T("ouvrir un fichier")}, {Key: "Ctrl+B", Desc: i18n.T("arbre")}}
 	case m.editing:
 		return []panel.Hint{{Key: "Ctrl+S", Desc: i18n.T("enregistrer")}, {Key: "Ctrl+W", Desc: i18n.T("fermer")}, {Key: "Ctrl+O", Desc: i18n.T("ouvrir")},
-			{Key: "Ctrl+F", Desc: i18n.T("chercher")}, {Key: "F12", Desc: i18n.T("définition")}, {Key: "Ctrl+E", Desc: i18n.T("arbre")}, {Key: "Échap", Desc: i18n.T("lecture")}}
+			{Key: "Ctrl+Espace", Desc: i18n.T("compléter")}, {Key: "Ctrl+F", Desc: i18n.T("chercher")}, {Key: "F12", Desc: i18n.T("définition")}, {Key: "Ctrl+E", Desc: i18n.T("arbre")}, {Key: "Échap", Desc: i18n.T("lecture")}}
 	}
 	return []panel.Hint{{Key: "Entrée", Desc: i18n.T("modifier")}, {Key: "w / Ctrl+W", Desc: i18n.T("fermer")}, {Key: "o", Desc: i18n.T("ouvrir")},
 		{Key: "s", Desc: i18n.T("enregistrer")}, {Key: "/", Desc: i18n.T("chercher")}, {Key: "d / F12", Desc: i18n.T("définition")},

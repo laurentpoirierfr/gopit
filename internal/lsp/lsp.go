@@ -148,6 +148,9 @@ func (c *Client) initialize(ctx context.Context, root string) error {
 				"publishDiagnostics": map[string]any{},
 				"hover":              map[string]any{"contentFormat": []string{"plaintext"}},
 				"definition":         map[string]any{},
+				"completion": map[string]any{
+					"completionItem": map[string]any{"snippetSupport": false},
+				},
 			},
 		},
 	}
@@ -280,6 +283,101 @@ func (c *Client) Hover(ctx context.Context, path string, p Pos) (string, error) 
 		return strings.TrimSpace(s), nil
 	}
 	return "", nil
+}
+
+// Kind est la nature d'une proposition de complétion (valeurs du protocole).
+type Kind int
+
+const (
+	KindMethod    Kind = 2
+	KindFunction  Kind = 3
+	KindField     Kind = 5
+	KindVariable  Kind = 6
+	KindClass     Kind = 7
+	KindInterface Kind = 8
+	KindModule    Kind = 9
+	KindProperty  Kind = 10
+	KindKeyword   Kind = 14
+	KindSnippet   Kind = 15
+	KindConstant  Kind = 21
+	KindStruct    Kind = 22
+	KindTypeParam Kind = 25
+)
+
+// Item est une proposition de complétion.
+type Item struct {
+	Label  string // texte affiché
+	Detail string // type ou signature
+	Kind   Kind
+	Filter string // texte servant au filtrage
+	Text   string // texte à insérer
+	// Start est le début du texte que remplace Text (le mot en cours) ;
+	// HasStart est faux si le serveur ne l'a pas précisé.
+	Start    Pos
+	HasStart bool
+}
+
+// Completion renvoie les propositions de complétion en p. trigger est le
+// caractère qui a déclenché la demande (« . »), ou vide pour une demande
+// explicite.
+func (c *Client) Completion(ctx context.Context, path string, p Pos, trigger string) ([]Item, error) {
+	params := c.docPos(path, p)
+	params["context"] = map[string]any{"triggerKind": 1}
+	if trigger != "" {
+		params["context"] = map[string]any{"triggerKind": 2, "triggerCharacter": trigger}
+	}
+	var raw json.RawMessage
+	if err := c.call(ctx, "textDocument/completion", params, &raw); err != nil {
+		return nil, err
+	}
+	type wireItem struct {
+		Label      string `json:"label"`
+		Detail     string `json:"detail"`
+		Kind       Kind   `json:"kind"`
+		FilterText string `json:"filterText"`
+		InsertText string `json:"insertText"`
+		TextEdit   *struct {
+			Range   *wireRange `json:"range"`
+			Insert  *wireRange `json:"insert"` // InsertReplaceEdit
+			NewText string     `json:"newText"`
+		} `json:"textEdit"`
+	}
+	var items []wireItem
+	if len(raw) > 0 && raw[0] == '{' {
+		var list struct {
+			Items []wireItem `json:"items"`
+		}
+		if err := json.Unmarshal(raw, &list); err != nil {
+			return nil, err
+		}
+		items = list.Items
+	} else if len(raw) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &items); err != nil {
+			return nil, err
+		}
+	}
+	out := make([]Item, 0, len(items))
+	for _, w := range items {
+		it := Item{Label: w.Label, Detail: w.Detail, Kind: w.Kind, Filter: w.FilterText, Text: w.InsertText}
+		if it.Filter == "" {
+			it.Filter = w.Label
+		}
+		if e := w.TextEdit; e != nil {
+			it.Text = e.NewText
+			r := e.Range
+			if r == nil {
+				r = e.Insert
+			}
+			if r != nil {
+				it.Start, it.HasStart = c.fromWire(path, r.Start), true
+			}
+		}
+		if it.Text == "" {
+			it.Text = w.Label
+		}
+		out = append(out, it)
+	}
+	return out, nil
 }
 
 // ─── Positions ───────────────────────────────────────────────────────────────

@@ -30,5 +30,6 @@ func (m *Model) Commands() []panel.Command {
 		c(i18n.T("Aller à la définition (gopls)"), "F12", panel.ActDefinition),
 		c(i18n.T("Revenir à la position précédente"), "Ctrl+T", panel.ActBack),
 		c(i18n.T("Documentation du symbole (gopls)"), "Ctrl+K", panel.ActDoc),
+		c(i18n.T("Compléter (gopls)"), "Ctrl+Espace", actComplete),
 	}
 }

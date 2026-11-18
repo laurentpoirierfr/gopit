@@ -60,7 +60,7 @@ that isn't available). You can change it while running (View menu, or
 | Docs — documentation of the module's packages and of the standard library, rendered with Glamour | ✅ |
 | Benchmarks — `go test -bench`, run history, comparison with a baseline (Δ % and noise), sparkline trend, CPU and memory profiles (`p`, `m`) with annotated source | ✅ |
 | Git — repository status, colored diff, recent commits; stage (`s`, `A`), unstage (`u`), commit (`c`) — no destructive action, no push | ✅ |
-| Editor — project tree, several open files, Go highlighting, automatic indentation, gofmt on save, errors underlined as you type (gopls), find and replace, mouse selection, undo/redo, go to definition and symbol documentation (gopls) | ✅ |
+| Editor — project tree, several open files, Go highlighting, automatic indentation, gofmt on save, errors underlined as you type and completion (gopls), find and replace, mouse selection, undo/redo, go to definition and symbol documentation (gopls) | ✅ |
 
 ### Built-in editor
 
@@ -84,6 +84,7 @@ cockpit keys stay active) and **edit** (`Enter` or a click; `Esc` to leave).
 | `Tab` / `Shift+Tab` | indent / unindent (selected block) |
 | `Ctrl+/` | comment / uncomment |
 | `Alt+Shift+F` | format without saving |
+| `Ctrl+Space` | completion (gopls), also after a `.`: `↑` `↓` to choose, `Enter` or `Tab` to insert, `Esc` to close |
 | `F12` or `Ctrl+]` | go to the definition of the symbol under the cursor (also `d` in read mode) |
 | `Ctrl+T` | go back to the position before the jump |
 | `Ctrl+K` | documentation of the symbol under the cursor (also `K` in read mode) |

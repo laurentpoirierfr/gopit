@@ -156,6 +156,9 @@ func (m *Model) View(width, height int) string {
 		}
 	}
 	body = lipgloss.NewStyle().Height(m.textH).MaxHeight(m.textH).Render(body)
+	if d := m.doc(); m.compl != nil && d != nil && m.picker == nil {
+		body = m.overlayCompletion(d, body, width)
+	}
 	right := m.viewTabs(width) + "\n" + body + "\n" + m.viewStatus(width)
 	if tw == 0 {
 		return right
@@ -465,4 +468,20 @@ func (m *Model) renderLine(line []rune, cls []class, dcols []lsp.Severity, from,
 		out.WriteString(m.style(cache, runSt).Render(run.String()))
 	}
 	return out.String()
+}
+
+// overlayCompletion pose la liste de complétion sous le mot complété (ou
+// au-dessus, faute de place).
+func (m *Model) overlayCompletion(d *doc, body string, width int) string {
+	box := m.viewCompletion(width)
+	bw, bh := lipgloss.Width(box), lipgloss.Height(box)
+	start := m.compl.start
+	row := start.Line - d.top
+	x := m.gutterW + dispCol([]rune(d.buf.Line(start.Line)), start.Col) - d.left
+	y := row + 1
+	if y+bh > m.textH {
+		y = row - bh
+	}
+	x, y = max(0, min(x, width-bw)), max(0, y)
+	return lipgloss.NewCompositor(lipgloss.NewLayer(body), lipgloss.NewLayer(box).X(x).Y(y).Z(1)).Render()
 }

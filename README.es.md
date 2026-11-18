@@ -62,7 +62,7 @@ está disponible). Se puede cambiar durante la ejecución (menú Ver, o
 | Docs — documentación de los paquetes del módulo y de la biblioteca estándar, mostrada con Glamour | ✅ |
 | Benchmarks — `go test -bench`, historial de ejecuciones, comparación con una referencia (Δ % y ruido), evolución en sparkline, perfiles de CPU y memoria (`p`, `m`) con código fuente anotado | ✅ |
 | Git — estado del repositorio, diff en color, commits recientes; indexar (`s`, `A`), desindexar (`u`), hacer commit (`c`), sin acciones destructivas ni push | ✅ |
-| Editor — árbol del proyecto, varios archivos abiertos, coloreado de Go, indentación automática, gofmt al guardar, errores subrayados mientras escribes (gopls), buscar y reemplazar, selección con el ratón, deshacer/rehacer, ir a la definición y documentación de los símbolos (gopls) | ✅ |
+| Editor — árbol del proyecto, varios archivos abiertos, coloreado de Go, indentación automática, gofmt al guardar, errores subrayados mientras escribes y autocompletado (gopls), buscar y reemplazar, selección con el ratón, deshacer/rehacer, ir a la definición y documentación de los símbolos (gopls) | ✅ |
 
 ### Editor integrado
 
@@ -87,6 +87,7 @@ o un clic; `Esc` para salir).
 | `Tab` / `Mayús+Tab` | indentar / desindentar (bloque seleccionado) |
 | `Ctrl+/` | comentar / descomentar |
 | `Alt+Mayús+F` | formatear sin guardar |
+| `Ctrl+Espacio` | autocompletado (gopls), también tras un `.`: `↑` `↓` para elegir, `Intro` o `Tab` para insertar, `Esc` para cerrar |
 | `F12` o `Ctrl+]` | ir a la definición del símbolo bajo el cursor (también `d` en lectura) |
 | `Ctrl+T` | volver a la posición anterior al salto |
 | `Ctrl+K` | documentación del símbolo bajo el cursor (también `K` en lectura) |

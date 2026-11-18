@@ -198,4 +198,23 @@ func TestGopls(t *testing.T) {
 	if err != nil || !strings.Contains(doc, "Deux renvoie 2.") {
 		t.Errorf("documentation : %q %v", doc, err)
 	}
+
+	// Complétion après « strings.Rep » : le mot commencé sera remplacé.
+	withImport := "package m\n\nimport \"strings\"\n\nvar s = strings.Rep\n"
+	if err := c.Change(path, withImport, 3); err != nil {
+		t.Fatal(err)
+	}
+	items, err := c.Completion(ctx, path, Pos{4, 19}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found *Item
+	for i := range items {
+		if items[i].Label == "Repeat" {
+			found = &items[i]
+		}
+	}
+	if found == nil || found.Kind != KindFunction || !found.HasStart || found.Start != (Pos{4, 16}) || !strings.HasPrefix(found.Text, "Repeat") {
+		t.Errorf("complétion « Repeat » : %+v (%d propositions)", found, len(items))
+	}
 }
