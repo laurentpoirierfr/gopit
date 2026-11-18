@@ -604,4 +604,12 @@ var en = map[string]string{
 	"Changer de branche git…":                                                            "Switch git branch…",
 	"Changer de branche (git switch)":                                                    "Switch branch (git switch)",
 	"branche":                                                                            "branch",
+
+	// Nouveau module
+	"chemin de module invalide : ":                               "invalid module path: ",
+	"Aucun go.mod trouvé dans %s.":                               "No go.mod found in %s.",
+	"Créer un nouveau module Go ici ?":                           "Create a new Go module here?",
+	"Chemin du module : ":                                        "Module path: ",
+	"Entrée créer · Tab modifier la proposition · Échap annuler": "Enter create · Tab edit the suggestion · Esc cancel",
+	"✓ go.mod créé : module %s":                                  "✓ go.mod created: module %s",
 }

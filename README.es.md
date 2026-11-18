@@ -24,7 +24,10 @@ make build
 ```
 
 gopit sube desde el directorio indicado (por defecto, el directorio actual)
-hasta el primer `go.mod`.
+hasta el primer `go.mod`. Si no lo encuentra, propone crear un módulo
+(`go mod init`); la ruta propuesta viene del repositorio git
+(`git remote`) o de la cuenta de GitHub (`gh`, `git config github.user`):
+`Intro` la acepta, `Tab` permite modificarla.
 
 | Tecla | Acción |
 |---|---|

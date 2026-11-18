@@ -23,7 +23,10 @@ make build
 ```
 
 gopit walks up from the given directory (the current directory by default)
-to the first `go.mod`.
+to the first `go.mod`. If there is none, it offers to create a module
+(`go mod init`); the suggested path comes from the git repository
+(`git remote`) or the GitHub account (`gh`, `git config github.user`):
+`Enter` accepts it, `Tab` lets you edit it.
 
 | Key | Action |
 |---|---|

@@ -23,7 +23,10 @@ make build
 ```
 
 gopit remonte depuis le répertoire donné (par défaut le répertoire courant)
-jusqu'au premier `go.mod`.
+jusqu'au premier `go.mod`. S'il n'en trouve pas, il propose de créer un
+module (`go mod init`) ; le chemin proposé vient du dépôt git
+(`git remote`) ou du compte GitHub (`gh`, `git config github.user`) :
+`Entrée` l'accepte, `Tab` permet de le modifier.
 
 | Touche | Action |
 |---|---|
