@@ -1,6 +1,7 @@
 package debug
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -162,5 +163,149 @@ func TestDebugWithDelve(t *testing.T) {
 	}
 	if strings.Contains(strings.Join(m.output, "\n"), "dlv help") {
 		t.Error("messages de Delve affichés")
+	}
+}
+
+func TestResolveTarget(t *testing.T) {
+	root := "/p"
+	lib := []pkgInfo{{"p", "/p"}, {"util", "/p/util"}}
+	one := append(lib, pkgInfo{"main", "/p/cmd/outil"})
+	two := append(one, pkgInfo{"main", "/p/cmd/autre"})
+	for _, c := range []struct {
+		name    string
+		pkgs    []pkgInfo
+		current string
+		target  string
+		choices int
+		err     bool
+	}{
+		{"programme du fichier affiché", two, "/p/cmd/autre/main.go", "./cmd/autre", 0, false},
+		{"tests du fichier affiché", two, "/p/util/x_test.go", "test ./util", 0, false},
+		{"seul programme", one, "/p/util/x.go", "./cmd/outil", 0, false},
+		{"programme à la racine", []pkgInfo{{"main", "/p"}}, "", ".", 0, false},
+		{"plusieurs programmes", two, "", "", 2, false},
+		{"aucun programme", lib, "/p/util/x.go", "", 0, true},
+	} {
+		target, choices, err := resolveTarget(c.pkgs, root, c.current)
+		if target != c.target || len(choices) != c.choices || (err != nil) != c.err {
+			t.Errorf("%s : %q %v %v", c.name, target, choices, err)
+		}
+	}
+}
+
+func TestBuildError(t *testing.T) {
+	out := []string{"Building /p", "Build Error: go build -o /p/__debug_bin -gcflags all=-N -l /p", "# demo",
+		"./main.go:3:15: undefined: indefini (exit status 1)"}
+	if got := buildError(out); got != "./main.go:3:15: undefined: indefini" {
+		t.Errorf("%q", got)
+	}
+	if got := buildError([]string{"Build Error: go build -o x .", "no Go files in /p (exit status 1)"}); got != "no Go files in /p" {
+		t.Errorf("%q", got)
+	}
+}
+
+// writeModule crée un module de test : files associe chemins et contenus.
+func writeModule(t *testing.T, files map[string]string) string {
+	t.Helper()
+	if _, err := exec.LookPath("dlv"); err != nil {
+		t.Skip("dlv absent")
+	}
+	if testing.Short() {
+		t.Skip("lent")
+	}
+	root := t.TempDir()
+	files["go.mod"] = "module demo\n\ngo 1.22\n"
+	for name, src := range files {
+		p := filepath.Join(root, filepath.FromSlash(name))
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte(src), 0o600)
+	}
+	return root
+}
+
+func newDebugger(t *testing.T, root string) *Model {
+	m := New(theme.New(), &project.Project{Root: root})
+	t.Cleanup(func() {
+		if m.c != nil {
+			m.c.Close()
+		}
+	})
+	return m
+}
+
+func TestAutoTargetWithDelve(t *testing.T) {
+	prog := "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println(\"%s\") }\n"
+	root := writeModule(t, map[string]string{
+		"lib.go":           "package demo\n",
+		"cmd/un/main.go":   fmt.Sprintf(prog, "un"),
+		"cmd/deux/main.go": fmt.Sprintf(prog, "deux"),
+	})
+	m := newDebugger(t, root)
+	pump := newPump(t, m)
+
+	// Rien d'affiché dans l'éditeur, deux programmes : le choix est proposé.
+	pump(m.DebugKey("f5"), func() bool { return m.choices != nil })
+	if len(m.choices) != 2 || !m.Capturing() {
+		t.Fatalf("choix : %v", m.choices)
+	}
+	for m.choices[m.choiceSel] != "./cmd/deux" {
+		m.key("down")
+	}
+	pump(m.key("enter"), func() bool { return m.status == ended })
+	if out := strings.Join(m.output, "\n"); !strings.Contains(out, "deux") || m.target != "./cmd/deux" {
+		t.Errorf("cible %q, sortie :\n%s", m.target, out)
+	}
+
+	// Fichier d'un programme affiché : c'est lui qui est débogué.
+	m.target = ""
+	m.state.Current = filepath.Join(root, "cmd", "un", "main.go")
+	pump(m.DebugKey("f5"), func() bool { return m.status == ended })
+	if m.active != "./cmd/un" || !strings.Contains(strings.Join(m.output, "\n"), "un") {
+		t.Errorf("cible automatique : %q", m.active)
+	}
+}
+
+func TestBuildFailureIsExplained(t *testing.T) {
+	root := writeModule(t, map[string]string{"main.go": "package main\n\nfunc main() { indefini() }\n"})
+	m := newDebugger(t, root)
+	var flash string
+	msgs := make(chan tea.Msg, 64)
+	run := func(c tea.Cmd) {
+		if c != nil {
+			go func() { msgs <- c() }()
+		}
+	}
+	run(m.DebugKey("f5"))
+	deadline := time.After(2 * time.Minute)
+	for m.status != ended || flash == "" {
+		select {
+		case msg := <-msgs:
+			switch msg := msg.(type) {
+			case tea.BatchMsg:
+				for _, c := range msg {
+					run(c)
+				}
+			case panel.FlashMsg:
+				flash = msg.Text
+			case nil, panel.ShowMsg:
+			default:
+				_, c := m.Update(msg)
+				run(c)
+			}
+		case <-deadline:
+			t.Fatalf("délai dépassé (état %d)", m.status)
+		}
+	}
+	if !strings.Contains(flash, "indefini") {
+		t.Errorf("erreur de compilation non expliquée : %q", flash)
+	}
+	time.Sleep(200 * time.Millisecond) // un éventuel « terminated » tardif
+	for len(msgs) > 0 {
+		if msg, ok := (<-msgs).(eventMsg); ok {
+			m.Update(msg)
+		}
+	}
+	if out := strings.Join(m.output, "\n"); strings.Contains(out, "code 0") {
+		t.Errorf("« programme terminé » après un échec :\n%s", out)
 	}
 }

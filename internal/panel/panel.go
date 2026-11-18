@@ -185,6 +185,7 @@ type DebugState struct {
 	bps      map[string]map[int]bool // chemin absolu → lignes (à partir de 1)
 	StopPath string                  // position où le programme est arrêté
 	StopLine int                     // (0 : nulle part)
+	Current  string                  // fichier affiché dans l'éditeur (cible automatique)
 }
 
 // NewDebugState crée un état vide.

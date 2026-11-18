@@ -591,7 +591,6 @@ var es = map[string]string{
 	"❚❚ En pause (%s)":                                                 "❚❚ En pausa (%s)",
 	"■ Session terminée — F5 pour relancer %s":                         "■ Sesión terminada — F5 para volver a depurar %s",
 	"Cible : ": "Objetivo: ",
-	"   ex. « . », « ./cmd/outil -- arg », « test ./pkg -run TestX »": "   p. ej. «.», «./cmd/herramienta -- arg», «test ./pkg -run TestX»",
 
 	// Branches git
 	"Branches : ":               "Ramas: ",
@@ -612,4 +611,15 @@ var es = map[string]string{
 	"Chemin du module : ":                                        "Ruta del módulo: ",
 	"Entrée créer · Tab modifier la proposition · Échap annuler": "Intro crear · Tab editar la sugerencia · Esc cancelar",
 	"✓ go.mod créé : module %s":                                  "✓ go.mod creado: módulo %s",
+
+	// Débogage : cible automatique
+	"déboguer":               "depurar",
+	"compilation impossible": "compilación fallida",
+	"Plusieurs programmes : choisis lequel déboguer (module Débogage)":                     "Varios programas: elige cuál depurar (módulo Depuración)",
+	"Le choix est retenu ; c permet d'en changer.":                                         "La elección se recuerda; c permite cambiarla.",
+	"◌ Recherche du programme à déboguer…":                                                 "◌ Buscando el programa que depurar…",
+	"Plusieurs programmes dans le module : lequel déboguer ?":                              "Varios programas en el módulo: ¿cuál depurar?",
+	"   ex. « . », « ./cmd/outil -- arg », « test ./pkg -run TestX » ; vide : automatique": "   p. ej. «.», «./cmd/herramienta -- arg», «test ./pkg -run TestX»; vacío: automático",
+	"(cible automatique : le programme ou les tests du fichier affiché)":                   "(objetivo automático: el programa o las pruebas del archivo mostrado)",
+	"Aucun programme (package main) dans le module : ouvre un fichier _test.go pour déboguer ses tests, ou indique une cible avec c (ex. « test ./pkg »)": "Ningún programa (package main) en el módulo: abre un archivo _test.go para depurar sus pruebas, o indica un objetivo con c (p. ej. «test ./pkg»)",
 }

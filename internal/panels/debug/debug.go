@@ -86,9 +86,14 @@ type Model struct {
 	state *panel.DebugState
 	start startFunc
 
-	target string // « . », « ./cmd/x -- args », « test ./pkg -run TestX »
-	typing bool   // saisie de la cible
-	input  string
+	target string // choisie (c) : « . », « ./cmd/x -- args », « test ./pkg -run TestX » ; vide : automatique
+	active string // cible de la session en cours
+
+	choices   []string // programmes proposés quand la cible automatique hésite
+	choiceSel int
+	mark      int  // début de la sortie de la session (erreur de compilation)
+	typing    bool // saisie de la cible
+	input     string
 
 	status   status
 	c        *dap.Client
@@ -109,7 +114,7 @@ type Model struct {
 }
 
 func New(th *theme.Theme, p *project.Project) *Model {
-	return &Model{th: th, proj: p, state: panel.NewDebugState(), start: dap.Start, target: ".", varsH: 10}
+	return &Model{th: th, proj: p, state: panel.NewDebugState(), start: dap.Start, varsH: 10}
 }
 
 func (m *Model) Title() string { return i18n.N("Débogage") }
@@ -119,11 +124,14 @@ func (m *Model) Init() tea.Cmd { return nil }
 // UseDebug partage l'état de débogage avec l'éditeur.
 func (m *Model) UseDebug(s *panel.DebugState) { m.state = s }
 
-func (m *Model) Capturing() bool { return m.typing }
+func (m *Model) Capturing() bool { return m.typing || m.choices != nil }
 
 func (m *Model) Hints() []panel.Hint {
 	if m.typing {
 		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("valider")}, {Key: "Échap", Desc: i18n.T("annuler")}}
+	}
+	if m.choices != nil {
+		return []panel.Hint{{Key: "↑↓", Desc: i18n.T("choisir")}, {Key: "Entrée", Desc: i18n.T("déboguer")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	}
 	switch m.status {
 	case paused:
@@ -166,7 +174,8 @@ func (m *Model) State() map[string]string {
 }
 
 func (m *Model) Restore(s map[string]string) {
-	if t := strings.TrimSpace(s["target"]); t != "" {
+	// « . » était la cible par défaut des versions précédentes : automatique.
+	if t := strings.TrimSpace(s["target"]); t != "" && t != "." {
 		m.target = t
 	}
 	for _, bp := range strings.Split(s["breakpoints"], "\n") {
@@ -220,6 +229,9 @@ func (m *Model) DebugKey(key string) tea.Cmd {
 	case "f5":
 		switch m.status {
 		case idle, ended:
+			if m.choices != nil {
+				return nil
+			}
 			return m.launch()
 		case paused:
 			return m.resume(func(ctx context.Context, c *dap.Client, t int) error { return c.Continue(ctx, t) })
@@ -247,16 +259,47 @@ func (m *Model) DebugKey(key string) tea.Cmd {
 
 // launch démarre Delve, compile et lance la cible, pose les points d'arrêt.
 func (m *Model) launch() tea.Cmd {
-	m.status, m.output, m.partial, m.frames, m.vars = starting, nil, "", nil, nil
-	m.reason, m.exitCode = "", 0
+	if m.target != "" {
+		return m.launchTarget(m.target)
+	}
+	// Cible automatique : d'après les paquets et le fichier affiché.
+	m.status = starting
+	root, current := m.proj.Root, m.state.Current
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		pkgs, err := listPackages(ctx, root)
+		if err != nil {
+			return resolvedMsg{err: err}
+		}
+		target, choices, err := resolveTarget(pkgs, root, current)
+		return resolvedMsg{target: target, choices: choices, err: err}
+	}
+}
+
+// resolvedMsg est la cible automatique trouvée (ou les programmes entre
+// lesquels choisir).
+type resolvedMsg struct {
+	target  string
+	choices []string
+	err     error
+}
+
+// launchTarget démarre Delve, compile et lance la cible, pose les points
+// d'arrêt.
+func (m *Model) launchTarget(target string) tea.Cmd {
+	m.status, m.partial, m.frames, m.vars = starting, "", nil, nil
+	m.reason, m.exitCode, m.active = "", 0, target
 	m.events = make(chan tea.Msg, 512)
 	events, start, root, state := m.events, m.start, m.proj.Root, m.state
-	l := parseTarget(root, m.target)
+	l := parseTarget(root, target)
 	bps := map[string][]int{}
 	for _, f := range state.Files() {
 		bps[f] = state.Lines(f)
 	}
-	m.addOutput(fmt.Sprintf(i18n.T("Compilation et lancement de %s…"), m.target) + "\n")
+	m.output = nil
+	m.addOutput(fmt.Sprintf(i18n.T("Compilation et lancement de %s…"), target) + "\n")
+	m.mark = len(m.output)
 	return tea.Batch(func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
@@ -335,12 +378,19 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	case startedMsg:
 		if msg.err != nil {
 			m.status = ended
-			if errors.Is(msg.err, dap.ErrMissing) {
-				m.addOutput(msg.err.Error() + " : " + dap.Install + "\n")
-			} else {
-				m.addOutput(msg.err.Error() + "\n")
+			why := msg.err.Error()
+			switch {
+			case errors.Is(msg.err, dap.ErrMissing):
+				why += " : " + dap.Install
+			case strings.Contains(why, "Build error"):
+				// Le détail de la compilation est arrivé dans la sortie.
+				why = i18n.T("compilation impossible")
+				if line := buildError(m.output[min(m.mark, len(m.output)):]); line != "" {
+					why += " — " + line
+				}
 			}
-			return m, panel.Flash(i18n.T("Débogage : ")+msg.err.Error(), true)
+			m.addOutput("✗ " + why + "\n")
+			return m, panel.Flash(i18n.T("Débogage : ")+why, true)
 		}
 		if m.status != starting { // arrêté pendant le lancement
 			c := msg.c
@@ -348,6 +398,18 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		}
 		m.c, m.status = msg.c, running
 		return m, nil
+
+	case resolvedMsg:
+		switch {
+		case msg.err != nil:
+			m.status = ended
+			m.addOutput("✗ " + msg.err.Error() + "\n")
+			return m, panel.Flash(i18n.T("Débogage : ")+msg.err.Error(), true)
+		case msg.choices != nil:
+			m.status, m.choices, m.choiceSel = idle, msg.choices, 0
+			return m, panel.Flash(i18n.T("Plusieurs programmes : choisis lequel déboguer (module Débogage)"), false)
+		}
+		return m, m.launchTarget(msg.target)
 
 	case eventMsg:
 		return m, tea.Batch(m.onEvent(dap.Event(msg)), m.waitEvent())
@@ -433,6 +495,9 @@ func (m *Model) onEvent(e dap.Event) tea.Cmd {
 			m.exitCode = x.ExitCode
 		}
 	case "terminated":
+		if m.c == nil { // lancement échoué : il n'y a pas eu de programme
+			return nil
+		}
 		return m.stop(fmt.Sprintf(i18n.T("Programme terminé (code %d)"), m.exitCode))
 	}
 	return nil
@@ -499,12 +564,25 @@ func (m *Model) addOutput(s string) {
 // ─── Touches du module ───────────────────────────────────────────────────────
 
 func (m *Model) key(s string) tea.Cmd {
+	if m.choices != nil {
+		switch s {
+		case "up", "k":
+			m.choiceSel = max(0, m.choiceSel-1)
+		case "down", "j":
+			m.choiceSel = min(len(m.choices)-1, m.choiceSel+1)
+		case "enter":
+			m.target = m.choices[m.choiceSel] // retenue ; c pour en changer
+			m.choices = nil
+			return m.launchTarget(m.target)
+		case "esc":
+			m.choices = nil
+		}
+		return nil
+	}
 	if m.typing {
 		switch s {
 		case "enter":
-			if t := strings.TrimSpace(m.input); t != "" {
-				m.target = t
-			}
+			m.target = strings.TrimSpace(m.input) // vide : cible automatique
 			m.typing = false
 		case "esc":
 			m.typing = false
@@ -601,6 +679,17 @@ func (m *Model) View(width, height int) string {
 	}
 	var b []string
 	b = append(b, m.viewStatus(width), "")
+	if m.choices != nil {
+		for i, c := range m.choices {
+			line := "  " + c
+			if i == m.choiceSel {
+				line = lipgloss.NewStyle().Background(t.P.Surface1).Foreground(t.P.Text).Render("▶ " + c)
+			}
+			b = append(b, line)
+		}
+		b = append(b, "", t.Dim.Render(i18n.T("Le choix est retenu ; c permet d'en changer.")))
+		return lipgloss.NewStyle().Height(height).MaxHeight(height).Render(strings.Join(b, "\n"))
+	}
 
 	// Pile d'appels (au plus 6 lignes).
 	b = append(b, t.Label.Render(i18n.T("Pile d'appels")))
@@ -661,9 +750,13 @@ func (m *Model) viewStatus(w int) string {
 	var s string
 	switch m.status {
 	case idle:
-		s = t.Dim.Render(fmt.Sprintf(i18n.T("○ Aucune session — F5 pour déboguer %s (c pour changer de cible)"), m.target))
+		s = t.Dim.Render(fmt.Sprintf(i18n.T("○ Aucune session — F5 pour déboguer %s (c pour changer de cible)"), m.targetLabel()))
 	case starting:
-		s = t.Warn.Render(fmt.Sprintf(i18n.T("◌ Compilation et lancement de %s…"), m.target))
+		if m.active == "" {
+			s = t.Warn.Render(i18n.T("◌ Recherche du programme à déboguer…"))
+		} else {
+			s = t.Warn.Render(fmt.Sprintf(i18n.T("◌ Compilation et lancement de %s…"), m.active))
+		}
 	case running:
 		s = lipgloss.NewStyle().Foreground(t.P.Green).Render(i18n.T("▶ En cours — F5 pour interrompre"))
 	case paused:
@@ -674,13 +767,24 @@ func (m *Model) viewStatus(w int) string {
 		}
 		s = lipgloss.NewStyle().Foreground(t.P.Yellow).Bold(true).Render(fmt.Sprintf(i18n.T("❚❚ En pause (%s)"), m.reason) + where)
 	case ended:
-		s = t.Dim.Render(fmt.Sprintf(i18n.T("■ Session terminée — F5 pour relancer %s"), m.target))
+		s = t.Dim.Render(fmt.Sprintf(i18n.T("■ Session terminée — F5 pour relancer %s"), m.targetLabel()))
+	}
+	if m.choices != nil {
+		s = lipgloss.NewStyle().Foreground(t.P.Accent).Bold(true).Render(i18n.T("Plusieurs programmes dans le module : lequel déboguer ?"))
 	}
 	if m.typing {
 		s = t.Label.Render(i18n.T("Cible : ")) + t.Value.Render(m.input) + t.Text.Reverse(true).Render(" ") +
-			t.Dim.Render(i18n.T("   ex. « . », « ./cmd/outil -- arg », « test ./pkg -run TestX »"))
+			t.Dim.Render(i18n.T("   ex. « . », « ./cmd/outil -- arg », « test ./pkg -run TestX » ; vide : automatique"))
 	}
 	return ansi.Truncate(s, w, "…")
+}
+
+// targetLabel décrit la cible : choisie, ou automatique.
+func (m *Model) targetLabel() string {
+	if m.target != "" {
+		return m.target
+	}
+	return i18n.T("(cible automatique : le programme ou les tests du fichier affiché)")
 }
 
 func (m *Model) viewVar(n *node, sel bool, w int) string {

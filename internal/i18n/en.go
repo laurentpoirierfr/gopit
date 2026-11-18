@@ -591,7 +591,6 @@ var en = map[string]string{
 	"❚❚ En pause (%s)":                                                 "❚❚ Paused (%s)",
 	"■ Session terminée — F5 pour relancer %s":                         "■ Session ended — F5 to debug %s again",
 	"Cible : ": "Target: ",
-	"   ex. « . », « ./cmd/outil -- arg », « test ./pkg -run TestX »": "   e.g. \".\", \"./cmd/tool -- arg\", \"test ./pkg -run TestX\"",
 
 	// Branches git
 	"Branches : ":               "Branches: ",
@@ -612,4 +611,15 @@ var en = map[string]string{
 	"Chemin du module : ":                                        "Module path: ",
 	"Entrée créer · Tab modifier la proposition · Échap annuler": "Enter create · Tab edit the suggestion · Esc cancel",
 	"✓ go.mod créé : module %s":                                  "✓ go.mod created: module %s",
+
+	// Débogage : cible automatique
+	"déboguer":               "debug",
+	"compilation impossible": "build failed",
+	"Plusieurs programmes : choisis lequel déboguer (module Débogage)":                     "Several programs: choose which one to debug (Debug module)",
+	"Le choix est retenu ; c permet d'en changer.":                                         "The choice is remembered; c lets you change it.",
+	"◌ Recherche du programme à déboguer…":                                                 "◌ Looking for the program to debug…",
+	"Plusieurs programmes dans le module : lequel déboguer ?":                              "Several programs in the module: which one to debug?",
+	"   ex. « . », « ./cmd/outil -- arg », « test ./pkg -run TestX » ; vide : automatique": "   e.g. \".\", \"./cmd/tool -- arg\", \"test ./pkg -run TestX\"; empty: automatic",
+	"(cible automatique : le programme ou les tests du fichier affiché)":                   "(automatic target: the program or tests of the file shown)",
+	"Aucun programme (package main) dans le module : ouvre un fichier _test.go pour déboguer ses tests, ou indique une cible avec c (ex. « test ./pkg »)": "No program (package main) in the module: open a _test.go file to debug its tests, or set a target with c (e.g. \"test ./pkg\")",
 }

@@ -362,6 +362,11 @@ func (m *Model) Restore(st map[string]string) {
 
 func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	cmd := m.update(msg)
+	if d := m.doc(); d != nil {
+		m.dbg.Current = d.path // le débogueur s'en sert pour choisir sa cible
+	} else {
+		m.dbg.Current = ""
+	}
 	return m, tea.Batch(cmd, m.lspSync(), m.watchSync())
 }
 
