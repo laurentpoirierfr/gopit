@@ -15,166 +15,173 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/theme"
 )
 
-func newModel(t *testing.T) *Model {
+// newShell démarre un vrai /bin/sh dans un pseudo-terminal de 80×24.
+func newShell(t *testing.T) *Model {
 	t.Helper()
 	if runtime.GOOS == "windows" {
-		t.Skip("tests écrits pour sh")
+		t.Skip("pas de pseudo-terminal")
 	}
 	t.Setenv("SHELL", "/bin/sh")
+	t.Setenv("PS1", "$ ")
+	t.Setenv("GOPIT_TERMINAL", "on")
 	m := New(theme.New(), &project.Project{Root: t.TempDir()})
-	t.Cleanup(m.stop)
+	m.View(82, 25) // 80 colonnes (marge de 2), 24 lignes (ligne d'état en plus)
+	if m.emu == nil {
+		t.Fatalf("shell non démarré : %s", m.failed)
+	}
+	t.Cleanup(func() {
+		if !m.exited && m.ptmx != nil {
+			m.emu.SendText("exit\r")
+			waitFor(t, m, func(string) bool { return m.exited })
+		}
+	})
 	return m
 }
 
-func typeLine(m *Model, s string) tea.Cmd {
-	for _, r := range s {
-		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+// screen renvoie le texte de l'historique et de l'écran (sans les espaces
+// qui complètent chaque ligne à la largeur du terminal).
+func screen(m *Model) string {
+	lines := m.lines()
+	for i, l := range lines {
+		lines[i] = strings.TrimRight(ansi.Strip(l), " ")
 	}
-	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	return cmd
+	return strings.Join(lines, "\n")
 }
 
-// pump exécute les commandes et repasse leurs messages au module jusqu'à
-// la fin de la commande lancée.
-func pump(t *testing.T, m *Model, cmd tea.Cmd) {
+// waitFor traite les messages du shell jusqu'à ce que cond soit vraie.
+func waitFor(t *testing.T, m *Model, cond func(string) bool) {
 	t.Helper()
-	deadline := time.After(20 * time.Second)
-	for cmd != nil {
-		ch := make(chan tea.Msg, 1)
-		go func(c tea.Cmd) { ch <- c() }(cmd)
+	deadline := time.Now().Add(10 * time.Second)
+	for !cond(screen(m)) {
 		select {
-		case msg := <-ch:
-			if _, ok := msg.(panel.FlashMsg); ok {
-				return // bilan de fin
-			}
-			_, cmd = m.Update(msg)
-		case <-deadline:
-			t.Fatal("délai dépassé")
+		case msg := <-m.redraw:
+			m.Update(msg)
+		case msg := <-m.exits:
+			m.Update(msg)
+		case <-time.After(20 * time.Millisecond):
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("délai dépassé ; écran :\n%s", screen(m))
 		}
 	}
 }
 
-// texts renvoie toutes les lignes affichées ; output, seulement la sortie
-// des commandes (sans les lignes « $ … » ni les bilans).
-func texts(m *Model) string { return join(m, func(line) bool { return true }) }
-
-func output(m *Model) string { return join(m, func(l line) bool { return l.kind == kindOut }) }
-
-func join(m *Model, keep func(line) bool) string {
-	var b strings.Builder
-	for _, l := range m.lines {
-		if keep(l) {
-			b.WriteString(l.text)
-			b.WriteString("\n")
+func typeKeys(m *Model, s string) {
+	for _, r := range s {
+		if r == '\r' {
+			m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			continue
 		}
-	}
-	return b.String()
-}
-
-func TestRunCommand(t *testing.T) {
-	m := newModel(t)
-	pump(t, m, typeLine(m, "echo bonjour; echo oups >&2; printf 'a\\tb\\r50%%\\r100%%\\n'; pwd; exit 3"))
-	out := texts(m)
-	for _, want := range []string{"$ echo bonjour", "bonjour\n", "oups\n", "100%\n", m.proj.Root, "code de sortie 3"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("%q absent de :\n%s", want, out)
-		}
-	}
-	if strings.Contains(output(m), "50%") {
-		t.Error("retour chariot : seule la dernière version de la ligne est gardée")
-	}
-	if m.running() || m.lines[len(m.lines)-1].kind != kindFail {
-		t.Error("fin en échec attendue")
-	}
-	if v := ansi.Strip(m.View(80, 10)); !strings.Contains(v, "bonjour") || !strings.Contains(v, "❯") {
-		t.Errorf("vue :\n%s", v)
-	}
-
-	// Réussite, et relance de la dernière commande.
-	pump(t, m, typeLine(m, "true"))
-	if l := m.lines[len(m.lines)-1]; l.kind != kindOK {
-		t.Errorf("réussite : %+v", l)
-	}
-	n := len(m.lines)
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
-	pump(t, m, cmd)
-	if len(m.lines) != n+2 || m.lines[n].text != "$ true" {
-		t.Errorf("relance : %q", texts(m))
-	}
-}
-
-func TestStopCommand(t *testing.T) {
-	m := newModel(t)
-	cmd := typeLine(m, "echo début; sleep 30; echo jamais")
-	if !m.running() || !m.TakesCtrlC() {
-		t.Fatal("commande en cours : Ctrl+C l'arrête au lieu de quitter")
-	}
-	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
-	start := time.Now()
-	pump(t, m, cmd)
-	if time.Since(start) > 10*time.Second || m.running() {
-		t.Fatal("la commande ne s'est pas arrêtée")
-	}
-	if out := output(m); strings.Contains(out, "jamais") {
-		t.Errorf("sortie après l'arrêt :\n%s", out)
-	}
-	if l := m.lines[len(m.lines)-1]; l.kind != kindFail || !strings.Contains(l.text, "arrêtée") {
-		t.Errorf("bilan : %+v", l)
-	}
-	// Sans commande en cours ni saisie, Ctrl+C quitte gopit.
-	if m.TakesCtrlC() {
-		t.Error("rien à arrêter : Ctrl+C quitte")
-	}
-}
-
-func TestHistory(t *testing.T) {
-	m := newModel(t)
-	pump(t, m, typeLine(m, "echo un"))
-	pump(t, m, typeLine(m, "echo deux"))
-	pump(t, m, typeLine(m, "echo deux")) // doublon consécutif : gardé une fois
-	for _, r := range "ech" {
 		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
-	up := tea.KeyPressMsg{Code: tea.KeyUp}
-	m.Update(up)
-	if string(m.input) != "echo deux" {
-		t.Errorf("↑ : %q", string(m.input))
-	}
-	m.Update(up)
-	m.Update(up) // déjà la plus ancienne
-	if string(m.input) != "echo un" {
-		t.Errorf("↑↑ : %q", string(m.input))
-	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	if string(m.input) != "ech" {
-		t.Errorf("retour à la saisie en cours : %q", string(m.input))
-	}
-
-	// Gardé d'une session à l'autre.
-	m2 := New(theme.New(), m.proj)
-	m2.Restore(m.State())
-	m2.Update(up)
-	if string(m2.input) != "echo deux" {
-		t.Errorf("historique restauré : %q", string(m2.input))
-	}
 }
 
-func TestOpenLocation(t *testing.T) {
-	m := newModel(t)
-	pump(t, m, typeLine(m, "echo './pkg/a.go:12:5: undefined: x'; echo rien"))
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	// Curseur sur la dernière ligne (fin) : remonter jusqu'à l'emplacement.
-	for m.cursor > 0 && !strings.Contains(m.lines[m.cursor].text, "a.go") {
+func ctrl(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Mod: tea.ModCtrl} }
+
+func TestShellRunsCommands(t *testing.T) {
+	m := newShell(t)
+	if !m.RawInput() || !m.Capturing() {
+		t.Fatal("mode shell attendu au démarrage")
+	}
+	typeKeys(m, "echo bon$((1+1))jour\r")
+	waitFor(t, m, func(s string) bool { return strings.Contains(s, "bon2jour") })
+	// Rendu : marge de 2 colonnes, ligne d'état, aucune ligne trop large.
+	out := m.View(82, 25)
+	lines := strings.Split(out, "\n")
+	if len(lines) != 25 || !strings.Contains(ansi.Strip(out), "Ctrl+]") {
+		t.Errorf("vue : %d lignes\n%s", len(lines), ansi.Strip(out))
+	}
+	for i, l := range lines {
+		if w := ansi.StringWidth(l); w > 82 {
+			t.Errorf("ligne %d : largeur %d", i, w)
+		}
+	}
+	// Redimensionnement : le terminal suit la taille du module.
+	m.View(102, 31)
+	if m.emu.Width() != 100 || m.emu.Height() != 30 {
+		t.Errorf("taille : %d×%d", m.emu.Width(), m.emu.Height())
+	}
+	typeKeys(m, "stty size\r")
+	waitFor(t, m, func(s string) bool { return strings.Contains(s, "30 100") })
+}
+
+func TestShellInterruptAndInteractive(t *testing.T) {
+	m := newShell(t)
+	// Ctrl+C arrête la commande (pas gopit).
+	typeKeys(m, "sleep 30; echo jamais\r")
+	time.Sleep(200 * time.Millisecond)
+	m.Update(ctrl('c'))
+	typeKeys(m, "echo apres\r")
+	// « apres » : la commande tapée, puis sa sortie (après l'invite réaffichée).
+	waitFor(t, m, func(s string) bool { return strings.Count(s, "apres") >= 2 })
+	if strings.Contains(screen(m), "\njamais") {
+		t.Error("la commande n'a pas été interrompue")
+	}
+
+	// Programme qui lit le clavier : impossible avec l'ancien lanceur.
+	typeKeys(m, "cat\r")
+	time.Sleep(200 * time.Millisecond)
+	typeKeys(m, "saisie interactive\r")
+	waitFor(t, m, func(s string) bool { return strings.Count(s, "saisie interactive") >= 2 })
+	m.Update(ctrl('d'))
+	typeKeys(m, "echo fini\r")
+	waitFor(t, m, func(s string) bool { return strings.Count(s, "fini") >= 2 })
+}
+
+func TestNavigationAndOpen(t *testing.T) {
+	m := newShell(t)
+	typeKeys(m, "i=1; while [ $i -le 60 ]; do echo ligne $i; i=$((i+1)); done; echo ./pkg/a.go:12:3: erreur\r")
+	waitFor(t, m, func(s string) bool { return strings.Contains(s, "\n./pkg/a.go:12:3: erreur") })
+
+	// Ctrl+] : navigation, les touches du cockpit reviennent.
+	m.Update(ctrl(']'))
+	if m.RawInput() || m.Capturing() {
+		t.Fatal("Ctrl+] doit rendre la main à gopit")
+	}
+	// Remonter jusqu'à la ligne de l'emplacement, puis l'ouvrir.
+	for i := 0; i < 10 && !strings.Contains(ansi.Strip(m.lines()[m.sel]), "a.go"); i++ {
 		m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	}
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'o', Text: "o"})
 	if cmd == nil {
-		t.Fatal("ouverture attendue")
+		t.Fatalf("ouverture attendue (ligne %q)", ansi.Strip(m.lines()[m.sel]))
 	}
-	msg, ok := cmd().(panel.OpenMsg)
-	if !ok || msg.File != filepath.Join(m.proj.Root, "pkg", "a.go") || msg.Line != 12 {
+	if msg, ok := cmd().(panel.OpenMsg); !ok || msg.File != filepath.Join(m.proj.Root, "pkg", "a.go") || msg.Line != 12 {
 		t.Errorf("ouverture : %#v", cmd())
+	}
+
+	// Historique : le début de la sortie est sorti de l'écran, on y remonte.
+	m.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+	if m.back == 0 || !strings.Contains(ansi.Strip(m.View(82, 25)), "ligne 1 ") {
+		t.Errorf("historique (remonté de %d) :\n%s", m.back, ansi.Strip(m.View(82, 25)))
+	}
+
+	// i : retour au shell, sur l'écran courant.
+	m.Update(tea.KeyPressMsg{Code: 'i', Text: "i"})
+	if !m.RawInput() || m.back != 0 {
+		t.Error("i : retour au shell attendu")
+	}
+}
+
+func TestShellExitAndRestart(t *testing.T) {
+	m := newShell(t)
+	typeKeys(m, "exit 3\r")
+	waitFor(t, m, func(string) bool { return m.exited })
+	if m.exitCode != 3 || m.RawInput() || !strings.Contains(ansi.Strip(m.View(82, 25)), "code 3") {
+		t.Errorf("fin : code %d", m.exitCode)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.exited || !m.RawInput() {
+		t.Fatal("Entrée relance le shell")
+	}
+	typeKeys(m, "echo relance\r")
+	waitFor(t, m, func(s string) bool { return strings.Contains(s, "\nrelance") })
+}
+
+func TestDisabled(t *testing.T) {
+	t.Setenv("GOPIT_TERMINAL", "off")
+	m := New(theme.New(), &project.Project{Root: t.TempDir()})
+	if out := ansi.Strip(m.View(80, 10)); m.emu != nil || !strings.Contains(out, "GOPIT_TERMINAL=off") || m.RawInput() {
+		t.Errorf("désactivé :\n%s", out)
 	}
 }

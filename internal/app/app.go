@@ -269,6 +269,12 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 
 func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
+	// Vrai terminal en mode shell : toutes les touches lui reviennent.
+	if r, ok := m.panels[m.cur].(panel.RawInput); ok && r.RawInput() && !m.pal.open && m.modal == modalNone &&
+		m.menu.open < 0 && (!m.sidebar || m.focus == focusContent) {
+		m.quitArmed = false
+		return m.toPanel(k)
+	}
 	if s == "ctrl+c" && !m.pal.open && m.modal == modalNone && m.menu.open < 0 {
 		if c, ok := m.panels[m.cur].(panel.CtrlCTaker); ok && c.TakesCtrlC() {
 			m.quitArmed = false

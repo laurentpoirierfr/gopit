@@ -531,25 +531,11 @@ var en = map[string]string{
 	"créer un fichier dans l'éditeur intégré": "create a file in the built-in editor",
 
 	// Terminal
-	"Terminal":                      "Terminal",
-	"exécuter":                      "run",
-	"historique":                    "history",
-	"parcourir la sortie":           "browse output",
-	"saisir":                        "type",
-	"ligne":                         "line",
-	"ouvrir fichier:ligne":          "open file:line",
-	"Relancer la dernière commande": "Rerun the last command",
-	"Arrêter la commande":           "Stop the command",
-	"Effacer la sortie":             "Clear the output",
-	"Exécuter : ":                   "Run: ",
-	"Une commande est déjà en cours (Ctrl+C pour l'arrêter)": "A command is already running (Ctrl+C to stop it)",
-	"■ arrêtée après %s":                                     "■ stopped after %s",
-	"✓ terminée en %s":                                       "✓ finished in %s",
-	"✗ code de sortie %d après %s":                           "✗ exit code %d after %s",
-	"Terminal : ":                                            "Terminal: ",
-	"Aucun emplacement fichier:ligne sur cette ligne":        "No file:line location on this line",
-	"Tape une commande (go build, make, go run .…) puis Entrée ; elle s'exécute dans le répertoire du projet.": "Type a command (go build, make, go run .…) then Enter; it runs in the project directory.",
-	" en cours… %.0fs · Ctrl+C pour arrêter": " running… %.0fs · Ctrl+C to stop",
+	"Terminal":             "Terminal",
+	"ligne":                "line",
+	"ouvrir fichier:ligne": "open file:line",
+	"Exécuter : ":          "Run: ",
+	"Aucun emplacement fichier:ligne sur cette ligne": "No file:line location on this line",
 
 	// Barre d'état
 	" (détaché)": " (detached)",
@@ -630,4 +616,17 @@ var en = map[string]string{
 	"Sortie du programme":     "Program output",
 	"  lignes %d–%d / %d":     "  lines %d–%d / %d",
 	"  (rien pour l'instant)": "  (nothing yet)",
+
+	// Terminal (vrai shell)
+	"revenir à gopit (les autres touches vont au shell)": "back to gopit (other keys go to the shell)",
+	"relancer le shell":                    "restart the shell",
+	"shell":                                "shell",
+	"Impossible de démarrer le shell : %v": "Cannot start the shell: %v",
+	"Terminal désactivé (GOPIT_TERMINAL=off).":          "Terminal disabled (GOPIT_TERMINAL=off).",
+	"Shell terminé (code %d) — Entrée pour le relancer": "Shell exited (code %d) — Enter to restart it",
+	"● shell": "● shell",
+	" — les touches vont au shell ; Ctrl+] revient à gopit": " — keys go to the shell; Ctrl+] returns to gopit",
+	"◆ navigation": "◆ navigation",
+	" — i ou Entrée : shell · ↑↓ ligne · o : ouvrir fichier:ligne": " — i or Enter: shell · ↑↓ line · o: open file:line",
+	" · %d lignes plus haut": " · %d lines up",
 }

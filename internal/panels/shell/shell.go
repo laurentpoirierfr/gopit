@@ -1,501 +1,316 @@
-// Package shell est le module Terminal : une ligne de commande exécutée par
-// le shell dans le répertoire du projet, dont la sortie défile dans le
-// module. Pas de programme interactif (l'entrée standard est vide) ; les
-// emplacements « fichier.go:12 » s'ouvrent dans l'éditeur.
+// Package shell est le module Terminal : un vrai shell ($SHELL) dans un
+// pseudo-terminal, affiché par un émulateur VT (charmbracelet/x/vt). Les
+// programmes interactifs (vim, htop, git rebase -i…) y fonctionnent.
+//
+// Deux modes : en mode shell, toutes les touches vont au shell, sauf Ctrl+]
+// qui rend la main à gopit ; en mode navigation, les touches du cockpit
+// reviennent, on remonte dans l'historique de l'écran et « o » ouvre le
+// fichier:ligne de la ligne choisie dans l'éditeur.
 package shell
 
 import (
-	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/vt"
+	"github.com/creack/pty"
 
 	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
-	"github.com/laurentpoirierfr/gopit/internal/scroll"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
 )
 
-const (
-	maxLines   = 5000 // lignes de sortie gardées
-	maxHistory = 100  // commandes gardées dans l'historique
-)
+// leaveKey rend la main à gopit depuis le mode shell.
+const leaveKey = "ctrl+]"
 
-type lineKind int
+// redrawMsg signale que l'écran du terminal a changé.
+type redrawMsg struct{}
 
-const (
-	kindOut  lineKind = iota // sortie de la commande
-	kindCmd                  // « $ commande »
-	kindOK                   // fin réussie
-	kindFail                 // fin en échec ou arrêt
-)
-
-type line struct {
-	text string
-	kind lineKind
-}
-
-type outMsg struct {
-	id     int
-	lines  []string
-	closed bool // plus de sortie : attendre la fin du processus
-}
-
-type doneMsg struct {
-	id  int
+// exitMsg signale la fin du shell.
+type exitMsg struct {
+	gen int
 	err error
-	dur time.Duration
 }
 
-// runMsg lance une commande (palette).
+// runMsg tape une commande dans le shell (palette).
 type runMsg struct{ line string }
 
-// actionMsg est une action de la palette.
-type actionMsg string
-
-const (
-	actRerun actionMsg = "rerun"
-	actStop  actionMsg = "stop"
-	actClear actionMsg = "clear"
-)
-
 type Model struct {
-	th   *theme.Theme
-	proj *project.Project
+	th    *theme.Theme
+	proj  *project.Project
+	spawn bool // démarrer un shell (GOPIT_TERMINAL=off : non)
 
-	typing bool   // saisie de la commande (sinon : parcours de la sortie)
-	input  []rune // commande en cours de saisie
-	pos    int    // curseur dans input
+	// Session : emu est sûr entre goroutines ; le reste n'est touché que
+	// depuis la boucle de Bubble Tea.
+	emu      *vt.SafeEmulator
+	ptmx     *os.File
+	gen      int  // numéro de la session (un shell relancé change de numéro)
+	exited   bool // le shell s'est arrêté
+	exitCode int
+	failed   string // impossible de démarrer (Windows…)
 
-	history []string // plus ancienne d'abord
-	histPos int      // dans history pendant la navigation (len : saisie en cours)
-	draft   string   // saisie mise de côté pendant la navigation
+	redraw chan tea.Msg // redessins (un seul en attente) ; voir Init
+	exits  chan tea.Msg // fins de shell
+	w, h   int          // taille du terminal (zone du module moins la marge et la ligne d'état)
 
-	lines  []line
-	cursor int  // ligne sélectionnée (parcours)
-	offset int  // première ligne affichée
-	follow bool // suivre la fin de la sortie
-	outH   int  // hauteur de la zone de sortie au dernier rendu
-
-	// Commande en cours.
-	id      int
-	cmd     *exec.Cmd
-	out     chan string
-	done    chan error
-	started time.Time
-	stopped bool
-	last    string // dernière commande lancée
+	raw    bool // mode shell : les touches vont au shell
+	back   int  // lignes remontées dans l'historique (0 : écran courant)
+	sel    int  // ligne choisie en navigation (index dans lines())
+	selSet bool
 }
 
 func New(th *theme.Theme, p *project.Project) *Model {
-	return &Model{th: th, proj: p, typing: true, follow: true, outH: 20}
+	return &Model{th: th, proj: p, raw: true, redraw: make(chan tea.Msg, 1), exits: make(chan tea.Msg, 4),
+		spawn: os.Getenv("GOPIT_TERMINAL") != "off"}
 }
 
 func (m *Model) Title() string { return i18n.N("Terminal") }
-func (m *Model) Icon() string  { return "\uf120" } // terminal (Font Awesome, comme les autres modules)
-func (m *Model) Init() tea.Cmd { return nil }
+func (m *Model) Icon() string  { return "" } // terminal (Font Awesome, comme les autres modules)
 
-// Capturing : en saisie, toutes les touches vont à la ligne de commande.
-func (m *Model) Capturing() bool { return m.typing }
+// Init attend, pendant toute la vie de gopit, les messages du shell.
+func (m *Model) Init() tea.Cmd { return m.wait() }
 
-func (m *Model) running() bool { return m.cmd != nil }
-
-// TakesCtrlC : Ctrl+C arrête la commande en cours, ou efface la saisie.
-func (m *Model) TakesCtrlC() bool { return m.running() || (m.typing && len(m.input) > 0) }
-
-func (m *Model) Hints() []panel.Hint {
-	var h []panel.Hint
-	if m.typing {
-		h = []panel.Hint{{Key: "Entrée", Desc: i18n.T("exécuter")}, {Key: "↑↓", Desc: i18n.T("historique")},
-			{Key: "Échap", Desc: i18n.T("parcourir la sortie")}, {Key: "Ctrl+L", Desc: i18n.T("effacer")}}
-	} else {
-		h = []panel.Hint{{Key: "i / Entrée", Desc: i18n.T("saisir")}, {Key: "↑↓", Desc: i18n.T("ligne")},
-			{Key: "o", Desc: i18n.T("ouvrir fichier:ligne")}, {Key: "r", Desc: i18n.T("relancer")}, {Key: "c", Desc: i18n.T("effacer")}}
+func (m *Model) wait() tea.Cmd {
+	redraw, exits := m.redraw, m.exits
+	return func() tea.Msg {
+		select {
+		case msg := <-redraw:
+			return msg
+		case msg := <-exits:
+			return msg
+		}
 	}
-	if m.running() {
-		h = append(h, panel.Hint{Key: "Ctrl+C", Desc: i18n.T("arrêter")})
-	}
-	return h
 }
 
-// Commands expose les actions à la palette, ainsi que quelques commandes
-// Go courantes.
-func (m *Model) Commands() []panel.Command {
-	c := []panel.Command{
-		{Title: i18n.T("Relancer la dernière commande"), Key: "r", Msg: actRerun},
-		{Title: i18n.T("Arrêter la commande"), Key: "Ctrl+C", Msg: actStop},
-		{Title: i18n.T("Effacer la sortie"), Key: "Ctrl+L", Msg: actClear},
+// RawInput : en mode shell, le cadre transmet toutes les touches (sauf
+// quand une fenêtre de gopit est ouverte).
+func (m *Model) RawInput() bool { return m.raw && m.emu != nil && m.failed == "" && !m.exited }
+
+// Capturing : en mode shell, rien n'échappe au terminal.
+func (m *Model) Capturing() bool { return m.RawInput() }
+
+func (m *Model) Hints() []panel.Hint {
+	if m.RawInput() {
+		return []panel.Hint{{Key: "Ctrl+]", Desc: i18n.T("revenir à gopit (les autres touches vont au shell)")}}
 	}
+	if m.exited {
+		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("relancer le shell")}}
+	}
+	return []panel.Hint{{Key: "i / Entrée", Desc: i18n.T("shell")}, {Key: "↑↓", Desc: i18n.T("ligne")},
+		{Key: "PgUp/PgDn", Desc: i18n.T("défiler")}, {Key: "o", Desc: i18n.T("ouvrir fichier:ligne")}}
+}
+
+// Commands propose quelques commandes Go courantes, tapées dans le shell.
+func (m *Model) Commands() []panel.Command {
+	var c []panel.Command
 	for _, line := range []string{"go build ./...", "go run .", "go generate ./...", "go mod tidy", "go vet ./..."} {
 		c = append(c, panel.Command{Title: i18n.T("Exécuter : ") + line, Msg: runMsg{line}})
 	}
 	return c
 }
 
-// State garde l'historique d'une session à l'autre.
-func (m *Model) State() map[string]string {
-	return map[string]string{"history": strings.Join(m.history, "\n")}
-}
+// ─── Shell ───────────────────────────────────────────────────────────────────
 
-func (m *Model) Restore(s map[string]string) {
-	if h := s["history"]; h != "" {
-		m.history = strings.Split(h, "\n")
+// start lance le shell dans un pseudo-terminal de la taille du module.
+func (m *Model) start() {
+	sh := os.Getenv("SHELL")
+	if sh == "" {
+		sh = "sh"
 	}
-	m.histPos = len(m.history)
-}
-
-// ─── Exécution ───────────────────────────────────────────────────────────────
-
-// run lance une commande ; sa sortie arrive par outMsg, sa fin par doneMsg.
-func (m *Model) run(cmdline string) tea.Cmd {
-	cmdline = strings.TrimSpace(cmdline)
-	if cmdline == "" {
-		return nil
-	}
-	if m.running() {
-		return panel.Flash(i18n.T("Une commande est déjà en cours (Ctrl+C pour l'arrêter)"), true)
-	}
-	m.remember(cmdline)
-	m.last = cmdline
-	m.add(line{"$ " + cmdline, kindCmd})
-	m.follow = true
-
-	cmd := shellCommand(cmdline)
+	cmd := exec.Command(sh)
 	cmd.Dir = m.proj.Root
-	cmd.Env = append(cmd.Environ(), "TERM=dumb") // pas de séquences de contrôle
-	pr, pw := io.Pipe()
-	cmd.Stdout, cmd.Stderr = pw, pw
-	cmd.WaitDelay = time.Second // un descendant qui garde la sortie ouverte ne bloque pas
-	if err := cmd.Start(); err != nil {
-		m.add(line{err.Error(), kindFail})
-		return nil
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(m.h), Cols: uint16(m.w)})
+	if err != nil {
+		m.failed = fmt.Sprintf(i18n.T("Impossible de démarrer le shell : %v"), err)
+		return
 	}
-	m.id++
-	m.cmd, m.started, m.stopped = cmd, time.Now(), false
-	m.out, m.done = make(chan string, 1024), make(chan error, 1)
-	out, done := m.out, m.done
-	go func() {
-		sc := bufio.NewScanner(pr)
-		sc.Buffer(make([]byte, 64*1024), 1024*1024)
-		for sc.Scan() {
-			out <- sc.Text()
-		}
-		if err := sc.Err(); err != nil { // ligne démesurée : la signaler, puis vider la sortie
-			out <- err.Error()
-			_, _ = io.Copy(io.Discard, pr)
-		}
-		close(out)
-	}()
-	go func() {
-		err := cmd.Wait()
-		pw.Close()
-		done <- err
-	}()
-	return m.next()
-}
+	emu := vt.NewSafeEmulator(m.w, m.h)
+	m.gen++
+	m.emu, m.ptmx, m.exited, m.back, m.selSet = emu, ptmx, false, 0, false
+	gen, redraw, exits := m.gen, m.redraw, m.exits
 
-// next attend la sortie suivante (par paquets, pour ne pas redessiner à
-// chaque ligne).
-func (m *Model) next() tea.Cmd {
-	id, out := m.id, m.out
-	return func() tea.Msg {
-		l, ok := <-out
-		if !ok {
-			return outMsg{id: id, closed: true}
-		}
-		lines := []string{l}
-		for len(lines) < 500 {
-			select {
-			case l, ok := <-out:
-				if !ok {
-					return outMsg{id: id, lines: lines, closed: true}
+	// Sortie du shell → écran ; réponses de l'émulateur et touches → shell.
+	go func() {
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := ptmx.Read(buf)
+			if n > 0 {
+				_, _ = emu.Write(buf[:n])
+				select { // un seul redessin en attente suffit
+				case redraw <- redrawMsg{}:
+				default:
 				}
-				lines = append(lines, l)
-			default:
-				return outMsg{id: id, lines: lines}
+			}
+			if err != nil {
+				return
 			}
 		}
-		return outMsg{id: id, lines: lines}
-	}
+	}()
+	go func() { _, _ = io.Copy(ptmx, emu) }()
+	go func() {
+		err := cmd.Wait()
+		_ = ptmx.Close()
+		exits <- exitMsg{gen: gen, err: err}
+	}()
 }
 
-func (m *Model) wait() tea.Cmd {
-	id, done, started := m.id, m.done, m.started
-	return func() tea.Msg {
-		err := <-done
-		return doneMsg{id: id, err: err, dur: time.Since(started)}
+// resize suit la taille du module.
+func (m *Model) resize(w, h int) {
+	if w == m.w && h == m.h {
+		return
 	}
-}
-
-func (m *Model) stop() {
-	if m.running() {
-		m.stopped = true
-		stop(m.cmd)
+	m.w, m.h = w, h
+	if m.emu != nil && !m.exited {
+		m.emu.Resize(w, h)
+		_ = pty.Setsize(m.ptmx, &pty.Winsize{Rows: uint16(h), Cols: uint16(w)})
 	}
-}
-
-// add ajoute une ligne à la sortie (en oubliant les plus anciennes).
-func (m *Model) add(l line) {
-	m.lines = append(m.lines, l)
-	if extra := len(m.lines) - maxLines; extra > 0 {
-		m.lines = m.lines[extra:]
-		m.cursor = max(0, m.cursor-extra)
-		m.offset = max(0, m.offset-extra)
-	}
-	if m.follow {
-		m.cursor = len(m.lines) - 1
-	}
-}
-
-// clean prépare une ligne de sortie pour l'affichage : séquences de
-// contrôle retirées, retour chariot (barres de progression) : dernière
-// version de la ligne, tabulations en espaces.
-func clean(s string) string {
-	if i := strings.LastIndex(strings.TrimRight(s, "\r"), "\r"); i >= 0 {
-		s = s[i+1:]
-	}
-	s = ansi.Strip(strings.TrimRight(s, "\r"))
-	return strings.ReplaceAll(s, "\t", "    ")
-}
-
-func (m *Model) remember(cmdline string) {
-	if n := len(m.history); n == 0 || m.history[n-1] != cmdline {
-		m.history = append(m.history, cmdline)
-	}
-	if extra := len(m.history) - maxHistory; extra > 0 {
-		m.history = m.history[extra:]
-	}
-	m.histPos = len(m.history)
 }
 
 // ─── Update ──────────────────────────────────────────────────────────────────
 
 func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	switch msg := msg.(type) {
-	case outMsg:
-		if msg.id != m.id {
-			return m, nil
-		}
-		for _, l := range msg.lines {
-			m.add(line{clean(l), kindOut})
-		}
-		if msg.closed {
-			return m, m.wait()
-		}
-		return m, m.next()
+	case redrawMsg:
+		return m, m.wait() // le prochain rendu montrera l'écran à jour
 
-	case doneMsg:
-		if msg.id != m.id {
-			return m, nil
-		}
-		m.cmd = nil
-		dur := msg.dur.Round(10 * time.Millisecond)
-		var text string
-		ok := false
-		switch {
-		case m.stopped:
-			text = fmt.Sprintf(i18n.T("■ arrêtée après %s"), dur)
-		case msg.err == nil:
-			text, ok = fmt.Sprintf(i18n.T("✓ terminée en %s"), dur), true
-		default:
-			code := -1
-			if ee, isExit := msg.err.(*exec.ExitError); isExit {
-				code = ee.ExitCode()
+	case exitMsg:
+		if msg.gen == m.gen {
+			m.exited, m.raw, m.exitCode = true, false, 0
+			if ee, ok := msg.err.(*exec.ExitError); ok {
+				m.exitCode = ee.ExitCode()
 			}
-			text = fmt.Sprintf(i18n.T("✗ code de sortie %d après %s"), code, dur)
+			_ = m.emu.Close()
 		}
-		kind := kindFail
-		if ok {
-			kind = kindOK
-		}
-		m.add(line{text, kind})
-		return m, panel.Flash(i18n.T("Terminal : ")+m.last+" — "+text, !ok && !m.stopped)
+		return m, m.wait()
 
 	case runMsg:
-		m.typing = true
-		return m, m.run(msg.line)
-
-	case actionMsg:
-		return m, m.act(msg)
+		if m.emu != nil && !m.exited {
+			m.raw, m.back = true, 0
+			m.emu.SendText(msg.line + "\r")
+		}
 
 	case tea.PasteMsg:
-		if m.typing {
-			m.insert(strings.ReplaceAll(strings.TrimRight(msg.Content, "\n"), "\n", " "))
+		if m.RawInput() {
+			m.emu.Paste(msg.Content)
 		}
 
 	case tea.MouseWheelMsg:
 		if tea.Mouse(msg).Button == tea.MouseWheelUp {
-			m.scroll(-3)
-		} else {
 			m.scroll(3)
+		} else {
+			m.scroll(-3)
+		}
+
+	case panel.ClickMsg: // un clic dans le terminal y rend la main au shell
+		if !msg.Drag && m.emu != nil && !m.exited {
+			m.raw, m.back = true, 0
 		}
 
 	case tea.KeyPressMsg:
-		if m.typing {
-			return m, m.typingKey(msg)
-		}
-		return m, m.browseKey(msg.String())
+		return m, m.key(msg)
 	}
 	return m, nil
 }
 
-func (m *Model) act(a actionMsg) tea.Cmd {
-	switch a {
-	case actRerun:
-		if m.last == "" && len(m.history) > 0 {
-			m.last = m.history[len(m.history)-1]
+func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
+	s := k.String()
+	if m.RawInput() {
+		if s == leaveKey {
+			m.raw = false
+			m.sel, m.selSet = len(m.lines())-1-m.back, true
+			return nil
 		}
-		return m.run(m.last)
-	case actStop:
-		m.stop()
-	case actClear:
-		m.lines, m.cursor, m.offset, m.follow = nil, 0, 0, true
-	}
-	return nil
-}
-
-func (m *Model) insert(s string) {
-	r := []rune(s)
-	m.input = append(m.input[:m.pos], append(r, m.input[m.pos:]...)...)
-	m.pos += len(r)
-}
-
-func (m *Model) typingKey(k tea.KeyPressMsg) tea.Cmd {
-	switch k.String() {
-	case "enter":
-		line := string(m.input)
-		m.input, m.pos, m.draft = nil, 0, ""
-		return m.run(line)
-	case "esc":
-		m.typing = false
-	case "ctrl+c":
-		if m.running() {
-			m.stop()
-		} else {
-			m.input, m.pos = nil, 0
-		}
-	case "ctrl+l":
-		return m.act(actClear)
-	case "ctrl+u":
-		m.input, m.pos = m.input[m.pos:], 0
-	case "up":
-		m.recall(-1)
-	case "down":
-		m.recall(1)
-	case "left":
-		m.pos = max(0, m.pos-1)
-	case "right":
-		m.pos = min(len(m.input), m.pos+1)
-	case "home", "ctrl+a":
-		m.pos = 0
-	case "end", "ctrl+e":
-		m.pos = len(m.input)
-	case "backspace":
-		if m.pos > 0 {
-			m.input = append(m.input[:m.pos-1], m.input[m.pos:]...)
-			m.pos--
-		}
-	case "delete":
-		if m.pos < len(m.input) {
-			m.input = append(m.input[:m.pos], m.input[m.pos+1:]...)
-		}
-	case "pgup":
-		m.scroll(-max(1, m.outH-1))
-	case "pgdown":
-		m.scroll(max(1, m.outH-1))
-	default:
-		if k.Text != "" && !k.Mod.Contains(tea.ModCtrl) && !k.Mod.Contains(tea.ModAlt) {
-			m.insert(k.Text)
-		}
-	}
-	return nil
-}
-
-// recall parcourt l'historique (d = -1 : plus ancienne).
-func (m *Model) recall(d int) {
-	if len(m.history) == 0 {
-		return
-	}
-	if m.histPos == len(m.history) {
-		m.draft = string(m.input)
-	}
-	m.histPos = min(len(m.history), max(0, m.histPos+d))
-	s := m.draft
-	if m.histPos < len(m.history) {
-		s = m.history[m.histPos]
-	}
-	m.input = []rune(s)
-	m.pos = len(m.input)
-}
-
-func (m *Model) browseKey(s string) tea.Cmd {
-	switch s {
-	case "i", "enter":
-		m.typing = true
-	case "up", "k":
-		m.moveCursor(-1)
-	case "down", "j":
-		m.moveCursor(1)
-	case "pgup":
-		m.moveCursor(-max(1, m.outH-1))
-	case "pgdown":
-		m.moveCursor(max(1, m.outH-1))
-	case "home", "g":
-		m.moveCursor(-len(m.lines))
-	case "end", "G":
-		m.moveCursor(len(m.lines))
-	case "o":
-		return m.openLocation()
-	case "r":
-		return m.act(actRerun)
-	case "x", "ctrl+c":
-		m.stop()
-	case "c", "ctrl+l":
-		return m.act(actClear)
-	}
-	return nil
-}
-
-func (m *Model) moveCursor(d int) {
-	if len(m.lines) == 0 {
-		return
-	}
-	m.cursor = min(len(m.lines)-1, max(0, m.cursor+d))
-	m.follow = m.cursor == len(m.lines)-1
-	if m.cursor < m.offset {
-		m.offset = m.cursor
-	} else if m.cursor >= m.offset+m.outH {
-		m.offset = m.cursor - m.outH + 1
-	}
-}
-
-func (m *Model) scroll(d int) {
-	m.offset = scroll.Clamp(m.offset+d, m.outH, len(m.lines))
-	m.follow = m.offset+m.outH >= len(m.lines)
-	if !m.typing {
-		m.cursor = min(max(m.cursor, m.offset), m.offset+m.outH-1, len(m.lines)-1)
-	}
-}
-
-// locRe repère « fichier.go:12 » (ou fichier.go:12:5) dans la sortie.
-var locRe = regexp.MustCompile(`([\w./\\-]+\.go):(\d+)`)
-
-// openLocation ouvre dans l'éditeur l'emplacement de la ligne sélectionnée.
-func (m *Model) openLocation() tea.Cmd {
-	if m.cursor >= len(m.lines) {
+		m.back = 0 // taper ramène à l'écran courant
+		m.emu.SendKey(vt.KeyPressEvent(k))
 		return nil
 	}
-	mt := locRe.FindStringSubmatch(m.lines[m.cursor].text)
+	if m.exited || m.failed != "" || m.emu == nil {
+		if s == "enter" && m.exited {
+			m.start()
+			m.raw = true
+		}
+		return nil
+	}
+	lines := m.lines()
+	page := max(1, m.h-1)
+	switch s {
+	case "i", "enter", "a":
+		m.raw, m.back = true, 0
+	case "up", "k":
+		m.moveSel(-1, len(lines))
+	case "down", "j":
+		m.moveSel(1, len(lines))
+	case "pgup":
+		m.moveSel(-page, len(lines))
+	case "pgdown":
+		m.moveSel(page, len(lines))
+	case "home", "g":
+		m.moveSel(-len(lines), len(lines))
+	case "end", "G":
+		m.moveSel(len(lines), len(lines))
+	case "o":
+		return m.openLocation(lines)
+	}
+	return nil
+}
+
+// moveSel déplace la ligne choisie et fait défiler pour la garder visible.
+func (m *Model) moveSel(d, total int) {
+	if total == 0 {
+		return
+	}
+	m.sel = min(max(0, m.sel+d), total-1)
+	m.selSet = true
+	// Fenêtre affichée : lignes [total-h-back, total-back).
+	if top := total - m.h - m.back; m.sel < top {
+		m.back = total - m.h - m.sel
+	} else if m.sel >= total-m.back {
+		m.back = total - 1 - m.sel
+	}
+	m.back = min(max(0, m.back), max(0, total-m.h))
+}
+
+// scroll remonte (n > 0) ou redescend dans l'historique.
+func (m *Model) scroll(n int) {
+	total := len(m.lines())
+	m.back = min(max(0, m.back+n), max(0, total-m.h))
+}
+
+// lines renvoie l'historique (lignes sorties de l'écran) puis l'écran,
+// avec leurs styles.
+func (m *Model) lines() []string {
+	if m.emu == nil {
+		return nil
+	}
+	var out []string
+	if sb := m.emu.Scrollback(); sb != nil {
+		for _, l := range sb.Lines() {
+			out = append(out, l.Render())
+		}
+	}
+	return append(out, strings.Split(m.emu.Render(), "\n")...)
+}
+
+// locRe repère « fichier.go:12 » (ou fichier.go:12:5).
+var locRe = regexp.MustCompile(`([\w./\\-]+\.go):(\d+)`)
+
+// openLocation ouvre dans l'éditeur l'emplacement de la ligne choisie.
+func (m *Model) openLocation(lines []string) tea.Cmd {
+	if !m.selSet || m.sel >= len(lines) {
+		return nil
+	}
+	mt := locRe.FindStringSubmatch(ansi.Strip(lines[m.sel]))
 	if mt == nil {
 		return panel.Flash(i18n.T("Aucun emplacement fichier:ligne sur cette ligne"), true)
 	}
@@ -509,75 +324,80 @@ func (m *Model) openLocation() tea.Cmd {
 
 // ─── Vue ─────────────────────────────────────────────────────────────────────
 
+// View dessine le terminal ; au premier affichage, le shell démarre à la
+// taille du module.
 func (m *Model) View(width, height int) string {
 	t := m.th
-	if height < 3 {
+	if width < 10 || height < 3 {
 		return ""
 	}
-	m.outH = height - 2
-	if m.follow {
-		m.offset = max(0, len(m.lines)-m.outH)
+	m.resize(width-2, height-1) // marge de sélection à gauche, ligne d'état en bas
+	if m.emu == nil && m.failed == "" && m.spawn {
+		m.start()
 	}
-	m.offset = scroll.Clamp(m.offset, m.outH, len(m.lines))
-	textW := max(1, width-2)
-
 	var rows []string
-	if len(m.lines) == 0 {
-		rows = append(rows, t.Dim.Render(i18n.T("Tape une commande (go build, make, go run .…) puis Entrée ; elle s'exécute dans le répertoire du projet.")))
+	switch {
+	case m.failed != "":
+		rows = []string{t.Err.Render(m.failed)}
+	case m.emu == nil:
+		rows = []string{t.Dim.Render(i18n.T("Terminal désactivé (GOPIT_TERMINAL=off)."))}
+	default:
+		rows = m.viewScreen()
 	}
-	for i := m.offset; i < len(m.lines) && i < m.offset+m.outH; i++ {
-		l := m.lines[i]
-		text := ansi.Truncate(l.text, textW, "…")
-		var st lipgloss.Style
-		switch l.kind {
-		case kindCmd:
-			st = lipgloss.NewStyle().Foreground(t.P.Accent).Bold(true)
-		case kindOK:
-			st = lipgloss.NewStyle().Foreground(t.P.Green)
-		case kindFail:
-			st = lipgloss.NewStyle().Foreground(t.P.Red)
-		default:
-			st = lipgloss.NewStyle().Foreground(t.P.Text)
-			if locRe.MatchString(l.text) {
-				st = st.Foreground(t.P.Blue)
-			}
-		}
-		if !m.typing && i == m.cursor {
-			st = st.Background(t.P.Surface1)
-			text += strings.Repeat(" ", max(0, textW-ansi.StringWidth(text)))
-		}
-		rows = append(rows, st.Render(text))
-	}
-	out := scroll.Render(rows, textW, m.outH, len(m.lines), m.offset,
-		lipgloss.NewStyle().Foreground(t.P.Surface1), lipgloss.NewStyle().Foreground(t.P.Accent))
-	sep := lipgloss.NewStyle().Foreground(t.P.Surface1).Render(strings.Repeat("─", width))
-	return lipgloss.NewStyle().Height(m.outH).MaxHeight(m.outH).Render(out) + "\n" + sep + "\n" + m.viewInput(width)
+	body := lipgloss.NewStyle().Height(height - 1).MaxHeight(height - 1).Render(strings.Join(rows, "\n"))
+	return body + "\n" + m.viewStatus(width)
 }
 
-func (m *Model) viewInput(w int) string {
+// viewScreen dessine les lignes visibles, avec le curseur en mode shell et
+// la ligne choisie en navigation.
+func (m *Model) viewScreen() []string {
 	t := m.th
-	prompt := lipgloss.NewStyle().Foreground(t.P.Accent).Bold(true).Render("❯ ")
-	if !m.typing {
-		prompt = t.Dim.Render("❯ ")
-	}
-	right := ""
-	if m.running() {
-		right = t.Warn.Render(fmt.Sprintf(i18n.T(" en cours… %.0fs · Ctrl+C pour arrêter"), time.Since(m.started).Seconds()))
-	}
-	room := max(1, w-lipgloss.Width(prompt)-lipgloss.Width(right)-1)
-	in := string(m.input)
-	if m.typing {
-		before, after := string(m.input[:m.pos]), string(m.input[m.pos:])
-		cur := " "
-		if after != "" {
-			r := []rune(after)
-			cur, after = string(r[0]), string(r[1:])
+	lines := m.lines()
+	total := len(lines)
+	from := max(0, total-m.h-m.back)
+	cur := m.emu.CursorPosition()
+	curRow := total - m.h + cur.Y // ligne du curseur dans lines
+	rows := make([]string, 0, m.h)
+	for i := from; i < total && i < from+m.h; i++ {
+		l := lines[i]
+		if m.RawInput() && m.back == 0 && i == curRow {
+			l = drawCursor(l, cur.X)
 		}
-		in = t.Text.Render(before) + t.Text.Reverse(true).Render(cur) + t.Text.Render(after)
-	} else {
-		in = t.Dim.Render(in)
+		mark := "  "
+		if !m.RawInput() && m.selSet && i == m.sel {
+			mark = lipgloss.NewStyle().Foreground(t.P.Accent).Bold(true).Render("▶ ")
+		}
+		rows = append(rows, mark+l)
 	}
-	in = ansi.Truncate(in, room, "…")
-	gap := max(1, w-lipgloss.Width(prompt)-lipgloss.Width(in)-lipgloss.Width(right))
-	return prompt + in + strings.Repeat(" ", gap) + right
+	return rows
+}
+
+// drawCursor inverse la cellule x d'une ligne rendue.
+func drawCursor(line string, x int) string {
+	cell := ansi.Strip(ansi.Cut(line, x, x+1))
+	if cell == "" {
+		cell = " "
+	}
+	return ansi.Cut(line, 0, x) + "\x1b[7m" + cell + "\x1b[27m" + ansi.Cut(line, x+1, ansi.StringWidth(line))
+}
+
+func (m *Model) viewStatus(w int) string {
+	t := m.th
+	var s string
+	switch {
+	case m.failed != "" || m.emu == nil:
+		return ""
+	case m.exited:
+		s = t.Warn.Render(fmt.Sprintf(i18n.T("Shell terminé (code %d) — Entrée pour le relancer"), m.exitCode))
+	case m.RawInput():
+		s = lipgloss.NewStyle().Foreground(t.P.Green).Render(i18n.T("● shell")) +
+			t.Dim.Render(i18n.T(" — les touches vont au shell ; Ctrl+] revient à gopit"))
+	default:
+		s = lipgloss.NewStyle().Foreground(t.P.Accent).Render(i18n.T("◆ navigation")) +
+			t.Dim.Render(i18n.T(" — i ou Entrée : shell · ↑↓ ligne · o : ouvrir fichier:ligne"))
+		if m.back > 0 {
+			s += t.Dim.Render(fmt.Sprintf(i18n.T(" · %d lignes plus haut"), m.back))
+		}
+	}
+	return ansi.Truncate(s, w, "…")
 }

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/gitx"
 	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
+	"github.com/laurentpoirierfr/gopit/internal/panels/shell"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 )
 
@@ -28,8 +30,9 @@ const width, height = 120, 40
 func newApp(t *testing.T, cfg *config.Config) *Model {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("GOPIT_GOPLS", "off") // pas de connexion à gopls
-	t.Setenv("GOPIT_WATCH", "off") // ni de surveillance du disque
+	t.Setenv("GOPIT_GOPLS", "off")    // pas de connexion à gopls
+	t.Setenv("GOPIT_WATCH", "off")    // ni de surveillance du disque
+	t.Setenv("GOPIT_TERMINAL", "off") // ni de shell
 	i18n.Set(i18n.FR)
 	t.Cleanup(func() { i18n.Set(i18n.FR) })
 	if cfg != nil {
@@ -553,4 +556,38 @@ func TestDebugOutputInStatusBar(t *testing.T) {
 	if m.flash != "" {
 		t.Errorf("dans le module Débogage : %q", m.flash)
 	}
+}
+
+func TestTerminalTakesAllKeys(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pas de pseudo-terminal")
+	}
+	m := newApp(t, nil)
+	t.Setenv("GOPIT_TERMINAL", "on")
+	t.Setenv("SHELL", "/bin/sh")
+	term := shell.New(m.th, m.proj) // terminal créé avec le shell autorisé
+	i := panelIndex(t, m, "Terminal")
+	m.panels[i] = term
+	press(m, moduleKey(i))
+	m.render() // premier affichage : le shell démarre
+	if r, ok := m.panels[m.cur].(panel.RawInput); !ok || !r.RawInput() {
+		t.Fatal("mode shell attendu")
+	}
+	// Ctrl+Q, un chiffre, F5 : pour le shell, pas pour gopit.
+	if isQuit(press(m, "ctrl+q")) || m.quitArmed {
+		t.Error("Ctrl+Q quitte gopit au lieu d'aller au shell")
+	}
+	press(m, "2")
+	press(m, "f10")
+	if m.cur != i || m.menu.open >= 0 {
+		t.Errorf("chiffre ou F10 pris par gopit : module %d, menu %d", m.cur, m.menu.open)
+	}
+	// Ctrl+] : les touches du cockpit reviennent.
+	press(m, "ctrl+]")
+	press(m, "2")
+	if m.panels[m.cur].Title() != "Éditeur" {
+		t.Errorf("après Ctrl+] : module %s", m.panels[m.cur].Title())
+	}
+	term.Update(tea.KeyPressMsg{Code: 'i', Text: "i"})
+	term.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}) // ferme le shell
 }

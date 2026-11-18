@@ -531,25 +531,11 @@ var es = map[string]string{
 	"créer un fichier dans l'éditeur intégré": "crear un archivo en el editor integrado",
 
 	// Terminal
-	"Terminal":                      "Terminal",
-	"exécuter":                      "ejecutar",
-	"historique":                    "historial",
-	"parcourir la sortie":           "recorrer la salida",
-	"saisir":                        "escribir",
-	"ligne":                         "línea",
-	"ouvrir fichier:ligne":          "abrir archivo:línea",
-	"Relancer la dernière commande": "Relanzar el último comando",
-	"Arrêter la commande":           "Detener el comando",
-	"Effacer la sortie":             "Borrar la salida",
-	"Exécuter : ":                   "Ejecutar: ",
-	"Une commande est déjà en cours (Ctrl+C pour l'arrêter)": "Ya hay un comando en curso (Ctrl+C para detenerlo)",
-	"■ arrêtée après %s":                                     "■ detenido tras %s",
-	"✓ terminée en %s":                                       "✓ terminado en %s",
-	"✗ code de sortie %d après %s":                           "✗ código de salida %d tras %s",
-	"Terminal : ":                                            "Terminal: ",
-	"Aucun emplacement fichier:ligne sur cette ligne":        "Ninguna ubicación archivo:línea en esta línea",
-	"Tape une commande (go build, make, go run .…) puis Entrée ; elle s'exécute dans le répertoire du projet.": "Escribe un comando (go build, make, go run .…) y pulsa Intro; se ejecuta en el directorio del proyecto.",
-	" en cours… %.0fs · Ctrl+C pour arrêter": " en curso… %.0fs · Ctrl+C para detener",
+	"Terminal":             "Terminal",
+	"ligne":                "línea",
+	"ouvrir fichier:ligne": "abrir archivo:línea",
+	"Exécuter : ":          "Ejecutar: ",
+	"Aucun emplacement fichier:ligne sur cette ligne": "Ninguna ubicación archivo:línea en esta línea",
 
 	// Barre d'état
 	" (détaché)": " (separado)",
@@ -630,4 +616,17 @@ var es = map[string]string{
 	"Sortie du programme":     "Salida del programa",
 	"  lignes %d–%d / %d":     "  líneas %d–%d / %d",
 	"  (rien pour l'instant)": "  (nada por ahora)",
+
+	// Terminal (vrai shell)
+	"revenir à gopit (les autres touches vont au shell)": "volver a gopit (las demás teclas van al shell)",
+	"relancer le shell":                    "reiniciar el shell",
+	"shell":                                "shell",
+	"Impossible de démarrer le shell : %v": "No se puede iniciar el shell: %v",
+	"Terminal désactivé (GOPIT_TERMINAL=off).":          "Terminal desactivado (GOPIT_TERMINAL=off).",
+	"Shell terminé (code %d) — Entrée pour le relancer": "Shell terminado (código %d) — Intro para reiniciarlo",
+	"● shell": "● shell",
+	" — les touches vont au shell ; Ctrl+] revient à gopit": " — las teclas van al shell; Ctrl+] vuelve a gopit",
+	"◆ navigation": "◆ navegación",
+	" — i ou Entrée : shell · ↑↓ ligne · o : ouvrir fichier:ligne": " — i o Intro: shell · ↑↓ línea · o: abrir archivo:línea",
+	" · %d lignes plus haut": " · %d líneas más arriba",
 }

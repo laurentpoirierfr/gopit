@@ -42,6 +42,15 @@ type Capturer interface {
 	Capturing() bool
 }
 
+// RawInput est implémenté par les panneaux qui veulent toutes les touches,
+// raccourcis du cockpit compris (le vrai terminal : vim, htop…) : tant que
+// RawInput renvoie true, le cadre leur transmet tout, Ctrl+C, Ctrl+Q et les
+// touches F comprises. Le panneau prévoit sa propre touche pour rendre la
+// main.
+type RawInput interface {
+	RawInput() bool
+}
+
 // CtrlCTaker est implémenté par les panneaux qui donnent un sens à Ctrl+C
 // (copier dans l'éditeur, arrêter la commande du terminal) : tant que
 // TakesCtrlC renvoie true, Ctrl+C leur est transmis au lieu de quitter.
