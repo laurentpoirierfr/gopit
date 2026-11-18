@@ -12,6 +12,7 @@ import (
 
 	"github.com/laurentpoirierfr/gopit/internal/config"
 	"github.com/laurentpoirierfr/gopit/internal/editor"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/version"
 )
@@ -52,20 +53,20 @@ func (m *Model) menus() []menu {
 			run: func(m *Model) tea.Cmd { m.focus = focusContent; return m.toPanel(panel.EditMsg{Action: a}) }}
 	}
 	edit := []menuItem{
-		act("Annuler", "Ctrl+Z", panel.ActUndo), act("Rétablir", "Ctrl+Y", panel.ActRedo), {sep: true},
-		act("Couper", "Ctrl+X", panel.ActCut), act("Copier", "Ctrl+C", panel.ActCopy),
-		act("Coller", "Ctrl+V", panel.ActPaste), act("Tout sélectionner", "Ctrl+A", panel.ActSelectAll), {sep: true},
-		act("Rechercher", "Ctrl+F", panel.ActFind), act("Occurrence suivante", "F3", panel.ActFindNext),
-		act("Aller à la ligne", "Ctrl+G", panel.ActGoto), {sep: true},
-		act("Commenter / décommenter", "Ctrl+/", panel.ActComment), act("Formater (gofmt)", "Alt+Maj+F", panel.ActFormat),
+		act(i18n.T("Annuler"), "Ctrl+Z", panel.ActUndo), act(i18n.T("Rétablir"), "Ctrl+Y", panel.ActRedo), {sep: true},
+		act(i18n.T("Couper"), "Ctrl+X", panel.ActCut), act(i18n.T("Copier"), "Ctrl+C", panel.ActCopy),
+		act(i18n.T("Coller"), "Ctrl+V", panel.ActPaste), act(i18n.T("Tout sélectionner"), "Ctrl+A", panel.ActSelectAll), {sep: true},
+		act(i18n.T("Rechercher"), "Ctrl+F", panel.ActFind), act(i18n.T("Occurrence suivante"), "F3", panel.ActFindNext),
+		act(i18n.T("Aller à la ligne"), "Ctrl+G", panel.ActGoto), {sep: true},
+		act(i18n.T("Commenter / décommenter"), "Ctrl+/", panel.ActComment), act(i18n.T("Formater (gofmt)"), "Alt+Maj+F", panel.ActFormat),
 	}
 	if !canEdit {
-		edit = append(edit, menuItem{label: "Ouvre un fichier dans l'Éditeur pour modifier", disabled: true})
+		edit = append(edit, menuItem{label: i18n.T("Ouvre un fichier dans l'Éditeur pour modifier"), disabled: true})
 	}
 
 	var modules []menuItem
 	for i, p := range m.panels {
-		modules = append(modules, menuItem{label: p.Icon() + "  " + p.Title(), key: fmt.Sprint(i + 1), checked: yes(i == m.cur),
+		modules = append(modules, menuItem{label: p.Icon() + "  " + i18n.T(p.Title()), key: fmt.Sprint(i + 1), checked: yes(i == m.cur),
 			run: func(m *Model) tea.Cmd { m.cur, m.focus = i, focusContent; return nil }})
 	}
 
@@ -78,52 +79,66 @@ func (m *Model) menus() []menu {
 		}
 	}
 	if len(actions) == 0 {
-		actions = []menuItem{{label: "Aucune action", disabled: true}}
+		actions = []menuItem{{label: i18n.T("Aucune action"), disabled: true}}
 	}
 
 	return []menu{
-		{title: "Fichier", hotkey: "alt+f", items: []menuItem{
-			{label: "Ouvrir un fichier…", key: "Ctrl+O", run: func(m *Model) tea.Cmd { return m.openPicker() }},
-			{label: "Fermer le fichier", key: "Ctrl+W", disabled: !canEdit,
+		{title: i18n.T("Fichier"), hotkey: "alt+f", items: []menuItem{
+			{label: i18n.T("Ouvrir un fichier…"), key: "Ctrl+O", run: func(m *Model) tea.Cmd { return m.openPicker() }},
+			{label: i18n.T("Fermer le fichier"), key: "Ctrl+W", disabled: !canEdit,
 				run: func(m *Model) tea.Cmd { return m.toPanel(panel.EditMsg{Action: panel.ActClose}) }},
-			{label: "Ouvrir le projet dans l'éditeur externe", key: "e",
+			{label: i18n.T("Ouvrir le projet dans l'éditeur externe"), key: "e",
 				run: func(m *Model) tea.Cmd { return editor.Open(m.proj.Root, "", 0) }},
-			{label: "Ouvrir les fichiers dans l'éditeur externe", checked: yes(m.external),
+			{label: i18n.T("Ouvrir les fichiers dans l'éditeur externe"), checked: yes(m.external),
 				run: func(m *Model) tea.Cmd { m.external = !m.external; return nil }},
-			{label: "Préférences…", run: func(m *Model) tea.Cmd {
+			{label: i18n.T("Préférences…"), run: func(m *Model) tea.Cmd {
 				m.saveConfig()
 				p, err := config.Path()
 				if err != nil {
-					return m.setFlash("Préférences : "+err.Error(), true)
+					return m.setFlash(i18n.T("Préférences : ")+err.Error(), true)
 				}
 				return editor.Open(m.proj.Root, p, 0)
 			}},
 			{sep: true},
-			{label: "Quitter", key: "Ctrl+Q", run: func(m *Model) tea.Cmd { return m.quit() }},
+			{label: i18n.T("Quitter"), key: "Ctrl+Q", run: func(m *Model) tea.Cmd { return m.quit() }},
 		}},
-		{title: "Édition", hotkey: "alt+e", items: edit},
-		{title: "Affichage", hotkey: "alt+a", items: []menuItem{
-			{label: "Barre latérale des modules", checked: yes(m.sidebar), run: func(m *Model) tea.Cmd {
+		{title: i18n.T("Édition"), hotkey: "alt+e", items: edit},
+		{title: i18n.T("Affichage"), hotkey: "alt+a", items: append([]menuItem{
+			{label: i18n.T("Barre latérale des modules"), checked: yes(m.sidebar), run: func(m *Model) tea.Cmd {
 				m.sidebar = !m.sidebar
 				if !m.sidebar {
 					m.focus = focusContent
 				}
 				return nil
 			}},
-			{label: "Ligne des raccourcis", checked: yes(!m.hideHints), run: func(m *Model) tea.Cmd {
+			{label: i18n.T("Ligne des raccourcis"), checked: yes(!m.hideHints), run: func(m *Model) tea.Cmd {
 				m.hideHints = !m.hideHints
 				return m.resize()
 			}},
 			{sep: true},
-			{label: "Palette de commandes", key: "Ctrl+P", run: func(m *Model) tea.Cmd { m.openPalette(); return nil }},
-		}},
-		{title: "Modules", hotkey: "alt+m", items: modules},
-		{title: cur.Title(), items: actions},
-		{title: "Aide", hotkey: "alt+h", items: []menuItem{
-			{label: "Raccourcis clavier", key: "F1", run: func(m *Model) tea.Cmd { m.modal = modalHelp; return nil }},
-			{label: "À propos de gopit", run: func(m *Model) tea.Cmd { m.modal = modalAbout; return nil }},
+			{label: i18n.T("Palette de commandes"), key: "Ctrl+P", run: func(m *Model) tea.Cmd { m.openPalette(); return nil }},
+			{sep: true},
+		}, m.langItems()...)},
+		{title: i18n.T("Modules"), hotkey: "alt+m", items: modules},
+		{title: i18n.T(cur.Title()), items: actions},
+		{title: i18n.T("Aide"), hotkey: "alt+h", items: []menuItem{
+			{label: i18n.T("Raccourcis clavier"), key: "F1", run: func(m *Model) tea.Cmd { m.modal = modalHelp; return nil }},
+			{label: i18n.T("À propos de gopit"), run: func(m *Model) tea.Cmd { m.modal = modalAbout; return nil }},
 		}},
 	}
+}
+
+// langItems propose les langues de l'interface (menu Affichage, palette).
+func (m *Model) langItems() []menuItem {
+	items := make([]menuItem, len(i18n.Langs))
+	for i, l := range i18n.Langs {
+		items[i] = menuItem{label: l.Name(), checked: yes(i18n.Current() == l), run: func(m *Model) tea.Cmd {
+			i18n.Set(l)
+			m.langSet = true
+			return m.setFlash(i18n.T("Langue de l'interface : ")+l.Name(), false)
+		}}
+	}
+	return items
 }
 
 // keyLabel présente une touche pour l'affichage.
@@ -268,7 +283,7 @@ func (m *Model) viewDropdown(menus []menu) string {
 	lw, kw := 0, 0
 	for _, it := range mn.items {
 		lw = max(lw, lipgloss.Width(it.label))
-		kw = max(kw, lipgloss.Width(it.key))
+		kw = max(kw, lipgloss.Width(i18n.Key(it.key)))
 	}
 	inner := 1 + 2 + lw + 3 + kw + 1
 	bg := lipgloss.NewStyle().Background(t.P.Mantle)
@@ -284,14 +299,15 @@ func (m *Model) viewDropdown(menus []menu) string {
 			mark = "✓ "
 		}
 		left := " " + mark + it.label
-		pad := strings.Repeat(" ", max(1, inner-lipgloss.Width(left)-lipgloss.Width(it.key)-1))
+		key := i18n.Key(it.key)
+		pad := strings.Repeat(" ", max(1, inner-lipgloss.Width(left)-lipgloss.Width(key)-1))
 		switch {
 		case i == m.menu.cursor && !it.disabled:
-			lines[i] = lipgloss.NewStyle().Background(t.P.Accent).Foreground(t.P.Base).Bold(true).Render(left + pad + it.key + " ")
+			lines[i] = lipgloss.NewStyle().Background(t.P.Accent).Foreground(t.P.Base).Bold(true).Render(left + pad + key + " ")
 		case it.disabled:
-			lines[i] = bg.Foreground(t.P.Surface1).Render(left + pad + it.key + " ")
+			lines[i] = bg.Foreground(t.P.Surface1).Render(left + pad + key + " ")
 		default:
-			lines[i] = bg.Foreground(t.P.Text).Render(left+pad) + bg.Foreground(t.P.Overlay0).Render(it.key+" ")
+			lines[i] = bg.Foreground(t.P.Text).Render(left+pad) + bg.Foreground(t.P.Overlay0).Render(key+" ")
 		}
 	}
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(t.P.Accent).
@@ -314,23 +330,23 @@ func (m *Model) viewModal() string {
 	title := bg.Foreground(t.P.Accent).Bold(true)
 	keySt := bg.Foreground(t.P.Blue).Bold(true)
 	text := bg.Foreground(t.P.Text)
-	row := func(k, d string) string { return keySt.Render(fmt.Sprintf("  %-14s", k)) + text.Render(d) }
+	row := func(k, d string) string { return keySt.Render(fmt.Sprintf("  %-14s", i18n.Key(k))) + text.Render(d) }
 
 	var lines []string
 	switch m.modal {
 	case modalHelp:
 		lines = []string{
-			title.Render("Raccourcis clavier"), "",
-			title.Render("Général"),
-			row("F10 / Alt+…", "barre de menus (Alt+F, E, A, M, H)"),
-			row("Ctrl+P", "palette de commandes"),
-			row(fmt.Sprintf("1…%d", len(m.panels)), "changer de module"),
-			row("F1", "cette aide"),
-			row("e", "éditeur externe"),
-			row("Ctrl+O", "ouvrir un fichier dans l'éditeur intégré"),
-			row("q / Ctrl+Q", "quitter (Ctrl+C hors de l'éditeur)"),
+			title.Render(i18n.T("Raccourcis clavier")), "",
+			title.Render(i18n.T("Général")),
+			row("F10 / Alt+…", i18n.T("barre de menus (Alt+F, E, A, M, H)")),
+			row("Ctrl+P", i18n.T("palette de commandes")),
+			row(fmt.Sprintf("1…%d", len(m.panels)), i18n.T("changer de module")),
+			row("F1", i18n.T("cette aide")),
+			row("e", i18n.T("éditeur externe")),
+			row("Ctrl+O", i18n.T("ouvrir un fichier dans l'éditeur intégré")),
+			row("q / Ctrl+Q", i18n.T("quitter (Ctrl+C hors de l'éditeur)")),
 			"",
-			title.Render("Module " + m.panels[m.cur].Title()),
+			title.Render(i18n.T("Module ") + i18n.T(m.panels[m.cur].Title())),
 		}
 		for _, h := range m.panels[m.cur].Hints() {
 			lines = append(lines, row(h.Key, h.Desc))
@@ -338,13 +354,13 @@ func (m *Model) viewModal() string {
 	case modalAbout:
 		lines = []string{
 			title.Render(brandText + " " + version.Version), "",
-			text.Render("Le cockpit du développeur Go dans le terminal."),
+			text.Render(i18n.T("Le cockpit du développeur Go dans le terminal.")),
 			text.Render("Bubble Tea v2 · Lip Gloss v2 · Glamour v2"), "",
-			text.Render("Projet : " + m.proj.Module),
+			text.Render(i18n.T("Projet : ") + m.proj.Module),
 			text.Render("Go " + m.proj.GoVersion),
 		}
 	}
-	lines = append(lines, "", bg.Foreground(t.P.Overlay0).Render("Échap pour fermer"))
+	lines = append(lines, "", bg.Foreground(t.P.Overlay0).Render(i18n.T("Échap pour fermer")))
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(t.P.Accent).
 		BorderBackground(t.P.Mantle).Background(t.P.Mantle).Padding(1, 3).Render(strings.Join(lines, "\n"))
 }

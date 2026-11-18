@@ -3,21 +3,22 @@ package tests
 import (
 	"strconv"
 
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 )
 
 // Commands expose les actions du module à la palette (Ctrl+P).
 func (m *Model) Commands() []panel.Command {
 	return []panel.Command{
-		{Title: "Lancer tous les tests", Key: "a"},
-		{Title: "Relancer les tests en échec", Key: "f"},
-		{Title: "Lancer la sélection", Key: "enter"},
-		{Title: "Arrêter l'exécution", Key: "x"},
-		{Title: "Surveillance des fichiers (relance automatique)", Key: "w"},
-		{Title: "Couverture de code", Key: "v"},
-		{Title: "Cache de go test", Key: "c"},
-		{Title: "Afficher les paquets sans tests", Key: "h"},
-		{Title: "Ouvrir l'erreur ou le code non couvert", Key: "o"},
+		{Title: i18n.T("Lancer tous les tests"), Key: "a"},
+		{Title: i18n.T("Relancer les tests en échec"), Key: "f"},
+		{Title: i18n.T("Lancer la sélection"), Key: "enter"},
+		{Title: i18n.T("Arrêter l'exécution"), Key: "x"},
+		{Title: i18n.T("Surveillance des fichiers (relance automatique)"), Key: "w"},
+		{Title: i18n.T("Couverture de code"), Key: "v"},
+		{Title: i18n.T("Cache de go test"), Key: "c"},
+		{Title: i18n.T("Afficher les paquets sans tests"), Key: "h"},
+		{Title: i18n.T("Ouvrir l'erreur ou le code non couvert"), Key: "o"},
 	}
 }
 

@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 const (
@@ -122,17 +124,17 @@ func readText(path string) (string, fs.FileMode, error) {
 		return "", 0, err
 	}
 	if st.IsDir() {
-		return "", 0, fmt.Errorf("%s est un répertoire", filepath.Base(path))
+		return "", 0, fmt.Errorf(i18n.T("%s est un répertoire"), filepath.Base(path))
 	}
 	if st.Size() > maxFileSize {
-		return "", 0, fmt.Errorf("%s : fichier trop gros (%d Mo)", filepath.Base(path), st.Size()>>20)
+		return "", 0, fmt.Errorf(i18n.T("%s : fichier trop gros (%d Mo)"), filepath.Base(path), st.Size()>>20)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", 0, err
 	}
 	if bytes.IndexByte(data[:min(len(data), 8000)], 0) >= 0 {
-		return "", 0, errors.New(filepath.Base(path) + " : fichier binaire")
+		return "", 0, errors.New(filepath.Base(path) + i18n.T(" : fichier binaire"))
 	}
 	return string(data), st.Mode().Perm(), nil
 }

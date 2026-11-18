@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"golang.org/x/mod/semver"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 // StdlibPath est le nom donné par govulncheck à la bibliothèque standard.
@@ -77,7 +79,7 @@ func ParseList(data []byte) ([]Module, error) {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return mods, fmt.Errorf("sortie de go list illisible : %w", err)
+			return mods, fmt.Errorf(i18n.T("sortie de go list illisible : %w"), err)
 		}
 		mods = append(mods, m)
 	}
@@ -103,11 +105,11 @@ const (
 func (k UpdateKind) String() string {
 	switch k {
 	case Patch:
-		return "correctif"
+		return i18n.T("correctif")
 	case Minor:
-		return "mineure"
+		return i18n.T("mineure")
 	case Major:
-		return "majeure"
+		return i18n.T("majeure")
 	}
 	return ""
 }
@@ -199,11 +201,11 @@ const (
 func (l Level) String() string {
 	switch l {
 	case LevelSymbol:
-		return "fonction vulnérable appelée"
+		return i18n.T("fonction vulnérable appelée")
 	case LevelPackage:
-		return "paquet importé, fonction non appelée"
+		return i18n.T("paquet importé, fonction non appelée")
 	}
-	return "module requis, paquet non importé"
+	return i18n.T("module requis, paquet non importé")
 }
 
 // Frame est une étape de la chaîne d'appels qui mène à la fonction vulnérable.
@@ -247,7 +249,7 @@ func (v Vuln) URL() string { return "https://pkg.go.dev/vuln/" + v.ID }
 // Vulns lance govulncheck sur le module (accès réseau à vuln.go.dev).
 func Vulns(ctx context.Context, root string) ([]Vuln, error) {
 	if !VulnAvailable() {
-		return nil, errors.New("govulncheck n'est pas installé")
+		return nil, errors.New(i18n.T("govulncheck n'est pas installé"))
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
@@ -313,7 +315,7 @@ func ParseVulns(data []byte) ([]Vuln, error) {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return nil, fmt.Errorf("sortie de govulncheck illisible : %w", err)
+			return nil, fmt.Errorf(i18n.T("sortie de govulncheck illisible : %w"), err)
 		}
 		if o := msg.OSV; o != nil {
 			osvs[o.ID] = osvInfo{o.Summary, o.Details, o.Aliases}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/laurentpoirierfr/gopit/internal/config"
 	"github.com/laurentpoirierfr/gopit/internal/editor"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 )
 
@@ -38,7 +39,7 @@ const paletteRows = 12
 func (m *Model) openPalette() {
 	var items []paletteItem
 	for i, p := range m.panels {
-		items = append(items, paletteItem{title: "Aller à : " + p.Title(), key: fmt.Sprint(i + 1),
+		items = append(items, paletteItem{title: i18n.T("Aller à : ") + i18n.T(p.Title()), key: fmt.Sprint(i + 1),
 			run: func(m *Model) tea.Cmd { m.cur, m.focus = i, focusContent; return nil }})
 	}
 	for i, p := range m.panels {
@@ -47,7 +48,7 @@ func (m *Model) openPalette() {
 			continue
 		}
 		for _, cmd := range c.Commands() {
-			items = append(items, paletteItem{module: p.Title(), title: cmd.Title, key: cmd.Key,
+			items = append(items, paletteItem{module: i18n.T(p.Title()), title: cmd.Title, key: cmd.Key,
 				run: func(m *Model) tea.Cmd {
 					m.cur, m.focus = i, focusContent
 					return m.toPanel(commandMsg(cmd))
@@ -55,19 +56,22 @@ func (m *Model) openPalette() {
 		}
 	}
 	items = append(items,
-		paletteItem{title: "Ouvrir l'éditeur sur le projet", key: "e",
+		paletteItem{title: i18n.T("Ouvrir l'éditeur sur le projet"), key: "e",
 			run: func(m *Model) tea.Cmd { return editor.Open(m.proj.Root, "", 0) }},
-		paletteItem{title: "Ouvrir le fichier de préférences",
+		paletteItem{title: i18n.T("Ouvrir le fichier de préférences"),
 			run: func(m *Model) tea.Cmd {
 				m.saveConfig() // pour qu'il existe et reflète l'état actuel
 				p, err := config.Path()
 				if err != nil {
-					return m.setFlash("Préférences : "+err.Error(), true)
+					return m.setFlash(i18n.T("Préférences : ")+err.Error(), true)
 				}
 				return editor.Open(m.proj.Root, p, 0)
 			}},
-		paletteItem{title: "Quitter gopit", key: "Ctrl+Q", run: func(m *Model) tea.Cmd { return m.quit() }},
+		paletteItem{title: i18n.T("Quitter gopit"), key: "Ctrl+Q", run: func(m *Model) tea.Cmd { return m.quit() }},
 	)
+	for _, it := range m.langItems() {
+		items = append(items, paletteItem{title: i18n.T("Langue : ") + it.label, run: it.run})
+	}
 	m.menu.open = -1
 	m.pal = palette{open: true, items: items}
 	m.filterPalette()
@@ -169,7 +173,7 @@ func (m *Model) viewPalette() string {
 		it := p.items[p.matches[i]]
 		key := ""
 		if it.key != "" {
-			key = "[" + it.key + "]"
+			key = "[" + i18n.Key(keyLabel(it.key)) + "]"
 		}
 		module := ""
 		if it.module != "" {
@@ -186,10 +190,10 @@ func (m *Model) viewPalette() string {
 			bg.Render(strings.Repeat(" ", gap))+bg.Foreground(t.P.Overlay0).Render(key+" ")))
 	}
 	if len(p.matches) == 0 {
-		lines = append(lines, line(bg.Foreground(t.P.Overlay0).Render(" Aucune commande")))
+		lines = append(lines, line(bg.Foreground(t.P.Overlay0).Render(i18n.T(" Aucune commande"))))
 	}
 	lines = append(lines, line(""), line(bg.Foreground(t.P.Overlay0).Render(
-		fmt.Sprintf(" %d commande(s) · ↑↓ choisir · Entrée exécuter · Échap fermer", len(p.matches)))))
+		fmt.Sprintf(i18n.T(" %d commande(s) · ↑↓ choisir · Entrée exécuter · Échap fermer"), len(p.matches)))))
 
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(t.P.Accent).
 		BorderBackground(t.P.Mantle).Background(t.P.Mantle).Padding(0, 1).Render(strings.Join(lines, "\n"))

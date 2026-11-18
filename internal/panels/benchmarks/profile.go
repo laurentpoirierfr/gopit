@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/bench"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/prof"
 )
@@ -39,15 +40,15 @@ type profState struct {
 func (m *Model) startProfile(kind string) tea.Cmd {
 	r := m.selected()
 	if r == nil {
-		return panel.Flash("Sélectionne d'abord un benchmark (a pour les lancer)", true)
+		return panel.Flash(i18n.T("Sélectionne d'abord un benchmark (a pour les lancer)"), true)
 	}
 	dir, err := os.MkdirTemp("", "gopit-prof-*")
 	if err != nil {
-		return panel.Flash("Profil : "+err.Error(), true)
+		return panel.Flash(i18n.T("Profil : ")+err.Error(), true)
 	}
-	flag, label := "-cpuprofile=", "profil CPU de "+r.Name
+	flag, label := "-cpuprofile=", i18n.T("profil CPU de ")+r.Name
 	if kind == "mem" {
-		flag, label = "-memprofile=", "profil mémoire de "+r.Name
+		flag, label = "-memprofile=", i18n.T("profil mémoire de ")+r.Name
 	}
 	m.pr = profState{kind: kind, dir: dir, target: r.Name, source: map[string][]string{}}
 	return m.start(label, bench.Options{
@@ -72,15 +73,15 @@ func (m *Model) finishProfile(err error) tea.Cmd {
 	kind := m.pr.kind
 	m.pr.kind = ""
 	if err != nil {
-		return panel.Flash("Profilage : "+err.Error(), err != bench.ErrInterrupted)
+		return panel.Flash(i18n.T("Profilage : ")+err.Error(), err != bench.ErrInterrupted)
 	}
 	r, lerr := prof.Load(filepath.Join(m.pr.dir, kind+".prof"), "")
 	if lerr != nil {
-		return panel.Flash("Profil : "+lerr.Error(), true)
+		return panel.Flash(i18n.T("Profil : ")+lerr.Error(), true)
 	}
 	m.pr.report, m.pr.open, m.pr.cursor, m.pr.offset = r, true, 0, 0
 	m.filterFuncs()
-	return panel.Flash(fmt.Sprintf("Profil %s de %s : %s mesurés", r.Kind, m.pr.target, r.Format(r.Total)), false)
+	return panel.Flash(fmt.Sprintf(i18n.T("Profil %s de %s : %s mesurés"), r.Kind, m.pr.target, r.Format(r.Total)), false)
 }
 
 func (m *Model) filterFuncs() {
@@ -96,8 +97,8 @@ func (m *Model) filterFuncs() {
 }
 
 func (m *Model) profileHints() []panel.Hint {
-	return []panel.Hint{{Key: "Échap", Desc: "benchmarks"}, {Key: "s", Desc: "tri propre/cumulé"},
-		{Key: "t", Desc: "mesure"}, {Key: "f", Desc: "mon code"}, {Key: "o", Desc: "ouvrir"}}
+	return []panel.Hint{{Key: "Échap", Desc: i18n.T("benchmarks")}, {Key: "s", Desc: i18n.T("tri propre/cumulé")},
+		{Key: "t", Desc: i18n.T("mesure")}, {Key: "f", Desc: i18n.T("mon code")}, {Key: "o", Desc: i18n.T("ouvrir")}}
 }
 
 func (m *Model) profileKey(s string) tea.Cmd {
@@ -120,9 +121,9 @@ func (m *Model) profileKey(s string) tea.Cmd {
 		p.mineOnly = !p.mineOnly
 		m.filterFuncs()
 		if p.mineOnly {
-			return panel.Flash("Seulement les fonctions du module", false)
+			return panel.Flash(i18n.T("Seulement les fonctions du module"), false)
 		}
-		return panel.Flash("Toutes les fonctions", false)
+		return panel.Flash(i18n.T("Toutes les fonctions"), false)
 	case "t":
 		types := p.report.Types
 		next := types[0]
@@ -137,12 +138,12 @@ func (m *Model) profileKey(s string) tea.Cmd {
 		}
 		p.report = r
 		m.filterFuncs()
-		return panel.Flash("Mesure : "+next, false)
+		return panel.Flash(i18n.T("Mesure : ")+next, false)
 	case "o", "enter":
 		if p.cursor < len(p.funcs) {
 			f := p.funcs[p.cursor]
 			if _, err := os.Stat(f.File); err != nil {
-				return panel.Flash("Source introuvable : "+f.File, true)
+				return panel.Flash(i18n.T("Source introuvable : ")+f.File, true)
 			}
 			return panel.Open(f.File, f.Line)
 		}
@@ -155,18 +156,18 @@ func (m *Model) profileKey(s string) tea.Cmd {
 func (m *Model) viewProfile(width, height int) string {
 	t := m.th
 	r := m.pr.report
-	sort := "coût propre"
+	sort := i18n.T("coût propre")
 	if m.pr.byCum {
-		sort = "coût cumulé"
+		sort = i18n.T("coût cumulé")
 	}
-	head := t.Value.Render("Profil "+r.Kind) + t.Dim.Render(" · ") + t.Text.Render(m.pr.target) +
-		t.Dim.Render(" · total ") + t.Value.Render(r.Format(r.Total))
+	head := t.Value.Render(i18n.T("Profil ")+r.Kind) + t.Dim.Render(" · ") + t.Text.Render(m.pr.target) +
+		t.Dim.Render(i18n.T(" · total ")) + t.Value.Render(r.Format(r.Total))
 	if r.Duration > 0 {
-		head += t.Dim.Render(fmt.Sprintf(" sur %.2fs", r.Duration.Seconds()))
+		head += t.Dim.Render(fmt.Sprintf(i18n.T(" sur %.2fs"), r.Duration.Seconds()))
 	}
-	head += t.Dim.Render("   │   tri : ") + t.Value.Render(sort)
+	head += t.Dim.Render(i18n.T("   │   tri : ")) + t.Value.Render(sort)
 	if m.pr.mineOnly {
-		head += t.Dim.Render(" · ") + t.Value.Render("module seulement")
+		head += t.Dim.Render(" · ") + t.Value.Render(i18n.T("module seulement"))
 	}
 	bodyH := max(1, height-2)
 	listW := max(40, width*55/100)
@@ -188,7 +189,7 @@ func (m *Model) viewFuncs(w, h int) string {
 	}
 	p.offset = max(0, p.offset)
 
-	lines := []string{t.Label.Render(fmt.Sprintf("%7s %6s %7s %6s  %s", "propre", "%", "cumulé", "%", "fonction"))}
+	lines := []string{t.Label.Render(fmt.Sprintf("%7s %6s %7s %6s  %s", i18n.T("propre"), "%", i18n.T("cumulé"), "%", i18n.T("fonction")))}
 	for i := p.offset; i < len(p.funcs) && len(lines) < h; i++ {
 		f := p.funcs[i]
 		heat := m.heat(r.Percent(f.Flat))
@@ -213,7 +214,7 @@ func (m *Model) viewFuncs(w, h int) string {
 		lines = append(lines, line)
 	}
 	if len(p.funcs) == 0 {
-		lines = append(lines, t.Dim.Render("Aucune fonction (f : afficher tout)"))
+		lines = append(lines, t.Dim.Render(i18n.T("Aucune fonction (f : afficher tout)")))
 	}
 	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
 }
@@ -243,7 +244,7 @@ func (m *Model) viewSource(w, h int) string {
 	lines := []string{
 		ansi.Truncate(t.Value.Render(prof.ShortName(f.Name)), w, "…"),
 		ansi.Truncate(t.Dim.Render(fmt.Sprintf("%s:%d", m.rel(f.File), f.Line)), w, "…"),
-		t.Dim.Render(fmt.Sprintf("propre %s (%.1f%%) · cumulé %s (%.1f%%)", r.Format(f.Flat), r.Percent(f.Flat), r.Format(f.Cum), r.Percent(f.Cum))),
+		t.Dim.Render(fmt.Sprintf(i18n.T("propre %s (%.1f%%) · cumulé %s (%.1f%%)"), r.Format(f.Flat), r.Percent(f.Flat), r.Format(f.Cum), r.Percent(f.Cum))),
 		"",
 	}
 
@@ -256,7 +257,7 @@ func (m *Model) viewSource(w, h int) string {
 		p.source[f.File] = src
 	}
 	if len(costs) == 0 || src == nil {
-		return box.Render(strings.Join(append(lines, t.Dim.Render("Source non disponible")), "\n"))
+		return box.Render(strings.Join(append(lines, t.Dim.Render(i18n.T("Source non disponible"))), "\n"))
 	}
 
 	// Lignes coûteuses, avec deux lignes de contexte autour.

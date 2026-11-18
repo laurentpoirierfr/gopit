@@ -11,18 +11,36 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/laurentpoirierfr/gopit/internal/app"
+	"github.com/laurentpoirierfr/gopit/internal/config"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/version"
 )
 
 func main() {
-	showVersion := flag.Bool("version", false, "affiche la version et quitte")
+	// Langue : celle des préférences, sinon celle du système ; -lang l'emporte.
+	i18n.Set(i18n.Detect())
+	if cfg, _ := config.Load(); cfg != nil {
+		if l, ok := i18n.Parse(cfg.Language); ok {
+			i18n.Set(l)
+		}
+	}
+	lang := flag.String("lang", "", i18n.T("langue de l'interface : fr, en ou es"))
+	showVersion := flag.Bool("version", false, i18n.T("affiche la version et quitte"))
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage : gopit [options] [répertoire]\n\n")
-		fmt.Fprintf(os.Stderr, "Ouvre le cockpit sur le module Go qui contient le répertoire\n(par défaut le répertoire courant).\n\nOptions :\n")
+		fmt.Fprint(os.Stderr, i18n.T("Usage : gopit [options] [répertoire]\n\n"))
+		fmt.Fprint(os.Stderr, i18n.T("Ouvre le cockpit sur le module Go qui contient le répertoire\n(par défaut le répertoire courant).\n\nOptions :\n"))
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+	if *lang != "" {
+		l, ok := i18n.Parse(*lang)
+		if !ok {
+			fmt.Fprintln(os.Stderr, "gopit:", i18n.T("langue inconnue (fr, en ou es) : ")+*lang)
+			os.Exit(2)
+		}
+		i18n.Set(l)
+	}
 
 	if *showVersion {
 		fmt.Println("gopit", version.Version)

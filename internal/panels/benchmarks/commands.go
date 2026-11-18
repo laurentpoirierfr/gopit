@@ -3,21 +3,22 @@ package benchmarks
 import (
 	"strconv"
 
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 )
 
 // Commands expose les actions du module à la palette (Ctrl+P).
 func (m *Model) Commands() []panel.Command {
 	return []panel.Command{
-		{Title: "Lancer tous les benchmarks", Key: "a"},
-		{Title: "Lancer le benchmark sélectionné", Key: "enter"},
-		{Title: "Profil CPU du benchmark sélectionné", Key: "p"},
-		{Title: "Profil mémoire du benchmark sélectionné", Key: "m"},
-		{Title: "Revoir le dernier profil", Key: "P"},
-		{Title: "Changer l'exécution de référence", Key: "b"},
-		{Title: "Changer le nombre de répétitions (-count)", Key: "n"},
-		{Title: "Changer la durée de chaque mesure (-benchtime)", Key: "t"},
-		{Title: "Arrêter l'exécution", Key: "x"},
+		{Title: i18n.T("Lancer tous les benchmarks"), Key: "a"},
+		{Title: i18n.T("Lancer le benchmark sélectionné"), Key: "enter"},
+		{Title: i18n.T("Profil CPU du benchmark sélectionné"), Key: "p"},
+		{Title: i18n.T("Profil mémoire du benchmark sélectionné"), Key: "m"},
+		{Title: i18n.T("Revoir le dernier profil"), Key: "P"},
+		{Title: i18n.T("Changer l'exécution de référence"), Key: "b"},
+		{Title: i18n.T("Changer le nombre de répétitions (-count)"), Key: "n"},
+		{Title: i18n.T("Changer la durée de chaque mesure (-benchtime)"), Key: "t"},
+		{Title: i18n.T("Arrêter l'exécution"), Key: "x"},
 	}
 }
 

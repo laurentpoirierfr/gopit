@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 // Severity classe les diagnostics, du plus grave au moins grave.
@@ -33,11 +35,11 @@ const (
 func (s Severity) String() string {
 	switch s {
 	case Error:
-		return "erreur"
+		return i18n.T("erreur")
 	case Warning:
-		return "avertissement"
+		return i18n.T("avertissement")
 	}
-	return "info"
+	return i18n.T("info")
 }
 
 // Diagnostic est un problème à un emplacement du code.
@@ -85,7 +87,7 @@ func (t Tool) Available() bool {
 }
 
 // ErrMissing est renvoyée par Run quand l'outil n'est pas installé.
-var ErrMissing = errors.New("non installé")
+var ErrMissing = i18n.Error("non installé")
 
 // Run lance l'outil sur le module situé dans root.
 func (t Tool) Run(ctx context.Context, root string) ([]Diagnostic, error) {
@@ -121,7 +123,7 @@ func (t Tool) Run(ctx context.Context, root string) ([]Diagnostic, error) {
 		diags := ParseGofmt(out, root)
 		return diags, exitErr(err, errOut, len(diags) > 0)
 	}
-	return nil, fmt.Errorf("outil inconnu : %s", t.Name)
+	return nil, fmt.Errorf(i18n.T("outil inconnu : %s"), t.Name)
 }
 
 func run(ctx context.Context, dir, name string, args ...string) (stdout, stderr []byte, err error) {
@@ -247,7 +249,7 @@ func ParseVet(stdout, stderr []byte, root string) ([]Diagnostic, error) {
 			if err.Error() == "EOF" {
 				break
 			}
-			return out, fmt.Errorf("sortie de go vet illisible : %w", err)
+			return out, fmt.Errorf(i18n.T("sortie de go vet illisible : %w"), err)
 		}
 		for _, analyzers := range pkgs {
 			for name, raw := range analyzers {
@@ -289,7 +291,7 @@ func ParseStaticcheck(stdout []byte, root string) ([]Diagnostic, error) {
 		}
 		var it item
 		if err := json.Unmarshal(line, &it); err != nil {
-			return out, fmt.Errorf("sortie de staticcheck illisible : %w", err)
+			return out, fmt.Errorf(i18n.T("sortie de staticcheck illisible : %w"), err)
 		}
 		if it.Code == "compile" {
 			out = append(out, compileErrors([]byte(it.Message), root, ToolStaticcheck)...)
@@ -325,7 +327,7 @@ func ParseGofmt(stdout []byte, root string) []Diagnostic {
 	for line := range strings.SplitSeq(string(stdout), "\n") {
 		if line = strings.TrimSpace(line); line != "" {
 			out = append(out, Diagnostic{File: abs(root, line), Line: 1, Col: 1,
-				Message: "fichier mal formaté (gofmt -w pour corriger)", Code: "gofmt",
+				Message: i18n.T("fichier mal formaté (gofmt -w pour corriger)"), Code: "gofmt",
 				Tools: []string{ToolGofmt}, Severity: Info})
 		}
 	}

@@ -2,12 +2,13 @@
 package project
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"golang.org/x/mod/modfile"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 // Project décrit un module Go.
@@ -27,7 +28,7 @@ func (p *Project) Name() string {
 }
 
 // ErrNoModule est renvoyée quand aucun go.mod n'est trouvé.
-var ErrNoModule = errors.New("aucun go.mod trouvé (gopit doit être lancé dans un module Go)")
+var ErrNoModule = i18n.Error("aucun go.mod trouvé (gopit doit être lancé dans un module Go)")
 
 // Detect remonte depuis dir jusqu'au premier go.mod et le lit.
 func Detect(dir string) (*Project, error) {
@@ -38,7 +39,7 @@ func Detect(dir string) (*Project, error) {
 	if st, err := os.Stat(abs); err != nil {
 		return nil, err
 	} else if !st.IsDir() {
-		return nil, fmt.Errorf("%s : ce n'est pas un répertoire", dir)
+		return nil, fmt.Errorf(i18n.T("%s : ce n'est pas un répertoire"), dir)
 	}
 
 	for d := abs; ; d = filepath.Dir(d) {
@@ -67,7 +68,7 @@ func Load(gomod string) (*Project, error) {
 		}
 	}
 	if f.Module == nil {
-		return nil, fmt.Errorf("%s : directive « module » absente", gomod)
+		return nil, fmt.Errorf(i18n.T("%s : directive « module » absente"), gomod)
 	}
 
 	p := &Project{Root: filepath.Dir(gomod), GoMod: gomod, Module: f.Module.Mod.Path}

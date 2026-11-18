@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 // Event est une ligne de « go test -json ».
@@ -285,7 +287,7 @@ type Run struct {
 }
 
 // ErrInterrupted est renvoyée quand l'exécution a été arrêtée.
-var ErrInterrupted = errors.New("interrompu")
+var ErrInterrupted = i18n.Error("interrompu")
 
 // Err renvoie l'erreur de la commande ; à lire après la fermeture de Events.
 // Un code de sortie 1 (tests en échec) n'est pas une erreur : les échecs sont
@@ -354,7 +356,7 @@ func Start(ctx context.Context, dir string, args ...string) (*Run, error) {
 // du flux : sinon « go test » resterait bloqué en écriture.
 func drain(sc *bufio.Scanner, r io.Reader, ch chan<- Event) {
 	if err := sc.Err(); err != nil {
-		ch <- Event{Action: actionStderr, Output: "gopit : lecture interrompue : " + err.Error() + "\n"}
+		ch <- Event{Action: actionStderr, Output: i18n.T("gopit : lecture interrompue : ") + err.Error() + "\n"}
 		_, _ = io.Copy(io.Discard, r)
 	}
 }

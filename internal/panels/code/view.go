@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/scroll"
 )
 
@@ -149,13 +150,13 @@ func (m *Model) viewWelcome() string {
 	t := m.th
 	return strings.Join([]string{
 		"",
-		t.Value.Render("Aucun fichier ouvert."),
+		t.Value.Render(i18n.T("Aucun fichier ouvert.")),
 		"",
-		t.HintKey.Render("Entrée") + t.Dim.Render(" ou ") + t.HintKey.Render("Ctrl+O") + t.Text.Render("  ouvrir un fichier du projet"),
-		t.Dim.Render("Ou choisis-le dans l'arbre à gauche (Ctrl+E pour y aller, Ctrl+B pour l'afficher)."),
-		t.Dim.Render("Depuis les modules Tests, Diagnostics, Git…, ouvrir un fichier l'affiche ici."),
+		t.HintKey.Render(i18n.T("Entrée")) + t.Dim.Render(i18n.T(" ou ")) + t.HintKey.Render("Ctrl+O") + t.Text.Render(i18n.T("  ouvrir un fichier du projet")),
+		t.Dim.Render(i18n.T("Ou choisis-le dans l'arbre à gauche (Ctrl+E pour y aller, Ctrl+B pour l'afficher).")),
+		t.Dim.Render(i18n.T("Depuis les modules Tests, Diagnostics, Git…, ouvrir un fichier l'affiche ici.")),
 		"",
-		t.Label.Render("En édition : Ctrl+S enregistre (avec gofmt), Échap revient en lecture."),
+		t.Label.Render(i18n.T("En édition : Ctrl+S enregistre (avec gofmt), Échap revient en lecture.")),
 	}, "\n")
 }
 
@@ -196,33 +197,33 @@ func (m *Model) viewStatus(w int) string {
 	d := m.doc()
 	switch m.prompt {
 	case promptFind:
-		s := t.Label.Render("Rechercher : ") + t.Value.Render(m.input) + t.Text.Reverse(true).Render(" ")
+		s := t.Label.Render(i18n.T("Rechercher : ")) + t.Value.Render(m.input) + t.Text.Reverse(true).Render(" ")
 		if m.notFound {
-			s += t.Err.Render("  introuvable")
+			s += t.Err.Render(i18n.T("  introuvable"))
 		}
 		return s
 	case promptGoto:
-		return t.Label.Render(fmt.Sprintf("Aller à la ligne (1-%d) : ", d.buf.LineCount())) +
+		return t.Label.Render(fmt.Sprintf(i18n.T("Aller à la ligne (1-%d) : "), d.buf.LineCount())) +
 			t.Value.Render(m.input) + t.Text.Reverse(true).Render(" ")
 	}
 	if d == nil {
 		return ""
 	}
 	mode := lipgloss.NewStyle().Bold(true).Foreground(t.P.Base).Padding(0, 1)
-	left := mode.Background(t.P.Blue).Render("LECTURE")
+	left := mode.Background(t.P.Blue).Render(i18n.T("LECTURE"))
 	if m.editing {
-		left = mode.Background(t.P.Green).Render("ÉDITION")
+		left = mode.Background(t.P.Green).Render(i18n.T("ÉDITION"))
 	}
 	left += " " + t.Text.Render(d.rel)
 	if d.buf.Dirty() {
 		left += t.Warn.Render(" ●")
 	}
 	c := d.buf.Cursor()
-	right := fmt.Sprintf("Ln %d, Col %d", c.Line+1, dispCol([]rune(d.buf.Line(c.Line)), c.Col)+1)
+	right := fmt.Sprintf(i18n.T("Ln %d, Col %d"), c.Line+1, dispCol([]rune(d.buf.Line(c.Line)), c.Col)+1)
 	if sel := d.buf.SelectedText(); sel != "" {
-		right = fmt.Sprintf("%d sélectionnés · ", len([]rune(sel))) + right
+		right = fmt.Sprintf(i18n.T("%d sélectionnés · "), len([]rune(sel))) + right
 	}
-	lang := "Texte"
+	lang := i18n.T("Texte")
 	if isGo(d) {
 		lang = "Go"
 	}
@@ -241,8 +242,8 @@ func (m *Model) viewPicker(w, h int) string {
 	for _, d := range m.docs {
 		open[d.rel] = true
 	}
-	head := t.Label.Render("Ouvrir : ") + t.Value.Render(p.query) + t.Text.Reverse(true).Render(" ") +
-		t.Dim.Render(fmt.Sprintf("   %d / %d fichiers", len(p.matches), len(p.all)))
+	head := t.Label.Render(i18n.T("Ouvrir : ")) + t.Value.Render(p.query) + t.Text.Reverse(true).Render(" ") +
+		t.Dim.Render(fmt.Sprintf(i18n.T("   %d / %d fichiers"), len(p.matches), len(p.all)))
 	rows := max(1, h-1)
 	if p.cursor < p.offset {
 		p.offset = p.cursor
@@ -264,7 +265,7 @@ func (m *Model) viewPicker(w, h int) string {
 		}
 	}
 	if len(p.matches) == 0 {
-		lines = append(lines, t.Dim.Render("  Aucun fichier ne correspond."))
+		lines = append(lines, t.Dim.Render(i18n.T("  Aucun fichier ne correspond.")))
 	}
 	return strings.Join(lines, "\n")
 }

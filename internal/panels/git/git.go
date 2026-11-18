@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/gitx"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/scroll"
@@ -91,7 +92,7 @@ func New(th *theme.Theme, p *project.Project) *Model {
 	return &Model{th: th, proj: p}
 }
 
-func (m *Model) Title() string   { return "Git" }
+func (m *Model) Title() string   { return i18n.N("Git") }
 func (m *Model) Icon() string    { return "" }
 func (m *Model) Capturing() bool { return m.typing }
 
@@ -101,10 +102,10 @@ func (m *Model) Init() tea.Cmd {
 
 func (m *Model) Hints() []panel.Hint {
 	if m.typing {
-		return []panel.Hint{{Key: "Entrée", Desc: "commiter"}, {Key: "Échap", Desc: "annuler"}}
+		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("commiter")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	}
-	return []panel.Hint{{Key: "s", Desc: "indexer"}, {Key: "u", Desc: "désindexer"}, {Key: "A", Desc: "tout indexer"},
-		{Key: "c", Desc: "commit"}, {Key: "o", Desc: "ouvrir"}, {Key: "PgUp/PgDn Maj+↑↓ molette", Desc: "défiler"}}
+	return []panel.Hint{{Key: "s", Desc: i18n.T("indexer")}, {Key: "u", Desc: i18n.T("désindexer")}, {Key: "A", Desc: i18n.T("tout indexer")},
+		{Key: "c", Desc: "commit"}, {Key: "o", Desc: i18n.T("ouvrir")}, {Key: "PgUp/PgDn Maj+↑↓ molette", Desc: i18n.T("défiler")}}
 }
 
 func (m *Model) load() tea.Cmd {
@@ -213,9 +214,9 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 			msg := strings.TrimSpace(m.message)
 			m.typing, m.message = false, ""
 			if msg == "" {
-				return panel.Flash("Commit annulé : message vide", true)
+				return panel.Flash(i18n.T("Commit annulé : message vide"), true)
 			}
-			return m.act("Commit créé", func(ctx context.Context, root string) error {
+			return m.act(i18n.T("Commit créé"), func(ctx context.Context, root string) error {
 				_, err := gitx.CommitStaged(ctx, root, msg)
 				return err
 			})
@@ -254,20 +255,20 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	case "s":
 		if r != nil && r.change != nil && !r.staged {
 			path := r.change.Path
-			return m.act("Indexé : "+path, func(ctx context.Context, root string) error { return gitx.Stage(ctx, root, path) })
+			return m.act(i18n.T("Indexé : ")+path, func(ctx context.Context, root string) error { return gitx.Stage(ctx, root, path) })
 		}
 	case "u":
 		if r != nil && r.change != nil && r.staged {
 			path, hasCommit := r.change.Path, m.status != nil && m.status.Commit != ""
-			return m.act("Désindexé : "+path, func(ctx context.Context, root string) error {
+			return m.act(i18n.T("Désindexé : ")+path, func(ctx context.Context, root string) error {
 				return gitx.Unstage(ctx, root, hasCommit, path)
 			})
 		}
 	case "A":
-		return m.act("Toutes les modifications sont indexées", gitx.StageAll)
+		return m.act(i18n.T("Toutes les modifications sont indexées"), gitx.StageAll)
 	case "c":
 		if m.stagedCount() == 0 {
-			return panel.Flash("Rien à commiter : indexe d'abord des fichiers (s ou A)", true)
+			return panel.Flash(i18n.T("Rien à commiter : indexe d'abord des fichiers (s ou A)"), true)
 		}
 		m.typing, m.message = true, ""
 	case "o", "enter":
@@ -353,13 +354,13 @@ func (m *Model) rebuild() {
 				m.rows = append(m.rows, rows...)
 			}
 		}
-		section("Conflits", conflicts)
-		section("Indexés", staged)
-		section("Modifiés", unstaged)
-		section("Non suivis", untracked)
+		section(i18n.T("Conflits"), conflicts)
+		section(i18n.T("Indexés"), staged)
+		section(i18n.T("Modifiés"), unstaged)
+		section(i18n.T("Non suivis"), untracked)
 	}
 	if len(m.commits) > 0 {
-		m.rows = append(m.rows, row{header: "Commits récents"})
+		m.rows = append(m.rows, row{header: i18n.T("Commits récents")})
 		for i := range m.commits {
 			m.rows = append(m.rows, row{commit: &m.commits[i]})
 		}
@@ -384,9 +385,9 @@ func (m *Model) View(width, height int) string {
 	t := m.th
 	switch {
 	case !m.loaded:
-		return t.Dim.Render("Lecture du dépôt…")
+		return t.Dim.Render(i18n.T("Lecture du dépôt…"))
 	case m.err == gitx.ErrNotRepo:
-		return t.Dim.Render("Ce module n'est pas dans un dépôt git (git init pour en créer un).")
+		return t.Dim.Render(i18n.T("Ce module n'est pas dans un dépôt git (git init pour en créer un)."))
 	case m.status == nil:
 		return t.Err.Render("git : " + m.err.Error())
 	}
@@ -405,34 +406,34 @@ func (m *Model) viewSummary(width int) []string {
 	s := m.status
 	branch := s.Branch
 	if branch == "" {
-		branch = "HEAD détaché (" + s.Commit + ")"
+		branch = i18n.T("HEAD détaché (") + s.Commit + ")"
 	}
-	line := t.Dim.Render("branche ") + t.Value.Render(branch)
+	line := t.Dim.Render(i18n.T("branche ")) + t.Value.Render(branch)
 	if s.Upstream != "" {
 		line += t.Dim.Render(" → " + s.Upstream)
 		switch {
 		case s.Ahead == 0 && s.Behind == 0:
-			line += t.OK.Render("  à jour")
+			line += t.OK.Render(i18n.T("  à jour"))
 		default:
 			if s.Ahead > 0 {
-				line += t.Warn.Render(fmt.Sprintf("  ↑%d à pousser", s.Ahead))
+				line += t.Warn.Render(fmt.Sprintf(i18n.T("  ↑%d à pousser"), s.Ahead))
 			}
 			if s.Behind > 0 {
-				line += t.Err.Render(fmt.Sprintf("  ↓%d à récupérer", s.Behind))
+				line += t.Err.Render(fmt.Sprintf(i18n.T("  ↓%d à récupérer"), s.Behind))
 			}
 		}
 	} else if s.Branch != "" {
-		line += t.Dim.Render("  (pas de branche distante)")
+		line += t.Dim.Render(i18n.T("  (pas de branche distante)"))
 	}
 	changes := len(s.Changes)
 	if changes == 0 {
-		line += t.Dim.Render("   │   ") + t.OK.Render("✓ arbre propre")
+		line += t.Dim.Render("   │   ") + t.OK.Render(i18n.T("✓ arbre propre"))
 	} else {
-		line += t.Dim.Render("   │   ") + t.Text.Render(fmt.Sprintf("%d fichier(s) modifié(s), %d indexé(s)", changes, m.stagedCount()))
+		line += t.Dim.Render("   │   ") + t.Text.Render(fmt.Sprintf(i18n.T("%d fichier(s) modifié(s), %d indexé(s)"), changes, m.stagedCount()))
 	}
 	lines := []string{ansi.Truncate(line, width, "…")}
 	if m.typing {
-		input := t.Label.Render("Message du commit : ") + t.Value.Render(m.message) +
+		input := t.Label.Render(i18n.T("Message du commit : ")) + t.Value.Render(m.message) +
 			lipgloss.NewStyle().Foreground(t.P.Accent).Render("▌")
 		lines = append(lines, ansi.Truncate(input, width, "…"))
 	}
@@ -502,7 +503,7 @@ func (m *Model) viewList(w, h int) string {
 		lines = append(lines, line)
 	}
 	if len(lines) == 0 {
-		lines = append(lines, t.Dim.Render("Aucun commit pour l'instant."))
+		lines = append(lines, t.Dim.Render(i18n.T("Aucun commit pour l'instant.")))
 	}
 	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
 }
@@ -512,13 +513,13 @@ func ago(tm time.Time) string {
 	d := time.Since(tm)
 	switch {
 	case d < time.Minute:
-		return "à l'instant"
+		return i18n.T("à l'instant")
 	case d < time.Hour:
-		return fmt.Sprintf("il y a %d min", int(d.Minutes()))
+		return fmt.Sprintf(i18n.T("il y a %d min"), int(d.Minutes()))
 	case d < 24*time.Hour:
-		return fmt.Sprintf("il y a %d h", int(d.Hours()))
+		return fmt.Sprintf(i18n.T("il y a %d h"), int(d.Hours()))
 	case d < 30*24*time.Hour:
-		return fmt.Sprintf("il y a %d j", int(d.Hours()/24))
+		return fmt.Sprintf(i18n.T("il y a %d j"), int(d.Hours()/24))
 	}
 	return tm.Format("02/01/2006")
 }
@@ -529,11 +530,11 @@ func (m *Model) viewDetail(w, h int) string {
 	r := m.selected()
 	switch {
 	case r == nil:
-		return box.Render(t.Dim.Render("Aucune sélection"))
+		return box.Render(t.Dim.Render(i18n.T("Aucune sélection")))
 	case m.detailErr != nil:
 		return box.Render(t.Err.Render(m.detailErr.Error()))
 	case m.detail == "":
-		return box.Render(t.Dim.Render("(pas de différence)"))
+		return box.Render(t.Dim.Render(i18n.T("(pas de différence)")))
 	}
 
 	// Lignes repliées à la largeur disponible (moins la colonne de l'ascenseur),
@@ -558,13 +559,13 @@ func (m *Model) viewDetail(w, h int) string {
 	case r.commit != nil:
 		title = "commit " + r.commit.Hash
 	case r.staged:
-		title = r.change.Path + " (indexé)"
+		title = r.change.Path + i18n.T(" (indexé)")
 	default:
 		title = r.change.Path
 	}
 	pos := ""
 	if len(lines) > viewH {
-		pos = fmt.Sprintf("lignes %d–%d / %d", m.detailOff+1, end, len(lines))
+		pos = fmt.Sprintf(i18n.T("lignes %d–%d / %d"), m.detailOff+1, end, len(lines))
 	}
 	head := ansi.Truncate(t.Value.Render(title), max(1, w-lipgloss.Width(pos)-2), "…")
 	head += strings.Repeat(" ", max(1, w-lipgloss.Width(head)-lipgloss.Width(pos))) + t.Dim.Render(pos)

@@ -4,6 +4,7 @@
 package prof
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/pprof/profile"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 // Func est le coût d'une fonction.
@@ -51,7 +54,7 @@ func Load(path, kind string) (*Report, error) {
 	defer f.Close()
 	p, err := profile.Parse(f)
 	if err != nil {
-		return nil, fmt.Errorf("profil illisible : %w", err)
+		return nil, fmt.Errorf(i18n.T("profil illisible : %w"), err)
 	}
 	return Analyze(p, kind)
 }
@@ -59,7 +62,7 @@ func Load(path, kind string) (*Report, error) {
 // Analyze analyse un profil déjà lu.
 func Analyze(p *profile.Profile, kind string) (*Report, error) {
 	if len(p.SampleType) == 0 {
-		return nil, fmt.Errorf("profil sans mesure")
+		return nil, errors.New(i18n.T("profil sans mesure"))
 	}
 	idx := defaultIndex(p)
 	var types []string
@@ -189,13 +192,13 @@ func (r *Report) Format(v int64) string {
 		f := float64(v)
 		switch {
 		case f >= 1<<30:
-			return fmt.Sprintf("%.1fGio", f/(1<<30))
+			return fmt.Sprintf(i18n.T("%.1fGio"), f/(1<<30))
 		case f >= 1<<20:
-			return fmt.Sprintf("%.1fMio", f/(1<<20))
+			return fmt.Sprintf(i18n.T("%.1fMio"), f/(1<<20))
 		case f >= 1<<10:
-			return fmt.Sprintf("%.1fKio", f/(1<<10))
+			return fmt.Sprintf(i18n.T("%.1fKio"), f/(1<<10))
 		}
-		return fmt.Sprintf("%do", v)
+		return fmt.Sprintf(i18n.T("%do"), v)
 	}
 	return fmt.Sprint(v)
 }

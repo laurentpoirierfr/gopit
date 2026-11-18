@@ -3,19 +3,20 @@ package modules
 import (
 	"strconv"
 
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 )
 
 // Commands expose les actions du module à la palette (Ctrl+P).
 func (m *Model) Commands() []panel.Command {
 	return []panel.Command{
-		{Title: "Vérifier les mises à jour (réseau)", Key: "u"},
-		{Title: "Rechercher les vulnérabilités (govulncheck)", Key: "v"},
-		{Title: "Mettre à jour la dépendance sélectionnée", Key: "g"},
-		{Title: "Afficher les dépendances indirectes", Key: "i"},
-		{Title: "Changer de filtre", Key: "f"},
-		{Title: "Ouvrir la page pkg.go.dev", Key: "w"},
-		{Title: "Recharger la liste", Key: "a"},
+		{Title: i18n.T("Vérifier les mises à jour (réseau)"), Key: "u"},
+		{Title: i18n.T("Rechercher les vulnérabilités (govulncheck)"), Key: "v"},
+		{Title: i18n.T("Mettre à jour la dépendance sélectionnée"), Key: "g"},
+		{Title: i18n.T("Afficher les dépendances indirectes"), Key: "i"},
+		{Title: i18n.T("Changer de filtre"), Key: "f"},
+		{Title: i18n.T("Ouvrir la page pkg.go.dev"), Key: "w"},
+		{Title: i18n.T("Recharger la liste"), Key: "a"},
 	}
 }
 

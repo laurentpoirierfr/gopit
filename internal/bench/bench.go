@@ -7,7 +7,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -20,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 // Unités principales de « go test -bench -benchmem ».
@@ -193,7 +194,7 @@ type Exec struct {
 func (e *Exec) Err() error { return e.err }
 
 // ErrInterrupted est renvoyée quand l'exécution a été arrêtée.
-var ErrInterrupted = errors.New("interrompu")
+var ErrInterrupted = i18n.Error("interrompu")
 
 // Start lance les benchmarks dans root.
 func Start(ctx context.Context, root string, o Options) (*Exec, error) {
@@ -214,7 +215,7 @@ func Start(ctx context.Context, root string, o Options) (*Exec, error) {
 			ch <- sc.Text()
 		}
 		if err := sc.Err(); err != nil {
-			ch <- "gopit : lecture interrompue : " + err.Error()
+			ch <- i18n.T("gopit : lecture interrompue : ") + err.Error()
 		}
 		_, _ = io.Copy(io.Discard, pr) // vider le reste pour ne pas bloquer go test
 	})

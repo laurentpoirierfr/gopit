@@ -39,6 +39,14 @@ répétitions des benchmarks…) sont enregistrés en quittant dans
 `~/.config/gopit/config.json` et relus au démarrage. L'historique des
 benchmarks est rangé dans `~/.cache/gopit/bench/`.
 
+## Langues
+
+L'interface existe en français, en anglais et en espagnol. gopit prend la
+langue du système (`LC_ALL`, `LC_MESSAGES` ou `LANG` ; anglais pour une
+langue non disponible). On peut la changer pendant l'exécution (menu
+Affichage, ou « Langue » dans la palette), et ce choix est retenu dans les
+préférences ; `gopit -lang en` l'impose pour une session.
+
 ## Modules
 
 | Module | État |
@@ -101,6 +109,7 @@ internal/prof/        profils pprof : coût par fonction et par ligne
 internal/gitx/        git status / diff / log / add / restore / commit
 internal/textbuf/     tampon de l'éditeur : curseur, sélection, annuler/rétablir
 internal/config/      préférences (~/.config/gopit/config.json)
+internal/i18n/        traduction de l'interface (français → anglais, espagnol)
 internal/cover/       profils de couverture
 internal/watch/       surveillance des fichiers .go
 internal/editor/      ouverture de $VISUAL / $EDITOR à une ligne donnée
@@ -111,6 +120,9 @@ Ajouter un module : créer `internal/panels/<nom>` qui implémente
 de texte implémente aussi `panel.Capturer` pour recevoir toutes les touches,
 `panel.Commander` pour apparaître dans la palette (Ctrl+P) et
 `panel.Persister` pour garder ses réglages d'une session à l'autre.
+Les textes s'écrivent en français, entourés de `i18n.T("…")` au moment de
+les afficher, et se traduisent dans `internal/i18n/en.go` et `es.go` ;
+`go test ./internal/i18n` signale tout message sans traduction.
 Pour ouvrir un fichier, un module renvoie `panel.Open(fichier, ligne)` : le
 cadre l'envoie à l'éditeur intégré ou externe selon les préférences.
 

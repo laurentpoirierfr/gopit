@@ -21,6 +21,9 @@ type Config struct {
 	// ExternalEditor ouvre les fichiers dans $VISUAL / $EDITOR plutôt que
 	// dans l'éditeur intégré.
 	ExternalEditor bool `json:"external_editor,omitempty"`
+	// Language est la langue de l'interface (« fr », « en », « es ») ; vide :
+	// celle du système.
+	Language string `json:"language,omitempty"`
 	// Panels contient les réglages de chaque module, par titre.
 	Panels map[string]map[string]string `json:"panels,omitempty"`
 }

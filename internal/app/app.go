@@ -15,6 +15,7 @@ import (
 
 	"github.com/laurentpoirierfr/gopit/internal/config"
 	"github.com/laurentpoirierfr/gopit/internal/editor"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/panels/benchmarks"
 	"github.com/laurentpoirierfr/gopit/internal/panels/code"
@@ -61,6 +62,7 @@ type Model struct {
 	hideHints bool           // ligne des raccourcis masquée
 	external  bool           // ouvrir les fichiers dans l'éditeur externe
 	quitArmed bool           // fichiers non enregistrés : quitter une 2e fois
+	langSet   bool           // langue choisie dans les menus : à enregistrer
 	dragging  bool           // glissement de la souris commencé dans le module
 	cfg       *config.Config // préférences, enregistrées en quittant
 }
@@ -141,7 +143,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case editor.DoneMsg:
 		if msg.Err != nil {
-			return m, m.setFlash("Éditeur : "+msg.Err.Error(), true)
+			return m, m.setFlash(i18n.T("Éditeur : ")+msg.Err.Error(), true)
 		}
 		return m, nil
 
@@ -383,7 +385,7 @@ func (m *Model) setFlash(s string, isErr bool) tea.Cmd {
 func (m *Model) View() tea.View {
 	var v tea.View
 	if m.w == 0 || m.h == 0 {
-		v = tea.NewView("Chargement…")
+		v = tea.NewView(i18n.T("Chargement…"))
 	} else {
 		v = tea.NewView(m.render())
 	}
@@ -432,6 +434,9 @@ func (m *Model) saveConfig() error {
 	}
 	m.cfg.LastModule = m.panels[m.cur].Title()
 	m.cfg.Sidebar, m.cfg.HideHints, m.cfg.ExternalEditor = m.sidebar, m.hideHints, m.external
+	if m.langSet {
+		m.cfg.Language = string(i18n.Current())
+	}
 	for _, p := range m.panels {
 		if ps, ok := p.(panel.Persister); ok {
 			m.cfg.Panels[p.Title()] = ps.State()
@@ -447,9 +452,9 @@ func (m *Model) quit() tea.Cmd {
 		m.quitArmed = true
 		what := u[0]
 		if len(u) > 1 {
-			what = fmt.Sprintf("%d fichiers", len(u))
+			what = fmt.Sprintf(i18n.T("%d fichiers"), len(u))
 		}
-		return m.setFlash(what+" non enregistré(s) : q ou Ctrl+Q encore pour quitter sans enregistrer", true)
+		return m.setFlash(what+i18n.T(" non enregistré(s) : q ou Ctrl+Q encore pour quitter sans enregistrer"), true)
 	}
 	_ = m.saveConfig() // une erreur d'écriture ne doit pas empêcher de quitter
 	return tea.Quit
@@ -468,7 +473,7 @@ func (m *Model) viewNav(h int) string {
 	iw := navW - 2
 	lines := make([]string, len(m.panels))
 	for i, p := range m.panels {
-		label := ansi.Truncate(fmt.Sprintf("%d %s  %s", i+1, p.Icon(), p.Title()), iw-2, "…")
+		label := ansi.Truncate(fmt.Sprintf("%d %s  %s", i+1, p.Icon(), i18n.T(p.Title())), iw-2, "…")
 		st := t.NavItem
 		if i == m.cur {
 			st = t.NavItemBlur
@@ -494,7 +499,7 @@ func (m *Model) viewContent(h int) string {
 	iw, ih := w-4, h-2 // bordures + marge intérieure
 	p := m.panels[m.cur]
 
-	header := t.Title.Render(p.Icon() + "  " + p.Title())
+	header := t.Title.Render(p.Icon() + "  " + i18n.T(p.Title()))
 	content := header + "\n\n" + p.View(iw, max(1, ih-2))
 
 	box := t.Panel
@@ -506,9 +511,9 @@ func (m *Model) viewContent(h int) string {
 
 func (m *Model) viewStatus() string {
 	t := m.th
-	mode := strings.ToUpper(m.panels[m.cur].Title())
+	mode := strings.ToUpper(i18n.T(m.panels[m.cur].Title()))
 	if m.sidebar && m.focus == focusNav {
-		mode = "NAVIGATION"
+		mode = i18n.T("NAVIGATION")
 	}
 	left := t.Badge.Render(mode)
 	switch {
@@ -519,7 +524,7 @@ func (m *Model) viewStatus() string {
 	default:
 		left += t.StatusBar.Render(" " + homeRel(m.proj.Root))
 	}
-	right := t.StatusInfo.Render(fmt.Sprintf("%d dép. directes", m.proj.Requires))
+	right := t.StatusInfo.Render(fmt.Sprintf(i18n.T("%d dép. directes"), m.proj.Requires))
 	if lipgloss.Width(left)+lipgloss.Width(right) > m.w {
 		left = ansi.Truncate(left, max(0, m.w-lipgloss.Width(right)), "…")
 	}
@@ -528,16 +533,16 @@ func (m *Model) viewStatus() string {
 
 func (m *Model) viewHints() string {
 	t := m.th
-	hints := []panel.Hint{{Key: "F10", Desc: "menus"}, {Key: fmt.Sprintf("1-%d", len(m.panels)), Desc: "module"}}
+	hints := []panel.Hint{{Key: "F10", Desc: i18n.T("menus")}, {Key: fmt.Sprintf("1-%d", len(m.panels)), Desc: i18n.T("module")}}
 	if m.sidebar {
-		hints = append(hints, panel.Hint{Key: "Tab", Desc: "focus"})
+		hints = append(hints, panel.Hint{Key: "Tab", Desc: i18n.T("focus")})
 	}
 	hints = append(hints, m.panels[m.cur].Hints()...)
-	hints = append(hints, panel.Hint{Key: "Ctrl+P", Desc: "commandes"}, panel.Hint{Key: "F1", Desc: "aide"}, panel.Hint{Key: "q", Desc: "quitter"})
+	hints = append(hints, panel.Hint{Key: "Ctrl+P", Desc: i18n.T("commandes")}, panel.Hint{Key: "F1", Desc: i18n.T("aide")}, panel.Hint{Key: "q", Desc: i18n.T("quitter")})
 
 	parts := make([]string, len(hints))
 	for i, h := range hints {
-		parts[i] = t.HintKey.Render(h.Key) + t.Hint.Render(" "+h.Desc)
+		parts[i] = t.HintKey.Render(i18n.Key(h.Key)) + t.Hint.Render(" "+h.Desc)
 	}
 	return fill(lipgloss.NewStyle(), " "+strings.Join(parts, t.Hint.Render("  ·  ")), m.w)
 }

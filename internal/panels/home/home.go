@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
@@ -49,11 +50,11 @@ func New(th *theme.Theme, p *project.Project) *Model {
 	return &Model{th: th, proj: p, facts: map[string]fact{}}
 }
 
-func (m *Model) Title() string { return "Accueil" }
+func (m *Model) Title() string { return i18n.N("Accueil") }
 func (m *Model) Icon() string  { return "" }
 
 func (m *Model) Hints() []panel.Hint {
-	return []panel.Hint{{Key: "r", Desc: "actualiser"}}
+	return []panel.Hint{{Key: "r", Desc: i18n.T("actualiser")}}
 }
 
 func (m *Model) Init() tea.Cmd { return m.load() }
@@ -76,7 +77,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		m.facts[msg.key] = fact{val: msg.val, err: msg.err, done: true}
 	case tea.KeyPressMsg:
 		if msg.String() == "r" {
-			return m, tea.Batch(m.load(), panel.Flash("Accueil actualisé", false))
+			return m, tea.Batch(m.load(), panel.Flash(i18n.T("Accueil actualisé"), false))
 		}
 	}
 	return m, nil
@@ -109,17 +110,17 @@ func (m *Model) View(width, height int) string {
 		t.Title.Render(p.Name()),
 		t.Dim.Render(p.Module),
 		"",
-		row("Répertoire", t.Text.Render(p.Root)),
-		row("Version Go (go.mod)", goVer),
-		row("Go installé", val(factToolchain)),
-		row("Dépendances", t.Value.Render(fmt.Sprintf("%d directes", p.Requires))+
-			t.Dim.Render(fmt.Sprintf(" · %d indirectes", p.Indirect))),
-		row("Paquets", val(factPackages)),
-		row("Fichiers", val(factFiles)),
+		row(i18n.T("Répertoire"), t.Text.Render(p.Root)),
+		row(i18n.T("Version Go (go.mod)"), goVer),
+		row(i18n.T("Go installé"), val(factToolchain)),
+		row(i18n.T("Dépendances"), t.Value.Render(fmt.Sprintf(i18n.T("%d directes"), p.Requires))+
+			t.Dim.Render(fmt.Sprintf(i18n.T(" · %d indirectes"), p.Indirect))),
+		row(i18n.T("Paquets"), val(factPackages)),
+		row(i18n.T("Fichiers"), val(factFiles)),
 		row("Git", val(factGit)),
 		"",
-		t.Label.Render("Modules du cockpit"),
-		t.Dim.Render("Choisis un module dans la colonne de gauche (↑↓ ou son numéro)."),
+		t.Label.Render(i18n.T("Modules du cockpit")),
+		t.Dim.Render(i18n.T("Choisis un module dans la colonne de gauche (↑↓ ou son numéro).")),
 	}
 	return lipgloss.NewStyle().MaxWidth(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
 }
@@ -159,7 +160,7 @@ func countPackages(root string) (string, error) {
 	if out != "" {
 		n = strings.Count(out, "\n") + 1
 	}
-	return plural(n, "paquet", "paquets"), nil
+	return plural(n, i18n.T("paquet"), i18n.T("paquets")), nil
 }
 
 // countFiles compte les fichiers .go (hors vendor, testdata et dossiers cachés).
@@ -187,13 +188,13 @@ func countFiles(root string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s · %s", plural(src, "fichier source", "fichiers sources"),
-		plural(tests, "fichier de test", "fichiers de test")), nil
+	return fmt.Sprintf("%s · %s", plural(src, i18n.T("fichier source"), i18n.T("fichiers sources")),
+		plural(tests, i18n.T("fichier de test"), i18n.T("fichiers de test"))), nil
 }
 
 func gitState(root string) (string, error) {
 	if _, err := run(root, "git", "rev-parse", "--git-dir"); err != nil {
-		return "pas de dépôt git", nil
+		return i18n.T("pas de dépôt git"), nil
 	}
 	// symbolic-ref fonctionne aussi sans commit ; rev-parse couvre le HEAD détaché.
 	branch, err := run(root, "git", "symbolic-ref", "--short", "HEAD")
@@ -207,10 +208,10 @@ func gitState(root string) (string, error) {
 		return branch, nil
 	}
 	if status == "" {
-		return branch + " · propre", nil
+		return branch + i18n.T(" · propre"), nil
 	}
 	n := strings.Count(status, "\n") + 1
-	return fmt.Sprintf("%s · %s", branch, plural(n, "fichier modifié", "fichiers modifiés")), nil
+	return fmt.Sprintf("%s · %s", branch, plural(n, i18n.T("fichier modifié"), i18n.T("fichiers modifiés"))), nil
 }
 
 func plural(n int, one, many string) string {

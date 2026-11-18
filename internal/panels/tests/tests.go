@@ -21,6 +21,7 @@ import (
 
 	"github.com/laurentpoirierfr/gopit/internal/cover"
 	"github.com/laurentpoirierfr/gopit/internal/gotest"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
@@ -108,18 +109,18 @@ func New(th *theme.Theme, p *project.Project) *Model {
 	return &Model{th: th, proj: p, res: gotest.NewResults(), expanded: map[string]bool{}, queued: map[string]bool{}}
 }
 
-func (m *Model) Title() string { return "Tests" }
+func (m *Model) Title() string { return i18n.N("Tests") }
 func (m *Model) Icon() string  { return "" }
 func (m *Model) Init() tea.Cmd { return nil }
 
 func (m *Model) Hints() []panel.Hint {
 	if m.running {
-		return []panel.Hint{{Key: "x", Desc: "arrêter"}, {Key: "Entrée", Desc: "relancer la sélection"}}
+		return []panel.Hint{{Key: "x", Desc: i18n.T("arrêter")}, {Key: "Entrée", Desc: i18n.T("relancer la sélection")}}
 	}
 	return []panel.Hint{
-		{Key: "a", Desc: "tout"}, {Key: "Entrée", Desc: "lancer la sélection"},
-		{Key: "f", Desc: "échecs"}, {Key: "o", Desc: "ouvrir l'erreur"},
-		{Key: "w", Desc: "surveillance"}, {Key: "v", Desc: "couverture"}, {Key: "c", Desc: "cache"}, {Key: "h", Desc: "paquets sans tests"},
+		{Key: "a", Desc: i18n.T("tout")}, {Key: "Entrée", Desc: i18n.T("lancer la sélection")},
+		{Key: "f", Desc: i18n.T("échecs")}, {Key: "o", Desc: i18n.T("ouvrir l'erreur")},
+		{Key: "w", Desc: i18n.T("surveillance")}, {Key: "v", Desc: i18n.T("couverture")}, {Key: "c", Desc: i18n.T("cache")}, {Key: "h", Desc: i18n.T("paquets sans tests")},
 	}
 }
 
@@ -140,7 +141,7 @@ func (m *Model) start(scope string, args ...string) tea.Cmd {
 	if m.cover {
 		f, err := os.CreateTemp("", "gopit-cover-*.out")
 		if err != nil {
-			return panel.Flash("Couverture : "+err.Error(), true)
+			return panel.Flash(i18n.T("Couverture : ")+err.Error(), true)
 		}
 		f.Close()
 		m.coverFile = f.Name()
@@ -237,7 +238,7 @@ func (m *Model) coverLines(pkg string, w int) []string {
 	}
 	t := m.th
 	const barW = 12
-	lines := []string{t.Label.Render("Couverture par fichier")}
+	lines := []string{t.Label.Render(i18n.T("Couverture par fichier"))}
 	for _, f := range files {
 		pct := f.Percent()
 		full := int(pct/100*barW + 0.5)
@@ -247,7 +248,7 @@ func (m *Model) coverLines(pkg string, w int) []string {
 			t.Text.Render(path.Base(f.Name)) + t.Dim.Render(fmt.Sprintf("  %d/%d", c, tot))
 		lines = append(lines, ansi.Truncate(line, w, "…"))
 	}
-	return append(lines, t.Dim.Render("o : ouvrir le premier bloc non couvert"), "")
+	return append(lines, t.Dim.Render(i18n.T("o : ouvrir le premier bloc non couvert")), "")
 }
 
 // firstUncovered renvoie le premier bloc non couvert du fichier le moins
@@ -272,14 +273,14 @@ func (m *Model) toggleWatch() tea.Cmd {
 	if m.watcher != nil {
 		m.watcher.Close()
 		m.watcher, m.queued = nil, map[string]bool{}
-		return panel.Flash("Surveillance arrêtée", false)
+		return panel.Flash(i18n.T("Surveillance arrêtée"), false)
 	}
 	w, err := watch.New(m.proj.Root, 300*time.Millisecond)
 	if err != nil {
-		return panel.Flash("Surveillance impossible : "+err.Error(), true)
+		return panel.Flash(i18n.T("Surveillance impossible : ")+err.Error(), true)
 	}
 	m.watcher = w
-	return tea.Batch(waitChange(w), panel.Flash("Surveillance active : les tests se relancent à chaque enregistrement", false))
+	return tea.Batch(waitChange(w), panel.Flash(i18n.T("Surveillance active : les tests se relancent à chaque enregistrement"), false))
 }
 
 func waitChange(w *watch.Watcher) tea.Cmd {
@@ -322,9 +323,9 @@ func (m *Model) runPkgs(pkgs []string) tea.Cmd {
 	for _, p := range pkgs {
 		m.res.ResetPackage(p)
 	}
-	scope := "modifié : " + strings.TrimPrefix(strings.TrimPrefix(pkgs[0], m.proj.Module), "/")
+	scope := i18n.T("modifié : ") + strings.TrimPrefix(strings.TrimPrefix(pkgs[0], m.proj.Module), "/")
 	if len(pkgs) > 1 {
-		scope = fmt.Sprintf("modifiés : %d paquets", len(pkgs))
+		scope = fmt.Sprintf(i18n.T("modifiés : %d paquets"), len(pkgs))
 	}
 	return m.start(scope, pkgs...)
 }
@@ -332,7 +333,7 @@ func (m *Model) runPkgs(pkgs []string) tea.Cmd {
 func (m *Model) runAll() tea.Cmd {
 	m.res = gotest.NewResults()
 	m.cursor, m.offset = 0, 0
-	return m.start("tous les tests", "./...")
+	return m.start(i18n.T("tous les tests"), "./...")
 }
 
 func (m *Model) runSelected() tea.Cmd {
@@ -354,7 +355,7 @@ func (m *Model) runSelected() tea.Cmd {
 func (m *Model) runFailures() tea.Cmd {
 	fails := m.res.Failures()
 	if len(fails) == 0 {
-		return panel.Flash("Aucun échec à relancer", false)
+		return panel.Flash(i18n.T("Aucun échec à relancer"), false)
 	}
 	var pkgs, names []string
 	whole := false
@@ -376,7 +377,7 @@ func (m *Model) runFailures() tea.Cmd {
 	if !whole && len(names) > 0 {
 		args = append([]string{"-run", "^(" + strings.Join(names, "|") + ")$"}, pkgs...)
 	}
-	return m.start(fmt.Sprintf("%d échec(s)", len(fails)), args...)
+	return m.start(fmt.Sprintf(i18n.T("%d échec(s)"), len(fails)), args...)
 }
 
 // ─── Update ──────────────────────────────────────────────────────────────────
@@ -401,11 +402,11 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		var flash tea.Cmd
 		switch {
 		case msg.err != nil:
-			flash = panel.Flash("Tests : "+msg.err.Error(), msg.err != gotest.ErrInterrupted)
+			flash = panel.Flash(i18n.T("Tests : ")+msg.err.Error(), msg.err != gotest.ErrInterrupted)
 		case c.Fail > 0:
-			flash = panel.Flash(fmt.Sprintf("%d test(s) en échec", c.Fail), true)
+			flash = panel.Flash(fmt.Sprintf(i18n.T("%d test(s) en échec"), c.Fail), true)
 		default:
-			flash = panel.Flash("Tests réussis", false)
+			flash = panel.Flash(i18n.T("Tests réussis"), false)
 		}
 		// Des fichiers ont changé pendant l'exécution : relancer ces paquets.
 		if len(m.queued) > 0 && msg.err != gotest.ErrInterrupted {
@@ -427,7 +428,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 
 	case affectedMsg:
 		if msg.err != nil {
-			return m, panel.Flash("Surveillance : "+msg.err.Error(), true)
+			return m, panel.Flash(i18n.T("Surveillance : ")+msg.err.Error(), true)
 		}
 		if len(msg.pkgs) == 0 || m.watcher == nil {
 			return m, nil
@@ -465,9 +466,9 @@ func (m *Model) handleKey(s string) tea.Cmd {
 	case "v":
 		m.cover = !m.cover
 		if m.cover {
-			return panel.Flash("Couverture activée : elle sera mesurée aux prochaines exécutions (a pour tout relancer)", false)
+			return panel.Flash(i18n.T("Couverture activée : elle sera mesurée aux prochaines exécutions (a pour tout relancer)"), false)
 		}
-		return panel.Flash("Couverture désactivée", false)
+		return panel.Flash(i18n.T("Couverture désactivée"), false)
 	case "a", "f5":
 		return m.runAll()
 	case "enter":
@@ -481,9 +482,9 @@ func (m *Model) handleKey(s string) tea.Cmd {
 	case "c":
 		m.noCache = !m.noCache
 		if m.noCache {
-			return panel.Flash("Cache désactivé (-count=1)", false)
+			return panel.Flash(i18n.T("Cache désactivé (-count=1)"), false)
 		}
-		return panel.Flash("Cache activé", false)
+		return panel.Flash(i18n.T("Cache activé"), false)
 	case "h":
 		m.showAll = !m.showAll
 		m.rebuild()
@@ -613,7 +614,7 @@ func (m *Model) openFailure() tea.Cmd {
 		}
 	}
 	if file == "" {
-		return panel.Flash("Aucun emplacement fichier:ligne dans cette sortie", true)
+		return panel.Flash(i18n.T("Aucun emplacement fichier:ligne dans cette sortie"), true)
 	}
 	root, pkg := m.proj.Root, r.pkg.Path
 	return func() tea.Msg {
@@ -625,7 +626,7 @@ func (m *Model) openFailure() tea.Cmd {
 		cmd.Dir = root
 		out, err := cmd.Output()
 		if err != nil {
-			return openMsg{err: fmt.Errorf("répertoire de %s introuvable", pkg)}
+			return openMsg{err: fmt.Errorf(i18n.T("répertoire de %s introuvable"), pkg)}
 		}
 		return openMsg{file: filepath.Join(strings.TrimSpace(string(out)), file), line: line}
 	}
@@ -654,8 +655,8 @@ func (m *Model) View(width, height int) string {
 	summary := m.viewSummary(width)
 	bodyH := max(1, height-2)
 	if len(m.res.Packages) == 0 && !m.running {
-		msg := m.th.Dim.Render("Appuie sur ") + m.th.Value.Render("a") +
-			m.th.Dim.Render(" pour lancer tous les tests (go test -json ./...).")
+		msg := m.th.Dim.Render(i18n.T("Appuie sur ")) + m.th.Value.Render("a") +
+			m.th.Dim.Render(i18n.T(" pour lancer tous les tests (go test -json ./...)."))
 		return summary + "\n\n" + msg
 	}
 
@@ -685,15 +686,15 @@ func (m *Model) viewSummary(width int) string {
 	case m.scope != "":
 		state = t.Dim.Render(fmt.Sprintf("%s · %.1fs", m.scope, m.elapsed.Seconds()))
 	default:
-		state = t.Dim.Render("aucune exécution")
+		state = t.Dim.Render(i18n.T("aucune exécution"))
 	}
-	cache := t.Dim.Render("cache ") + t.Value.Render("on")
+	cache := t.Dim.Render(i18n.T("cache ")) + t.Value.Render("on")
 	if m.noCache {
-		cache = t.Dim.Render("cache ") + t.Warn.Render("off")
+		cache = t.Dim.Render(i18n.T("cache ")) + t.Warn.Render("off")
 	}
 	line := counts + t.Dim.Render("   │   ") + state + t.Dim.Render("   │   ") + cache
 	if m.cover || m.prof != nil {
-		cov := t.Dim.Render("couverture ")
+		cov := t.Dim.Render(i18n.T("couverture "))
 		switch {
 		case m.prof != nil && len(m.prof.Files) > 0:
 			cov += m.coverStyle(m.prof.Total()).Render(fmt.Sprintf("%.1f%%", m.prof.Total()))
@@ -706,9 +707,9 @@ func (m *Model) viewSummary(width int) string {
 		line += t.Dim.Render("   │   ") + cov
 	}
 	if m.watcher != nil {
-		line += t.Dim.Render("   │   ") + t.OK.Render("◉ surveillance")
+		line += t.Dim.Render("   │   ") + t.OK.Render(i18n.T("◉ surveillance"))
 		if len(m.queued) > 0 {
-			line += t.Dim.Render(fmt.Sprintf(" (%d en attente)", len(m.queued)))
+			line += t.Dim.Render(fmt.Sprintf(i18n.T(" (%d en attente)"), len(m.queued)))
 		}
 	}
 	return ansi.Truncate(line, width, "…")
@@ -737,16 +738,16 @@ func (m *Model) viewList(w, h int) string {
 			}
 			name = arrow + " " + strings.TrimPrefix(strings.TrimPrefix(r.pkg.Path, m.proj.Module), "/")
 			if name == arrow+" " {
-				name = arrow + " " + m.proj.Name() + " (racine)"
+				name = arrow + " " + m.proj.Name() + i18n.T(" (racine)")
 			}
 			status = r.pkg.Status
 			switch {
 			case r.pkg.BuildFailed:
-				extra = "compilation"
+				extra = i18n.T("compilation")
 			case r.pkg.NoTests:
-				extra = "sans tests"
+				extra = i18n.T("sans tests")
 			case r.pkg.Cached:
-				extra = "cache"
+				extra = i18n.T("cache")
 			case r.pkg.Status == gotest.Pass || r.pkg.Status == gotest.Fail:
 				extra = fmt.Sprintf("%.2fs", r.pkg.Elapsed)
 			}
@@ -781,7 +782,7 @@ func (m *Model) viewDetail(w, h int) string {
 	t := m.th
 	r, ok := m.selected()
 	if !ok {
-		return lipgloss.NewStyle().Width(w).Height(h).Render(t.Dim.Render("Aucune sélection"))
+		return lipgloss.NewStyle().Width(w).Height(h).Render(t.Dim.Render(i18n.T("Aucune sélection")))
 	}
 
 	var title string
@@ -794,7 +795,7 @@ func (m *Model) viewDetail(w, h int) string {
 		out = r.test.Output
 	}
 	if len(out) == 0 {
-		out = []string{"(pas de sortie)"}
+		out = []string{i18n.T("(pas de sortie)")}
 	}
 	if r.test == nil && len(m.res.Stderr) > 0 && r.pkg.Status == gotest.Fail {
 		out = append(append([]string{}, out...), m.res.Stderr...)

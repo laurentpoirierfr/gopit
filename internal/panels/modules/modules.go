@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/gomod"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
@@ -56,7 +57,7 @@ type spinMsg struct{}
 // ─── Modèle ──────────────────────────────────────────────────────────────────
 
 // Filtres de la liste.
-var filters = []string{"toutes", "à mettre à jour", "vulnérables"}
+var filters = []string{i18n.N("toutes"), i18n.N("à mettre à jour"), i18n.N("vulnérables")}
 
 type row struct {
 	header string        // en-tête de section si mod est nil
@@ -104,7 +105,7 @@ func New(th *theme.Theme, p *project.Project) *Model {
 		why: map[string]string{}, whyPending: map[string]bool{}}
 }
 
-func (m *Model) Title() string { return "Modules" }
+func (m *Model) Title() string { return i18n.N("Modules") }
 func (m *Model) Icon() string  { return "" }
 
 func (m *Model) Init() tea.Cmd {
@@ -117,12 +118,12 @@ func (m *Model) Init() tea.Cmd {
 
 func (m *Model) Hints() []panel.Hint {
 	if m.confirm != nil {
-		return []panel.Hint{{Key: "y", Desc: "confirmer"}, {Key: "n", Desc: "annuler"}}
+		return []panel.Hint{{Key: "y", Desc: i18n.T("confirmer")}, {Key: "n", Desc: i18n.T("annuler")}}
 	}
 	return []panel.Hint{
-		{Key: "u", Desc: "mises à jour"}, {Key: "v", Desc: "vulnérabilités"},
-		{Key: "g", Desc: "mettre à jour"}, {Key: "i", Desc: "indirectes"},
-		{Key: "f", Desc: "filtre"}, {Key: "w", Desc: "page web"},
+		{Key: "u", Desc: i18n.T("mises à jour")}, {Key: "v", Desc: i18n.T("vulnérabilités")},
+		{Key: "g", Desc: i18n.T("mettre à jour")}, {Key: "i", Desc: i18n.T("indirectes")},
+		{Key: "f", Desc: i18n.T("filtre")}, {Key: "w", Desc: i18n.T("page web")},
 	}
 }
 
@@ -145,7 +146,7 @@ func (m *Model) load(updates bool) tea.Cmd {
 
 func (m *Model) checkVulns() tea.Cmd {
 	if !gomod.VulnAvailable() {
-		return panel.Flash("govulncheck n'est pas installé : "+gomod.VulnInstall, true)
+		return panel.Flash(i18n.T("govulncheck n'est pas installé : ")+gomod.VulnInstall, true)
 	}
 	m.vulnLoading = true
 	root := m.proj.Root
@@ -211,7 +212,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 					n++
 				}
 			}
-			flash = panel.Flash(fmt.Sprintf("%d mise(s) à jour disponible(s)", n), false)
+			flash = panel.Flash(fmt.Sprintf(i18n.T("%d mise(s) à jour disponible(s)"), n), false)
 		}
 		return m, tea.Batch(flash, m.ensureWhy())
 
@@ -234,9 +235,9 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		case msg.err != nil:
 			return m, panel.Flash("govulncheck : "+msg.err.Error(), true)
 		case len(msg.vulns) == 0:
-			return m, panel.Flash("Aucune vulnérabilité connue", false)
+			return m, panel.Flash(i18n.T("Aucune vulnérabilité connue"), false)
 		}
-		return m, panel.Flash(fmt.Sprintf("%d vulnérabilité(s), dont %d appelée(s) par le code", len(msg.vulns), called), called > 0)
+		return m, panel.Flash(fmt.Sprintf(i18n.T("%d vulnérabilité(s), dont %d appelée(s) par le code"), len(msg.vulns), called), called > 0)
 
 	case whyMsg:
 		delete(m.whyPending, msg.path)
@@ -253,7 +254,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		}
 		delete(m.why, msg.path)
 		return m, tea.Batch(m.load(m.updChecked),
-			panel.Flash(fmt.Sprintf("%s mis à jour en %s (go.mod modifié) — v pour revérifier les vulnérabilités", msg.path, msg.version), false))
+			panel.Flash(fmt.Sprintf(i18n.T("%s mis à jour en %s (go.mod modifié) — v pour revérifier les vulnérabilités"), msg.path, msg.version), false))
 
 	case spinMsg:
 		if m.busy() {
@@ -282,7 +283,7 @@ func (m *Model) handleKey(s string) tea.Cmd {
 			})
 		case "n", "esc":
 			m.confirm = nil
-			return panel.Flash("Mise à jour annulée", false)
+			return panel.Flash(i18n.T("Mise à jour annulée"), false)
 		}
 		return nil
 	}
@@ -304,7 +305,7 @@ func (m *Model) handleKey(s string) tea.Cmd {
 	case "f":
 		m.filter = (m.filter + 1) % len(filters)
 		m.rebuild()
-		return panel.Flash("Filtre : "+filters[m.filter], false)
+		return panel.Flash(i18n.T("Filtre : ")+i18n.T(filters[m.filter]), false)
 	case "up", "k":
 		m.move(-1)
 	case "down", "j":
@@ -330,9 +331,9 @@ func (m *Model) askUpgrade() tea.Cmd {
 	case mod == nil:
 		return nil
 	case mod.Path == gomod.StdlibPath:
-		return panel.Flash("La bibliothèque standard se met à jour avec Go lui-même (directive toolchain ou nouvelle version de Go)", true)
+		return panel.Flash(i18n.T("La bibliothèque standard se met à jour avec Go lui-même (directive toolchain ou nouvelle version de Go)"), true)
 	case mod.Replace != nil:
-		return panel.Flash("Module remplacé (replace) : à mettre à jour dans go.mod", true)
+		return panel.Flash(i18n.T("Module remplacé (replace) : à mettre à jour dans go.mod"), true)
 	}
 	target := ""
 	if mod.Update != nil {
@@ -342,9 +343,9 @@ func (m *Model) askUpgrade() tea.Cmd {
 	}
 	if target == "" {
 		if !m.updChecked {
-			return panel.Flash("Vérifie d'abord les mises à jour (u)", true)
+			return panel.Flash(i18n.T("Vérifie d'abord les mises à jour (u)"), true)
 		}
-		return panel.Flash(mod.Path+" est à jour", false)
+		return panel.Flash(mod.Path+i18n.T(" est à jour"), false)
 	}
 	m.confirm = &gomod.Version{Path: mod.Path, Version: target}
 	return nil
@@ -375,9 +376,9 @@ func (m *Model) openWeb() tea.Cmd {
 		url = vs[0].URL() // la vulnérabilité la plus grave
 	}
 	if err := exec.Command("xdg-open", url).Start(); err != nil {
-		return panel.Flash("Impossible d'ouvrir le navigateur : "+err.Error(), true)
+		return panel.Flash(i18n.T("Impossible d'ouvrir le navigateur : ")+err.Error(), true)
 	}
-	return panel.Flash("Ouverture de "+url, false)
+	return panel.Flash(i18n.T("Ouverture de ")+url, false)
 }
 
 func (m *Model) move(d int) {
@@ -463,17 +464,17 @@ func (m *Model) rebuild() {
 			indirect = append(indirect, mod)
 		}
 	}
-	m.rows = append(m.rows, row{header: fmt.Sprintf("Directes (%d)", len(direct))})
+	m.rows = append(m.rows, row{header: fmt.Sprintf(i18n.T("Directes (%d)"), len(direct))})
 	for _, mod := range direct {
 		m.rows = append(m.rows, row{mod: mod})
 	}
 	if m.showIndirect {
-		m.rows = append(m.rows, row{header: fmt.Sprintf("Indirectes (%d)", len(indirect))})
+		m.rows = append(m.rows, row{header: fmt.Sprintf(i18n.T("Indirectes (%d)"), len(indirect))})
 		for _, mod := range indirect {
 			m.rows = append(m.rows, row{mod: mod})
 		}
 	} else if len(indirect) > 0 {
-		m.rows = append(m.rows, row{header: fmt.Sprintf("▸ Indirectes (%d) — i pour afficher", len(indirect))})
+		m.rows = append(m.rows, row{header: fmt.Sprintf(i18n.T("▸ Indirectes (%d) — i pour afficher"), len(indirect))})
 	}
 
 	m.cursor = -1
@@ -538,9 +539,9 @@ func (m *Model) View(width, height int) string {
 	top := strings.Join(head, "\n") + "\n\n"
 	if len(m.mods) == 0 && m.goVersion == "" {
 		if m.loading {
-			return top + m.th.Dim.Render("Chargement des dépendances…")
+			return top + m.th.Dim.Render(i18n.T("Chargement des dépendances…"))
 		}
-		return top + m.th.Dim.Render("Aucune dépendance.")
+		return top + m.th.Dim.Render(i18n.T("Aucune dépendance."))
 	}
 	listW := max(34, width*50/100)
 	detailW := max(10, width-listW-3)
@@ -563,23 +564,23 @@ func (m *Model) viewSummary(width int) []string {
 		}
 	}
 	parts := []string{
-		t.Value.Render(fmt.Sprint(direct)) + t.Dim.Render(" directes · ") + t.Value.Render(fmt.Sprint(indirect)) + t.Dim.Render(" indirectes"),
+		t.Value.Render(fmt.Sprint(direct)) + t.Dim.Render(i18n.T(" directes · ")) + t.Value.Render(fmt.Sprint(indirect)) + t.Dim.Render(i18n.T(" indirectes")),
 	}
 
 	switch {
 	case m.updLoading:
-		parts = append(parts, m.spinIcon()+t.Text.Render(" mises à jour…"))
+		parts = append(parts, m.spinIcon()+t.Text.Render(i18n.T(" mises à jour…")))
 	case m.updChecked:
-		parts = append(parts, t.Warn.Render(fmt.Sprintf("↑ %d", upd))+t.Dim.Render(" mises à jour (directes)"))
+		parts = append(parts, t.Warn.Render(fmt.Sprintf("↑ %d", upd))+t.Dim.Render(i18n.T(" mises à jour (directes)")))
 	default:
-		parts = append(parts, t.Dim.Render("mises à jour non vérifiées (u)"))
+		parts = append(parts, t.Dim.Render(i18n.T("mises à jour non vérifiées (u)")))
 	}
 
 	switch {
 	case m.vulnLoading:
 		parts = append(parts, m.spinIcon()+t.Text.Render(" govulncheck…"))
 	case m.vulnErr != nil:
-		parts = append(parts, t.Err.Render("govulncheck en échec"))
+		parts = append(parts, t.Err.Render(i18n.T("govulncheck en échec")))
 	case m.vulnChecked:
 		n, called := 0, 0
 		all := []*gomod.Module{m.stdlib()}
@@ -596,33 +597,33 @@ func (m *Model) viewSummary(width int) []string {
 		}
 		switch {
 		case n == 0:
-			parts = append(parts, t.OK.Render("✓ aucune vulnérabilité"))
+			parts = append(parts, t.OK.Render(i18n.T("✓ aucune vulnérabilité")))
 		case called == 0:
-			parts = append(parts, t.Warn.Render(fmt.Sprintf("⚠ %d vulnérabilité(s)", n))+t.Dim.Render(", aucune appelée"))
+			parts = append(parts, t.Warn.Render(fmt.Sprintf(i18n.T("⚠ %d vulnérabilité(s)"), n))+t.Dim.Render(i18n.T(", aucune appelée")))
 		default:
-			parts = append(parts, t.Err.Render(fmt.Sprintf("✗ %d appelée(s)", called))+t.Dim.Render(fmt.Sprintf(" sur %d vulnérabilité(s)", n)))
+			parts = append(parts, t.Err.Render(fmt.Sprintf(i18n.T("✗ %d appelée(s)"), called))+t.Dim.Render(fmt.Sprintf(i18n.T(" sur %d vulnérabilité(s)"), n)))
 		}
 	case !gomod.VulnAvailable():
 		parts = append(parts, t.Dim.Render("govulncheck –"))
 	default:
-		parts = append(parts, t.Dim.Render("vulnérabilités non vérifiées (v)"))
+		parts = append(parts, t.Dim.Render(i18n.T("vulnérabilités non vérifiées (v)")))
 	}
 	if m.filter != 0 {
-		parts = append(parts, t.Dim.Render("filtre ")+t.Value.Render(filters[m.filter]))
+		parts = append(parts, t.Dim.Render(i18n.T("filtre "))+t.Value.Render(i18n.T(filters[m.filter])))
 	}
 
 	lines := []string{ansi.Truncate(strings.Join(parts, t.Dim.Render("   │   ")), width, "…")}
 	if m.confirm != nil {
-		lines = append(lines, ansi.Truncate(t.Warn.Bold(true).Render(fmt.Sprintf("Mettre %s en %s ? go.mod et go.sum seront modifiés. (y/n)",
+		lines = append(lines, ansi.Truncate(t.Warn.Bold(true).Render(fmt.Sprintf(i18n.T("Mettre %s en %s ? go.mod et go.sum seront modifiés. (y/n)"),
 			m.confirm.Path, m.confirm.Version)), width, "…"))
 	} else if m.getting {
-		lines = append(lines, m.spinIcon()+t.Text.Render(" go get en cours…"))
+		lines = append(lines, m.spinIcon()+t.Text.Render(i18n.T(" go get en cours…")))
 	}
 	if m.listErr != nil {
 		lines = append(lines, ansi.Truncate(t.Err.Render("go list : "+m.listErr.Error()), width, "…"))
 	}
 	if !gomod.VulnAvailable() && !m.vulnChecked {
-		lines = append(lines, ansi.Truncate(t.Dim.Render("govulncheck n'est pas installé : ")+t.Text.Render(gomod.VulnInstall), width, "…"))
+		lines = append(lines, ansi.Truncate(t.Dim.Render(i18n.T("govulncheck n'est pas installé : "))+t.Text.Render(gomod.VulnInstall), width, "…"))
 	}
 	return lines
 }
@@ -651,7 +652,7 @@ func (m *Model) viewList(w, h int) string {
 		mod := r.mod
 		name := mod.Path
 		if name == gomod.StdlibPath {
-			name = "bibliothèque standard"
+			name = i18n.T("bibliothèque standard")
 		}
 		version := mod.Version
 		if mod.Replace != nil {
@@ -666,7 +667,7 @@ func (m *Model) viewList(w, h int) string {
 			right += " " + b
 		}
 		if mod.Deprecated != "" {
-			right += " " + t.Err.Render("déprécié")
+			right += " " + t.Err.Render(i18n.T("déprécié"))
 		}
 		room := w - 2 - lipgloss.Width(right) - 1
 		left := "  " + ansi.Truncate(t.Text.Render(name), max(4, room), "…")
@@ -691,7 +692,7 @@ func (m *Model) viewDetail(w, h int) string {
 	t := m.th
 	mod := m.selected()
 	if mod == nil {
-		return lipgloss.NewStyle().Width(w).Height(h).Render(t.Dim.Render("Aucune sélection"))
+		return lipgloss.NewStyle().Width(w).Height(h).Render(t.Dim.Render(i18n.T("Aucune sélection")))
 	}
 	wrap := lipgloss.NewStyle().Width(w)
 	field := func(label, value string) string {
@@ -700,20 +701,20 @@ func (m *Model) viewDetail(w, h int) string {
 
 	var lines []string
 	if mod.Path == gomod.StdlibPath {
-		lines = append(lines, t.Value.Render("Bibliothèque standard de Go"), "",
-			field("Go installé", t.Text.Render(m.goVersion)),
+		lines = append(lines, t.Value.Render(i18n.T("Bibliothèque standard de Go")), "",
+			field(i18n.T("Go installé"), t.Text.Render(m.goVersion)),
 			field("go.mod", t.Text.Render("go "+m.proj.GoVersion)))
 	} else {
-		kind := "indirecte"
+		kind := i18n.T("dépendance indirecte")
 		if mod.Direct() {
-			kind = "directe"
+			kind = i18n.T("dépendance directe")
 		}
-		lines = append(lines, wrap.Render(t.Value.Render(mod.Path)), t.Dim.Render("dépendance "+kind), "")
+		lines = append(lines, wrap.Render(t.Value.Render(mod.Path)), t.Dim.Render(kind), "")
 		ver := t.Text.Render(mod.Version)
 		if d := date(mod.Time); d != "" {
 			ver += t.Dim.Render("  (" + d + ")")
 		}
-		lines = append(lines, field("Version", ver))
+		lines = append(lines, field(i18n.T("Version"), ver))
 
 		switch {
 		case mod.Update != nil:
@@ -723,36 +724,36 @@ func (m *Model) viewDetail(w, h int) string {
 				u += t.Dim.Render("  (" + d + ")")
 			}
 			if k != gomod.NoUpdate {
-				u += t.Dim.Render("  version " + k.String())
+				u += t.Dim.Render(i18n.T("  version ") + k.String())
 			}
-			lines = append(lines, field("Mise à jour", u))
+			lines = append(lines, field(i18n.T("Mise à jour"), u))
 		case m.updChecked:
-			lines = append(lines, field("Mise à jour", t.OK.Render("à jour")))
+			lines = append(lines, field(i18n.T("Mise à jour"), t.OK.Render(i18n.T("à jour"))))
 		default:
-			lines = append(lines, field("Mise à jour", t.Dim.Render("non vérifiée (u)")))
+			lines = append(lines, field(i18n.T("Mise à jour"), t.Dim.Render(i18n.T("non vérifiée (u)"))))
 		}
 		if mod.GoVersion != "" {
-			lines = append(lines, field("Go requis", t.Text.Render(mod.GoVersion)))
+			lines = append(lines, field(i18n.T("Go requis"), t.Text.Render(mod.GoVersion)))
 		}
 		if mod.Replace != nil {
-			lines = append(lines, field("Remplacé par", t.Warn.Render(strings.TrimSpace(mod.Replace.Path+" "+mod.Replace.Version))))
+			lines = append(lines, field(i18n.T("Remplacé par"), t.Warn.Render(strings.TrimSpace(mod.Replace.Path+" "+mod.Replace.Version))))
 		}
 		if mod.Deprecated != "" {
-			lines = append(lines, field("Déprécié", wrap.Render(t.Err.Render(mod.Deprecated))))
+			lines = append(lines, field(i18n.T("Déprécié"), wrap.Render(t.Err.Render(mod.Deprecated))))
 		}
 		if len(mod.Retracted) > 0 {
-			lines = append(lines, field("Retirée", t.Err.Render(strings.Join(mod.Retracted, " ; "))))
+			lines = append(lines, field(i18n.T("Retirée"), t.Err.Render(strings.Join(mod.Retracted, " ; "))))
 		}
 		if mod.Error != nil {
-			lines = append(lines, field("Erreur", t.Err.Render(mod.Error.Err)))
+			lines = append(lines, field(i18n.T("Erreur"), t.Err.Render(mod.Error.Err)))
 		}
 
-		lines = append(lines, "", t.Label.Bold(true).Render("Pourquoi ce module ?"))
+		lines = append(lines, "", t.Label.Bold(true).Render(i18n.T("Pourquoi ce module ?")))
 		switch why, ok := m.why[mod.Path]; {
 		case !ok:
 			lines = append(lines, t.Dim.Render("…"))
 		case why == "":
-			lines = append(lines, t.Dim.Render("(pas d'explication)"))
+			lines = append(lines, t.Dim.Render(i18n.T("(pas d'explication)")))
 		default:
 			for i, l := range strings.Split(why, "\n") {
 				prefix := "  "
@@ -764,15 +765,15 @@ func (m *Model) viewDetail(w, h int) string {
 		}
 	}
 
-	lines = append(lines, "", t.Label.Bold(true).Render("Vulnérabilités"))
+	lines = append(lines, "", t.Label.Bold(true).Render(i18n.T("Vulnérabilités")))
 	vs := m.vulnsOf(mod)
 	switch {
 	case m.vulnLoading:
-		lines = append(lines, m.spinIcon()+t.Dim.Render(" analyse en cours…"))
+		lines = append(lines, m.spinIcon()+t.Dim.Render(i18n.T(" analyse en cours…")))
 	case !m.vulnChecked:
-		lines = append(lines, t.Dim.Render("non vérifiées (v)"))
+		lines = append(lines, t.Dim.Render(i18n.T("non vérifiées (v)")))
 	case len(vs) == 0:
-		lines = append(lines, t.OK.Render("✓ aucune connue"))
+		lines = append(lines, t.OK.Render(i18n.T("✓ aucune connue")))
 	}
 	for _, v := range vs {
 		lines = append(lines, "")
@@ -788,13 +789,13 @@ func (m *Model) viewDetail(w, h int) string {
 		if v.Summary != "" {
 			lines = append(lines, wrap.Render(t.Text.Render(v.Summary)))
 		}
-		fixed := t.Err.Render("aucune")
+		fixed := t.Err.Render(i18n.T("aucune"))
 		if v.Fixed != "" {
 			fixed = t.OK.Render(v.Fixed)
 		}
-		lines = append(lines, field("Corrigée en", fixed), field("Portée", t.Text.Render(v.Level.String())))
+		lines = append(lines, field(i18n.T("Corrigée en"), fixed), field(i18n.T("Portée"), t.Text.Render(v.Level.String())))
 		if len(v.Trace) > 0 {
-			lines = append(lines, t.Dim.Render("Chaîne d'appels :"))
+			lines = append(lines, t.Dim.Render(i18n.T("Chaîne d'appels :")))
 			for i := len(v.Trace) - 1; i >= 0; i-- {
 				f := v.Trace[i]
 				s := f.Name()

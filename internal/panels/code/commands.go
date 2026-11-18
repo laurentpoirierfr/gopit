@@ -1,6 +1,10 @@
 package code
 
-import "github.com/laurentpoirierfr/gopit/internal/panel"
+import (
+	"github.com/laurentpoirierfr/gopit/internal/panel"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
+)
 
 // actTree affiche ou masque l'arbre (action propre à ce module).
 const actTree panel.EditAction = "tree"
@@ -13,14 +17,14 @@ func (m *Model) Commands() []panel.Command {
 		return panel.Command{Title: title, Key: key, Msg: panel.EditMsg{Action: a}}
 	}
 	return []panel.Command{
-		c("Ouvrir un fichier du projet", "Ctrl+O", panel.ActOpen),
-		c("Enregistrer (avec gofmt)", "Ctrl+S", panel.ActSave),
-		c("Fermer le fichier", "Ctrl+W", panel.ActClose),
-		c("Afficher / masquer l'arbre des fichiers", "Ctrl+B", actTree),
-		c("Rechercher", "Ctrl+F", panel.ActFind),
-		c("Occurrence suivante", "F3", panel.ActFindNext),
-		c("Aller à la ligne", "Ctrl+G", panel.ActGoto),
-		c("Commenter / décommenter", "Ctrl+/", panel.ActComment),
-		c("Formater (gofmt)", "Alt+Maj+F", panel.ActFormat),
+		c(i18n.T("Ouvrir un fichier du projet"), "Ctrl+O", panel.ActOpen),
+		c(i18n.T("Enregistrer (avec gofmt)"), "Ctrl+S", panel.ActSave),
+		c(i18n.T("Fermer le fichier"), "Ctrl+W", panel.ActClose),
+		c(i18n.T("Afficher / masquer l'arbre des fichiers"), "Ctrl+B", actTree),
+		c(i18n.T("Rechercher"), "Ctrl+F", panel.ActFind),
+		c(i18n.T("Occurrence suivante"), "F3", panel.ActFindNext),
+		c(i18n.T("Aller à la ligne"), "Ctrl+G", panel.ActGoto),
+		c(i18n.T("Commenter / décommenter"), "Ctrl+/", panel.ActComment),
+		c(i18n.T("Formater (gofmt)"), "Alt+Maj+F", panel.ActFormat),
 	}
 }

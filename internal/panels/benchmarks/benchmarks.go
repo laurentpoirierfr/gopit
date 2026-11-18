@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/bench"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
@@ -84,7 +85,7 @@ func New(th *theme.Theme, p *project.Project) *Model {
 	return m
 }
 
-func (m *Model) Title() string { return "Benchmarks" }
+func (m *Model) Title() string { return i18n.N("Benchmarks") }
 func (m *Model) Icon() string  { return "" }
 
 func (m *Model) Init() tea.Cmd {
@@ -103,12 +104,12 @@ func (m *Model) Hints() []panel.Hint {
 	case m.pr.open:
 		return m.profileHints()
 	case m.exec != nil:
-		return []panel.Hint{{Key: "x", Desc: "arrêter"}}
+		return []panel.Hint{{Key: "x", Desc: i18n.T("arrêter")}}
 	}
 	return []panel.Hint{
-		{Key: "a", Desc: "tout lancer"}, {Key: "Entrée", Desc: "lancer la sélection"},
-		{Key: "b", Desc: "référence"}, {Key: "n", Desc: "répétitions"}, {Key: "t", Desc: "durée"},
-		{Key: "p/m", Desc: "profil CPU/mémoire"},
+		{Key: "a", Desc: i18n.T("tout lancer")}, {Key: "Entrée", Desc: i18n.T("lancer la sélection")},
+		{Key: "b", Desc: i18n.T("référence")}, {Key: "n", Desc: i18n.T("répétitions")}, {Key: "t", Desc: i18n.T("durée")},
+		{Key: "p/m", Desc: i18n.T("profil CPU/mémoire")},
 	}
 }
 
@@ -197,7 +198,7 @@ func spin(id int) tea.Cmd {
 
 func (m *Model) runAll() tea.Cmd {
 	m.abortProfile()
-	return m.start("tous les benchmarks", bench.Options{})
+	return m.start(i18n.T("tous les benchmarks"), bench.Options{})
 }
 
 func (m *Model) runSelected() tea.Cmd {
@@ -215,7 +216,7 @@ func pattern(name string) string {
 	parts := strings.Split(name, "/")
 	for i, p := range parts {
 		if i == 0 {
-			p = "Benchmark" + p
+			p = i18n.T("Benchmark") + p
 		}
 		parts[i] = "^" + regexp.QuoteMeta(p) + "$"
 	}
@@ -229,9 +230,9 @@ func (m *Model) finish(err error) tea.Cmd {
 	if len(res) == 0 {
 		m.rebuild()
 		if err != nil {
-			return panel.Flash("Benchmarks : "+err.Error(), err != bench.ErrInterrupted)
+			return panel.Flash(i18n.T("Benchmarks : ")+err.Error(), err != bench.ErrInterrupted)
 		}
-		return panel.Flash("Aucun benchmark trouvé (fonctions BenchmarkXxx)", true)
+		return panel.Flash(i18n.T("Aucun benchmark trouvé (fonctions BenchmarkXxx)"), true)
 	}
 	run := &bench.Run{Time: time.Now(), Label: m.label, Count: m.count(), CPU: m.parser.CPU(), Results: res}
 	var saveErr error
@@ -247,11 +248,11 @@ func (m *Model) finish(err error) tea.Cmd {
 	m.rebuild()
 	switch {
 	case saveErr != nil:
-		return panel.Flash("Historique non enregistré : "+saveErr.Error(), true)
+		return panel.Flash(i18n.T("Historique non enregistré : ")+saveErr.Error(), true)
 	case err != nil:
-		return panel.Flash(fmt.Sprintf("%d benchmark(s) mesuré(s), puis : %v", len(res), err), true)
+		return panel.Flash(fmt.Sprintf(i18n.T("%d benchmark(s) mesuré(s), puis : %v"), len(res), err), true)
 	}
-	return panel.Flash(fmt.Sprintf("%d benchmark(s) mesuré(s) en %.1fs", len(res), time.Since(m.started).Seconds()), false)
+	return panel.Flash(fmt.Sprintf(i18n.T("%d benchmark(s) mesuré(s) en %.1fs"), len(res), time.Since(m.started).Seconds()), false)
 }
 
 // defaultBase choisit comme référence l'exécution précédente la plus
@@ -346,10 +347,10 @@ func (m *Model) handleKey(s string) tea.Cmd {
 		}
 	case "n":
 		m.countIdx = (m.countIdx + 1) % len(counts)
-		return panel.Flash(fmt.Sprintf("Répétitions : -count=%d", m.count()), false)
+		return panel.Flash(fmt.Sprintf(i18n.T("Répétitions : -count=%d"), m.count()), false)
 	case "t":
 		m.timeIdx = (m.timeIdx + 1) % len(benchTimes)
-		return panel.Flash("Durée de chaque mesure : -benchtime="+m.benchTime(), false)
+		return panel.Flash(i18n.T("Durée de chaque mesure : -benchtime=")+m.benchTime(), false)
 	case "b":
 		return m.cycleBase()
 	case "up", "k":
@@ -367,7 +368,7 @@ func (m *Model) handleKey(s string) tea.Cmd {
 // cycleBase passe à l'exécution de référence précédente (puis « aucune »).
 func (m *Model) cycleBase() tea.Cmd {
 	if len(m.runs) < 2 {
-		return panel.Flash("Il faut au moins deux exécutions pour comparer", true)
+		return panel.Flash(i18n.T("Il faut au moins deux exécutions pour comparer"), true)
 	}
 	switch {
 	case m.base < 0:
@@ -378,9 +379,9 @@ func (m *Model) cycleBase() tea.Cmd {
 		m.base--
 	}
 	if b := m.baseline(); b != nil {
-		return panel.Flash(fmt.Sprintf("Référence : %s (%s)", b.Time.Format("02/01 15:04:05"), b.Label), false)
+		return panel.Flash(fmt.Sprintf(i18n.T("Référence : %s (%s)"), b.Time.Format("02/01 15:04:05"), b.Label), false)
 	}
-	return panel.Flash("Sans référence", false)
+	return panel.Flash(i18n.T("Sans référence"), false)
 }
 
 func (m *Model) selected() *bench.Result {
@@ -455,11 +456,11 @@ func FormatValue(v float64, unit string) string {
 	case bench.BytesOp:
 		switch {
 		case v >= 1<<20:
-			return fmt.Sprintf("%.1f Mio", v/(1<<20))
+			return fmt.Sprintf(i18n.T("%.1f Mio"), v/(1<<20))
 		case v >= 1<<10:
-			return fmt.Sprintf("%.1f Kio", v/(1<<10))
+			return fmt.Sprintf(i18n.T("%.1f Kio"), v/(1<<10))
 		}
-		return fmt.Sprintf("%.0f o", v)
+		return fmt.Sprintf(i18n.T("%.0f o"), v)
 	case bench.AllocsOp:
 		return fmt.Sprintf("%.0f", v)
 	}
@@ -474,7 +475,7 @@ func (m *Model) deltaText(d bench.Delta) string {
 	case d.Noise:
 		return t.Dim.Render("≈")
 	case math.IsInf(d.Pct, 1):
-		return t.Err.Render("nouveau > 0")
+		return t.Err.Render(i18n.T("nouveau > 0"))
 	case d.Pct <= -0.5 && d.New.Mean > 0:
 		// Gros gain : un rapport est plus parlant que « -99.9% ».
 		return t.OK.Render("÷" + ratio(d.Old.Mean/d.New.Mean))
@@ -533,12 +534,12 @@ func (m *Model) View(width, height int) string {
 		var msg string
 		switch {
 		case m.exec != nil:
-			msg = t.Dim.Render("Compilation et premières mesures…")
+			msg = t.Dim.Render(i18n.T("Compilation et premières mesures…"))
 		case len(m.output) > 0:
 			msg = t.Err.Render(strings.Join(m.output, "\n"))
 		default:
-			msg = t.Dim.Render("Appuie sur ") + t.Value.Render("a") +
-				t.Dim.Render(" pour lancer les benchmarks (go test -run=^$ -bench=. -benchmem).")
+			msg = t.Dim.Render(i18n.T("Appuie sur ")) + t.Value.Render("a") +
+				t.Dim.Render(i18n.T(" pour lancer les benchmarks (go test -run=^$ -bench=. -benchmem)."))
 		}
 		return top + lipgloss.NewStyle().Width(width).MaxHeight(bodyH).Render(msg)
 	}
@@ -568,15 +569,15 @@ func (m *Model) viewSummary() string {
 		parts = append(parts, t.Text.Render(l.Label)+t.Dim.Render(" · "+l.Time.Format("02/01 15:04:05")))
 	}
 	if b := m.baseline(); b != nil {
-		parts = append(parts, t.Dim.Render("référence ")+t.Value.Render(b.Time.Format("02/01 15:04:05")))
+		parts = append(parts, t.Dim.Render(i18n.T("référence "))+t.Value.Render(b.Time.Format("02/01 15:04:05")))
 	} else if len(m.runs) > 0 {
-		parts = append(parts, t.Dim.Render("sans référence"))
+		parts = append(parts, t.Dim.Render(i18n.T("sans référence")))
 	}
 	parts = append(parts, t.Dim.Render("-count=")+t.Value.Render(fmt.Sprint(m.count()))+
 		t.Dim.Render(" -benchtime=")+t.Value.Render(m.benchTime()),
-		t.Dim.Render(fmt.Sprintf("%d exécution(s) enregistrée(s)", len(m.runs))))
+		t.Dim.Render(fmt.Sprintf(i18n.T("%d exécution(s) enregistrée(s)"), len(m.runs))))
 	if m.histErr != nil {
-		parts = append(parts, t.Err.Render("historique : "+m.histErr.Error()))
+		parts = append(parts, t.Err.Render(i18n.T("historique : ")+m.histErr.Error()))
 	}
 	return strings.Join(parts, sepr)
 }
@@ -614,7 +615,7 @@ func (m *Model) viewList(w, h int) string {
 			if d, ok := bench.Compare(base.Result(r.res.Key()), r.res, bench.NsOp); ok {
 				right += " " + lipgloss.NewStyle().Width(8).Align(lipgloss.Right).Render(m.deltaText(d))
 			} else {
-				right += " " + lipgloss.NewStyle().Width(8).Align(lipgloss.Right).Render(t.Dim.Render("nouveau"))
+				right += " " + lipgloss.NewStyle().Width(8).Align(lipgloss.Right).Render(t.Dim.Render(i18n.T("nouveau")))
 			}
 		}
 		left := "  " + t.Text.Render(r.res.Name)
@@ -635,12 +636,12 @@ func (m *Model) viewDetail(w, h int) string {
 	box := lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h)
 	r := m.selected()
 	if r == nil {
-		return box.Render(t.Dim.Render("Aucune sélection"))
+		return box.Render(t.Dim.Render(i18n.T("Aucune sélection")))
 	}
 
 	lines := []string{
-		ansi.Truncate(t.Value.Render("Benchmark"+r.Name), w, "…"),
-		t.Dim.Render(fmt.Sprintf("%s · GOMAXPROCS=%d · %d itérations", r.Pkg, r.Procs, r.Iters)),
+		ansi.Truncate(t.Value.Render(i18n.T("Benchmark")+r.Name), w, "…"),
+		t.Dim.Render(fmt.Sprintf(i18n.T("%s · GOMAXPROCS=%d · %d itérations"), r.Pkg, r.Procs, r.Iters)),
 		"",
 	}
 
@@ -657,7 +658,7 @@ func (m *Model) viewDetail(w, h int) string {
 		}
 	}
 	col := func(s string, n int) string { return lipgloss.NewStyle().Width(n).Align(lipgloss.Right).Render(s) }
-	lines = append(lines, t.Label.Render(fmt.Sprintf("%-10s", ""))+col(t.Label.Render("référence"), 14)+col(t.Label.Render("actuel"), 14)+col(t.Label.Render("Δ"), 9))
+	lines = append(lines, t.Label.Render(fmt.Sprintf("%-10s", ""))+col(t.Label.Render(i18n.T("référence")), 14)+col(t.Label.Render(i18n.T("actuel")), 14)+col(t.Label.Render("Δ"), 9))
 	for _, unit := range units {
 		cur, ok := r.Metrics[unit]
 		if !ok {
@@ -671,7 +672,7 @@ func (m *Model) viewDetail(w, h int) string {
 			col(t.Value.Render(FormatValue(cur.Mean, unit)), 14)+col(delta, 9), w, "…"))
 	}
 	if ns, ok := r.Metrics[bench.NsOp]; ok && ns.N > 1 {
-		lines = append(lines, "", t.Dim.Render(fmt.Sprintf("%d mesures, écart ±%.1f%% (min %s, max %s)",
+		lines = append(lines, "", t.Dim.Render(fmt.Sprintf(i18n.T("%d mesures, écart ±%.1f%% (min %s, max %s)"),
 			ns.N, 100*ns.Spread(), FormatValue(ns.Min, bench.NsOp), FormatValue(ns.Max, bench.NsOp))))
 	}
 
@@ -692,13 +693,13 @@ func (m *Model) viewDetail(w, h int) string {
 		for _, v := range vals {
 			lo, hi = math.Min(lo, v), math.Max(hi, v)
 		}
-		lines = append(lines, "", t.Label.Render(fmt.Sprintf("Historique (%d exécutions)", len(vals))),
+		lines = append(lines, "", t.Label.Render(fmt.Sprintf(i18n.T("Historique (%d exécutions)"), len(vals))),
 			lipgloss.NewStyle().Foreground(t.P.Accent).Render(sparkline(vals)),
-			t.Dim.Render(fmt.Sprintf("min %s · max %s", FormatValue(lo, bench.NsOp), FormatValue(hi, bench.NsOp))))
+			t.Dim.Render(fmt.Sprintf(i18n.T("min %s · max %s"), FormatValue(lo, bench.NsOp), FormatValue(hi, bench.NsOp))))
 	}
 
 	if len(m.output) > 0 {
-		lines = append(lines, "", t.Label.Render("Sortie"))
+		lines = append(lines, "", t.Label.Render(i18n.T("Sortie")))
 		for _, l := range m.output {
 			lines = append(lines, ansi.Truncate(t.Text.Render(strings.ReplaceAll(l, "\t", "    ")), w, "…"))
 		}

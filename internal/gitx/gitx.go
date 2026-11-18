@@ -13,10 +13,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 // ErrNotRepo est renvoyée hors d'un dépôt git.
-var ErrNotRepo = errors.New("pas de dépôt git")
+var ErrNotRepo = i18n.Error("pas de dépôt git")
 
 // Change est l'état d'un fichier.
 type Change struct {
@@ -117,7 +119,7 @@ func ParseStatus(out []byte) (*Status, error) {
 			n := map[byte]int{'1': 9, '2': 10, 'u': 11}[f[0]]
 			parts := strings.SplitN(f, " ", n)
 			if len(parts) < n || len(parts[1]) != 2 {
-				return nil, fmt.Errorf("ligne d'état invalide : %q", f)
+				return nil, fmt.Errorf(i18n.T("ligne d'état invalide : %q"), f)
 			}
 			c := Change{Path: parts[n-1], Staged: parts[1][0], Worktree: parts[1][1], Conflict: f[0] == 'u'}
 			if f[0] == '2' && i+1 < len(fields) {
@@ -213,7 +215,7 @@ func Unstage(ctx context.Context, dir string, hasCommit bool, paths ...string) e
 // CommitStaged commite les modifications indexées avec le message donné.
 func CommitStaged(ctx context.Context, dir, message string) (string, error) {
 	if strings.TrimSpace(message) == "" {
-		return "", errors.New("message de commit vide")
+		return "", errors.New(i18n.T("message de commit vide"))
 	}
 	if _, err := Run(ctx, dir, "commit", "-q", "-m", message); err != nil {
 		return "", err

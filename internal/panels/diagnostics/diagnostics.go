@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/diag"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
@@ -45,9 +46,9 @@ var sevFilters = []struct {
 	label string
 	max   diag.Severity
 }{
-	{"tout", diag.Info},
-	{"erreurs + avertissements", diag.Warning},
-	{"erreurs", diag.Error},
+	{i18n.N("tout"), diag.Info},
+	{i18n.N("erreurs + avertissements"), diag.Warning},
+	{i18n.N("erreurs"), diag.Error},
 }
 
 // row est une ligne de la liste : un en-tête de fichier (d == nil) ou un
@@ -83,7 +84,7 @@ func New(th *theme.Theme, p *project.Project) *Model {
 		state: map[string]*toolState{}, source: map[string][]string{}}
 }
 
-func (m *Model) Title() string { return "Diagnostics" }
+func (m *Model) Title() string { return i18n.N("Diagnostics") }
 func (m *Model) Icon() string  { return "" }
 
 // Init lance une première analyse : elle tourne en arrière-plan pendant
@@ -92,8 +93,8 @@ func (m *Model) Init() tea.Cmd { return m.runAll() }
 
 func (m *Model) Hints() []panel.Hint {
 	return []panel.Hint{
-		{Key: "a", Desc: "relancer"}, {Key: "Entrée", Desc: "ouvrir"},
-		{Key: "s", Desc: "gravité"}, {Key: "t", Desc: "outil"},
+		{Key: "a", Desc: i18n.T("relancer")}, {Key: "Entrée", Desc: i18n.T("ouvrir")},
+		{Key: "s", Desc: i18n.T("gravité")}, {Key: "t", Desc: i18n.T("outil")},
 	}
 }
 
@@ -166,9 +167,9 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		m.cancel = nil
 		e, w, i := diag.Counts(m.all)
 		if e+w+i == 0 {
-			return m, panel.Flash("Diagnostics : aucun problème", false)
+			return m, panel.Flash(i18n.T("Diagnostics : aucun problème"), false)
 		}
-		return m, panel.Flash(fmt.Sprintf("Diagnostics : %d erreur(s), %d avertissement(s), %d info(s)", e, w, i), e > 0)
+		return m, panel.Flash(fmt.Sprintf(i18n.T("Diagnostics : %d erreur(s), %d avertissement(s), %d info(s)"), e, w, i), e > 0)
 
 	case spinMsg:
 		if msg.gen == m.gen && m.running() {
@@ -193,15 +194,15 @@ func (m *Model) handleKey(s string) tea.Cmd {
 	case "s":
 		m.sevFilter = (m.sevFilter + 1) % len(sevFilters)
 		m.rebuild()
-		return panel.Flash("Gravité : "+sevFilters[m.sevFilter].label, false)
+		return panel.Flash(i18n.T("Gravité : ")+i18n.T(sevFilters[m.sevFilter].label), false)
 	case "t":
 		m.toolFilter = m.nextTool()
 		m.rebuild()
 		label := m.toolFilter
 		if label == "" {
-			label = "tous"
+			label = i18n.T("tous")
 		}
-		return panel.Flash("Outil : "+label, false)
+		return panel.Flash(i18n.T("Outil : ")+label, false)
 	case "up", "k":
 		m.move(-1)
 	case "down", "j":
@@ -331,11 +332,11 @@ func (m *Model) View(width, height int) string {
 		var msg string
 		switch {
 		case m.running():
-			msg = t.Dim.Render("Analyse en cours…")
+			msg = t.Dim.Render(i18n.T("Analyse en cours…"))
 		case len(m.all) > 0:
-			msg = t.Dim.Render("Aucun diagnostic pour ce filtre (s : gravité, t : outil).")
+			msg = t.Dim.Render(i18n.T("Aucun diagnostic pour ce filtre (s : gravité, t : outil)."))
 		default:
-			msg = t.OK.Render("✓ Aucun problème trouvé.")
+			msg = t.OK.Render(i18n.T("✓ Aucun problème trouvé."))
 		}
 		return top + msg
 	}
@@ -375,7 +376,7 @@ func (m *Model) viewSummary(width int) []string {
 	e, w, i := diag.Counts(m.all)
 	counts := t.Err.Render(fmt.Sprintf("✗ %d", e)) + "  " + t.Warn.Render(fmt.Sprintf("⚠ %d", w)) + "  " +
 		lipgloss.NewStyle().Foreground(t.P.Blue).Render(fmt.Sprintf("ℹ %d", i))
-	filter := t.Dim.Render("filtre ") + t.Value.Render(sevFilters[m.sevFilter].label)
+	filter := t.Dim.Render(i18n.T("filtre ")) + t.Value.Render(i18n.T(sevFilters[m.sevFilter].label))
 	if m.toolFilter != "" {
 		filter += t.Dim.Render(" · ") + t.Value.Render(m.toolFilter)
 	}
@@ -385,7 +386,7 @@ func (m *Model) viewSummary(width int) []string {
 	}
 	for _, tool := range missing {
 		if tool.Install != "" {
-			lines = append(lines, ansi.Truncate(t.Dim.Render(tool.Name+" n'est pas installé : ")+t.Text.Render(tool.Install), width, "…"))
+			lines = append(lines, ansi.Truncate(t.Dim.Render(tool.Name+i18n.T(" n'est pas installé : "))+t.Text.Render(tool.Install), width, "…"))
 		}
 	}
 	for _, tool := range diag.Tools {
@@ -438,7 +439,7 @@ func (m *Model) viewDetail(w, h int) string {
 	t := m.th
 	d := m.selected()
 	if d == nil {
-		return lipgloss.NewStyle().Width(w).Height(h).Render(t.Dim.Render("Aucune sélection"))
+		return lipgloss.NewStyle().Width(w).Height(h).Render(t.Dim.Render(i18n.T("Aucune sélection")))
 	}
 
 	wrap := lipgloss.NewStyle().Width(w)
@@ -447,12 +448,12 @@ func (m *Model) viewDetail(w, h int) string {
 		"",
 		wrap.Render(t.Text.Render(d.Message)),
 		"",
-		t.Label.Render("Emplacement  ") + t.Text.Render(fmt.Sprintf("%s:%d:%d", m.rel(d.File), d.Line, d.Col)),
+		t.Label.Render(fmt.Sprintf("%-13s", i18n.T("Emplacement"))) + t.Text.Render(fmt.Sprintf("%s:%d:%d", m.rel(d.File), d.Line, d.Col)),
 	}
 	if d.Code != "" {
-		lines = append(lines, t.Label.Render("Règle        ")+t.Text.Render(d.Code))
+		lines = append(lines, t.Label.Render(fmt.Sprintf("%-13s", i18n.T("Règle")))+t.Text.Render(d.Code))
 	}
-	lines = append(lines, t.Label.Render("Signalé par  ")+t.Text.Render(strings.Join(d.Tools, ", ")), "")
+	lines = append(lines, t.Label.Render(fmt.Sprintf("%-13s", i18n.T("Signalé par")))+t.Text.Render(strings.Join(d.Tools, ", ")), "")
 	lines = append(lines, m.excerpt(d, w)...)
 	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
 }

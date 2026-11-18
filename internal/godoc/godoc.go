@@ -20,6 +20,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 // Pkg est un paquet listé par « go list ».
@@ -128,7 +130,7 @@ func Load(p Pkg) (*Doc, error) {
 		}
 	}
 	if len(files) == 0 {
-		return nil, fmt.Errorf("%s : aucun fichier Go pour cette plateforme", p.ImportPath)
+		return nil, fmt.Errorf(i18n.T("%s : aucun fichier Go pour cette plateforme"), p.ImportPath)
 	}
 	dp, err := doc.NewFromFiles(fset, files, p.ImportPath)
 	if err != nil {
@@ -182,7 +184,7 @@ func (d *Doc) Overview() string {
 		b.Write(p.Markdown(doc))
 		b.WriteString("\n")
 	} else {
-		b.WriteString("*Paquet non documenté.*\n\n")
+		b.WriteString(i18n.T("*Paquet non documenté.*\n\n"))
 	}
 
 	section := func(title string, lines []string) {
@@ -210,10 +212,10 @@ func (d *Doc) Overview() string {
 			types = append(types, "    "+d.node(f.Decl))
 		}
 	}
-	section("Constantes", consts)
-	section("Variables", vars)
-	section("Fonctions", funcs)
-	section("Types", types)
+	section(i18n.T("Constantes"), consts)
+	section(i18n.T("Variables"), vars)
+	section(i18n.T("Fonctions"), funcs)
+	section(i18n.T("Types"), types)
 	return b.String()
 }
 
@@ -274,7 +276,7 @@ func (d *Doc) Symbol(name string) string {
 		}
 		return b.String()
 	}
-	return fmt.Sprintf("*Symbole %s introuvable.*\n", name)
+	return fmt.Sprintf(i18n.T("*Symbole %s introuvable.*\n"), name)
 }
 
 // node imprime une déclaration (sans corps de fonction : go/doc les retire).

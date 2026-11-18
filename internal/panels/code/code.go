@@ -18,6 +18,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/textbuf"
@@ -97,7 +98,7 @@ func New(th *theme.Theme, p *project.Project) *Model {
 	return m
 }
 
-func (m *Model) Title() string { return "Éditeur" }
+func (m *Model) Title() string { return i18n.N("Éditeur") }
 func (m *Model) Icon() string  { return "" }
 func (m *Model) Init() tea.Cmd { return nil }
 func (m *Model) CanEdit() bool { return m.doc() != nil }
@@ -183,7 +184,7 @@ func (m *Model) load(file string) (*doc, error) {
 func (m *Model) OpenFile(file string, line int) tea.Cmd {
 	d, err := m.load(file)
 	if err != nil {
-		return panel.Flash("Ouverture : "+err.Error(), true)
+		return panel.Flash(i18n.T("Ouverture : ")+err.Error(), true)
 	}
 	m.picker, m.prompt = nil, promptNone
 	m.tree.focus, m.tree.reveal = false, d.path
@@ -206,7 +207,7 @@ func (m *Model) closeDoc() tea.Cmd {
 	}
 	if d.buf.Dirty() && !m.closeArmed {
 		m.closeArmed = true
-		return panel.Flash(d.rel+" n'est pas enregistré : Ctrl+W encore pour fermer sans enregistrer", true)
+		return panel.Flash(d.rel+i18n.T(" n'est pas enregistré : Ctrl+W encore pour fermer sans enregistrer"), true)
 	}
 	m.closeArmed = false
 	m.docs = append(m.docs[:m.cur], m.docs[m.cur+1:]...)
@@ -250,7 +251,7 @@ func (m *Model) save() tea.Cmd {
 		perm = 0o644
 	}
 	if err := os.WriteFile(d.path, []byte(d.buf.String()), perm); err != nil {
-		return panel.Flash("Enregistrement : "+err.Error(), true)
+		return panel.Flash(i18n.T("Enregistrement : ")+err.Error(), true)
 	}
 	d.buf.MarkSaved()
 	if st, err := os.Stat(d.path); err == nil {
@@ -258,9 +259,9 @@ func (m *Model) save() tea.Cmd {
 	}
 	m.follow = true
 	if fmtErr != nil {
-		return panel.Flash("Enregistré sans gofmt : "+firstLine(fmtErr.Error()), true)
+		return panel.Flash(i18n.T("Enregistré sans gofmt : ")+firstLine(fmtErr.Error()), true)
 	}
-	return panel.Flash("Enregistré : "+d.rel, false)
+	return panel.Flash(i18n.T("Enregistré : ")+d.rel, false)
 }
 
 func firstLine(s string) string {
@@ -528,11 +529,11 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 		return cmd
 	case panel.ActUndo:
 		if !b.Undo() {
-			return panel.Flash("Rien à annuler", false)
+			return panel.Flash(i18n.T("Rien à annuler"), false)
 		}
 	case panel.ActRedo:
 		if !b.Redo() {
-			return panel.Flash("Rien à rétablir", false)
+			return panel.Flash(i18n.T("Rien à rétablir"), false)
 		}
 	case panel.ActCut:
 		m.clip = b.CutLine()
@@ -550,10 +551,10 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 		b.ToggleComment()
 	case panel.ActFormat:
 		if !isGo(d) {
-			return panel.Flash("gofmt ne s'applique qu'aux fichiers Go", true)
+			return panel.Flash(i18n.T("gofmt ne s'applique qu'aux fichiers Go"), true)
 		}
 		if err := formatDoc(d); err != nil {
-			return panel.Flash("gofmt : "+firstLine(err.Error()), true)
+			return panel.Flash(i18n.T("gofmt : ")+firstLine(err.Error()), true)
 		}
 	case panel.ActFind:
 		m.prompt, m.input, m.notFound = promptFind, "", false
@@ -581,7 +582,7 @@ func (m *Model) findNext(forward bool) tea.Cmd {
 	}
 	m.follow = true
 	if !d.buf.Find(m.lastFind, forward) {
-		return panel.Flash("Introuvable : "+m.lastFind, true)
+		return panel.Flash(i18n.T("Introuvable : ")+m.lastFind, true)
 	}
 	return nil
 }
@@ -656,13 +657,13 @@ func (m *Model) promptKey(k tea.KeyPressMsg) tea.Cmd {
 				m.lastFind = m.input
 			}
 			if m.notFound {
-				return panel.Flash("Introuvable : "+m.input, true)
+				return panel.Flash(i18n.T("Introuvable : ")+m.input, true)
 			}
 			return nil
 		}
 		n, err := strconv.Atoi(strings.TrimSpace(m.input))
 		if err != nil || n < 1 {
-			return panel.Flash("Numéro de ligne attendu", true)
+			return panel.Flash(i18n.T("Numéro de ligne attendu"), true)
 		}
 		d.buf.SetCursor(textbuf.Pos{Line: n - 1}, false)
 		d.buf.MoveCursor(textbuf.LineStart, 1, false)
@@ -810,20 +811,20 @@ func (m *Model) click(c panel.ClickMsg) {
 func (m *Model) Hints() []panel.Hint {
 	switch {
 	case m.picker != nil:
-		return []panel.Hint{{Key: "↑↓", Desc: "choisir"}, {Key: "Entrée", Desc: "ouvrir"}, {Key: "Échap", Desc: "annuler"}}
+		return []panel.Hint{{Key: "↑↓", Desc: i18n.T("choisir")}, {Key: "Entrée", Desc: i18n.T("ouvrir")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	case m.prompt == promptFind:
-		return []panel.Hint{{Key: "Entrée", Desc: "valider"}, {Key: "F3 / ↓", Desc: "suivante"}, {Key: "Maj+F3 / ↑", Desc: "précédente"}, {Key: "Échap", Desc: "annuler"}}
+		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("valider")}, {Key: "F3 / ↓", Desc: i18n.T("suivante")}, {Key: "Maj+F3 / ↑", Desc: i18n.T("précédente")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	case m.prompt == promptGoto:
-		return []panel.Hint{{Key: "Entrée", Desc: "aller"}, {Key: "Échap", Desc: "annuler"}}
+		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("aller")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	case m.tree.focus && m.tree.visible:
-		return []panel.Hint{{Key: "↑↓", Desc: "naviguer"}, {Key: "←→", Desc: "replier / déplier"}, {Key: "Entrée", Desc: "ouvrir"},
-			{Key: "Ctrl+E / Échap", Desc: "texte"}, {Key: "Ctrl+B", Desc: "masquer l'arbre"}, {Key: "r", Desc: "relire"}}
+		return []panel.Hint{{Key: "↑↓", Desc: i18n.T("naviguer")}, {Key: "←→", Desc: i18n.T("replier / déplier")}, {Key: "Entrée", Desc: i18n.T("ouvrir")},
+			{Key: "Ctrl+E / Échap", Desc: i18n.T("texte")}, {Key: "Ctrl+B", Desc: i18n.T("masquer l'arbre")}, {Key: "r", Desc: i18n.T("relire")}}
 	case m.doc() == nil:
-		return []panel.Hint{{Key: "Entrée / Ctrl+O", Desc: "ouvrir un fichier"}, {Key: "Ctrl+B", Desc: "arbre"}}
+		return []panel.Hint{{Key: "Entrée / Ctrl+O", Desc: i18n.T("ouvrir un fichier")}, {Key: "Ctrl+B", Desc: i18n.T("arbre")}}
 	case m.editing:
-		return []panel.Hint{{Key: "Ctrl+S", Desc: "enregistrer"}, {Key: "Ctrl+W", Desc: "fermer"}, {Key: "Ctrl+O", Desc: "ouvrir"},
-			{Key: "Ctrl+F", Desc: "chercher"}, {Key: "Ctrl+E", Desc: "arbre"}, {Key: "Échap", Desc: "lecture"}}
+		return []panel.Hint{{Key: "Ctrl+S", Desc: i18n.T("enregistrer")}, {Key: "Ctrl+W", Desc: i18n.T("fermer")}, {Key: "Ctrl+O", Desc: i18n.T("ouvrir")},
+			{Key: "Ctrl+F", Desc: i18n.T("chercher")}, {Key: "Ctrl+E", Desc: i18n.T("arbre")}, {Key: "Échap", Desc: i18n.T("lecture")}}
 	}
-	return []panel.Hint{{Key: "Entrée", Desc: "modifier"}, {Key: "w / Ctrl+W", Desc: "fermer"}, {Key: "o", Desc: "ouvrir"},
-		{Key: "s", Desc: "enregistrer"}, {Key: "/", Desc: "chercher"}, {Key: "t", Desc: "arbre"}}
+	return []panel.Hint{{Key: "Entrée", Desc: i18n.T("modifier")}, {Key: "w / Ctrl+W", Desc: i18n.T("fermer")}, {Key: "o", Desc: i18n.T("ouvrir")},
+		{Key: "s", Desc: i18n.T("enregistrer")}, {Key: "/", Desc: i18n.T("chercher")}, {Key: "t", Desc: i18n.T("arbre")}}
 }

@@ -18,6 +18,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 // Block est un bloc de code du profil.
@@ -101,22 +103,22 @@ func Parse(r io.Reader) (*Profile, error) {
 		// « fichier:12.34,15.2 3 1 » : le nom peut contenir « : », on coupe au dernier.
 		name, after, found := strings.CutLast(line, ":")
 		if !found {
-			return nil, fmt.Errorf("ligne %d : format invalide", n)
+			return nil, fmt.Errorf(i18n.T("ligne %d : format invalide"), n)
 		}
 		rest := strings.Fields(after)
 		if len(rest) != 3 {
-			return nil, fmt.Errorf("ligne %d : format invalide", n)
+			return nil, fmt.Errorf(i18n.T("ligne %d : format invalide"), n)
 		}
 		span := strings.SplitN(rest[0], ",", 2)
 		if len(span) != 2 {
-			return nil, fmt.Errorf("ligne %d : position invalide", n)
+			return nil, fmt.Errorf(i18n.T("ligne %d : position invalide"), n)
 		}
 		startLine, err1 := lineOf(span[0])
 		endLine, err2 := lineOf(span[1])
 		stmts, err3 := strconv.Atoi(rest[1])
 		count, err4 := strconv.Atoi(rest[2])
 		if err := firstErr(err1, err2, err3, err4); err != nil {
-			return nil, fmt.Errorf("ligne %d : %w", n, err)
+			return nil, fmt.Errorf(i18n.T("ligne %d : %w"), n, err)
 		}
 
 		f := p.Files[name]

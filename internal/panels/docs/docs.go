@@ -15,6 +15,7 @@ import (
 
 	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/godoc"
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
@@ -82,7 +83,7 @@ func New(th *theme.Theme, p *project.Project) *Model {
 		pending: map[string]bool{}, rendered: map[string][]string{}}
 }
 
-func (m *Model) Title() string { return "Docs" }
+func (m *Model) Title() string { return i18n.N("Docs") }
 func (m *Model) Icon() string  { return "" }
 
 // Capturing : pendant une recherche, toutes les touches vont au champ.
@@ -91,13 +92,13 @@ func (m *Model) Capturing() bool { return m.filtering }
 func (m *Model) Hints() []panel.Hint {
 	switch {
 	case m.filtering:
-		return []panel.Hint{{Key: "Entrée", Desc: "valider"}, {Key: "Échap", Desc: "effacer"}}
+		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("valider")}, {Key: "Échap", Desc: i18n.T("effacer")}}
 	case m.mode == modeSymbols:
-		return []panel.Hint{{Key: "/", Desc: "filtrer"}, {Key: "Échap", Desc: "paquets"},
-			{Key: "o", Desc: "source"}, {Key: "w", Desc: "pkg.go.dev"}, {Key: "PgUp/PgDn", Desc: "défiler"}}
+		return []panel.Hint{{Key: "/", Desc: i18n.T("filtrer")}, {Key: "Échap", Desc: i18n.T("paquets")},
+			{Key: "o", Desc: i18n.T("source")}, {Key: "w", Desc: "pkg.go.dev"}, {Key: "PgUp/PgDn", Desc: i18n.T("défiler")}}
 	}
-	return []panel.Hint{{Key: "/", Desc: "rechercher"}, {Key: "Entrée", Desc: "symboles"},
-		{Key: "w", Desc: "pkg.go.dev"}, {Key: "PgUp/PgDn", Desc: "défiler"}}
+	return []panel.Hint{{Key: "/", Desc: i18n.T("rechercher")}, {Key: "Entrée", Desc: i18n.T("symboles")},
+		{Key: "w", Desc: "pkg.go.dev"}, {Key: "PgUp/PgDn", Desc: i18n.T("défiler")}}
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -272,9 +273,9 @@ func (m *Model) openWeb() tea.Cmd {
 		url += "#" + sym.Name
 	}
 	if err := exec.Command("xdg-open", url).Start(); err != nil {
-		return panel.Flash("Impossible d'ouvrir le navigateur : "+err.Error(), true)
+		return panel.Flash(i18n.T("Impossible d'ouvrir le navigateur : ")+err.Error(), true)
 	}
-	return panel.Flash("Ouverture de "+url, false)
+	return panel.Flash(i18n.T("Ouverture de ")+url, false)
 }
 
 func (m *Model) selected() *item {
@@ -336,8 +337,8 @@ func (m *Model) rebuild() {
 				m.items = append(m.items, keep...)
 			}
 		}
-		add("Module", m.module)
-		add("Bibliothèque standard", m.std)
+		add(i18n.T("Module"), m.module)
+		add(i18n.T("Bibliothèque standard"), m.std)
 	}
 	if m.selected() == nil {
 		m.cursor = -1
@@ -352,20 +353,20 @@ func (m *Model) View(width, height int) string {
 	var bar string
 	switch {
 	case m.filtering:
-		bar = t.Label.Render("Recherche : ") + t.Value.Render(m.query) + lipgloss.NewStyle().Foreground(t.P.Accent).Render("▌")
+		bar = t.Label.Render(i18n.T("Recherche : ")) + t.Value.Render(m.query) + lipgloss.NewStyle().Foreground(t.P.Accent).Render("▌")
 	case m.query != "":
-		bar = t.Label.Render("Filtre : ") + t.Value.Render(m.query) + t.Dim.Render("  (Échap pour effacer)")
+		bar = t.Label.Render(i18n.T("Filtre : ")) + t.Value.Render(m.query) + t.Dim.Render(i18n.T("  (Échap pour effacer)"))
 	case m.mode == modeSymbols:
-		bar = t.Dim.Render("Symboles de ") + t.Value.Render(m.open.ImportPath) + t.Dim.Render("  ·  / pour filtrer")
+		bar = t.Dim.Render(i18n.T("Symboles de ")) + t.Value.Render(m.open.ImportPath) + t.Dim.Render(i18n.T("  ·  / pour filtrer"))
 	default:
-		bar = t.Dim.Render(fmt.Sprintf("%d paquets du module · %d de la bibliothèque standard  ·  / pour rechercher", len(m.module), len(m.std)))
+		bar = t.Dim.Render(fmt.Sprintf(i18n.T("%d paquets du module · %d de la bibliothèque standard  ·  / pour rechercher"), len(m.module), len(m.std)))
 	}
 	bodyH := max(1, height-2)
 	top := ansi.Truncate(bar, width, "…") + "\n\n"
 
 	switch {
 	case !m.listed:
-		return top + t.Dim.Render("Chargement des paquets…")
+		return top + t.Dim.Render(i18n.T("Chargement des paquets…"))
 	case m.listErr != nil && len(m.module)+len(m.std) == 0:
 		return top + t.Err.Render("go list : "+m.listErr.Error())
 	}
@@ -413,7 +414,7 @@ func (m *Model) viewList(w, h int) string {
 		case it.header != "":
 			line = t.Label.Bold(true).Render(it.header)
 		case it.overview:
-			line = "  " + t.Text.Render("Vue d'ensemble")
+			line = "  " + t.Text.Render(i18n.T("Vue d'ensemble"))
 		case it.sym != nil:
 			indent := "  "
 			if it.sym.Parent != "" {
@@ -430,7 +431,7 @@ func (m *Model) viewList(w, h int) string {
 				if rel := strings.TrimPrefix(strings.TrimPrefix(path, m.proj.Module), "/"); rel != "" {
 					path = rel
 				} else {
-					path = m.proj.Name() + " (racine)"
+					path = m.proj.Name() + i18n.T(" (racine)")
 				}
 			}
 			line = "  " + t.Text.Render(path)
@@ -442,7 +443,7 @@ func (m *Model) viewList(w, h int) string {
 		lines = append(lines, line)
 	}
 	if len(lines) == 0 {
-		lines = append(lines, t.Dim.Render("Aucun résultat"))
+		lines = append(lines, t.Dim.Render(i18n.T("Aucun résultat")))
 	}
 	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
 }
@@ -452,14 +453,14 @@ func (m *Model) viewDetail(w, h int) string {
 	box := lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h)
 	p, sym := m.current()
 	if p == nil {
-		return box.Render(t.Dim.Render("Aucune sélection"))
+		return box.Render(t.Dim.Render(i18n.T("Aucune sélection")))
 	}
 	if err := m.docErr[p.ImportPath]; err != nil {
 		return box.Render(t.Err.Render(err.Error()))
 	}
 	d := m.docs[p.ImportPath]
 	if d == nil {
-		return box.Render(t.Dim.Render("Chargement de la documentation…"))
+		return box.Render(t.Dim.Render(i18n.T("Chargement de la documentation…")))
 	}
 
 	name := ""

@@ -8,6 +8,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 )
 
 // Arborescence des fichiers du projet, à gauche de l'éditeur. Les
@@ -286,7 +288,7 @@ func (m *Model) viewTree(w, h int) string {
 		lines = append(lines, st.Padding(0).Width(w).Render(label))
 	}
 	if len(t.rows) == 0 {
-		lines = append(lines, th.Dim.Render("(vide)"))
+		lines = append(lines, th.Dim.Render(i18n.T("(vide)")))
 	}
 	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
 }

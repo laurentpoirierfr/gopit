@@ -3,16 +3,17 @@ package diagnostics
 import (
 	"strconv"
 
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 )
 
 // Commands expose les actions du module à la palette (Ctrl+P).
 func (m *Model) Commands() []panel.Command {
 	return []panel.Command{
-		{Title: "Relancer l'analyse", Key: "a"},
-		{Title: "Filtrer par gravité", Key: "s"},
-		{Title: "Filtrer par outil", Key: "t"},
-		{Title: "Ouvrir le diagnostic dans l'éditeur", Key: "o"},
+		{Title: i18n.T("Relancer l'analyse"), Key: "a"},
+		{Title: i18n.T("Filtrer par gravité"), Key: "s"},
+		{Title: i18n.T("Filtrer par outil"), Key: "t"},
+		{Title: i18n.T("Ouvrir le diagnostic dans l'éditeur"), Key: "o"},
 	}
 }
 
