@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -50,9 +51,12 @@ type Model struct {
 	proj  *project.Project
 	spawn bool // démarrer un shell (GOPIT_TERMINAL=off : non)
 
-	// Session : emu est sûr entre goroutines ; le reste n'est touché que
-	// depuis la boucle de Bubble Tea.
+	// Session : emu protège ses propres méthodes, mais pas l'historique
+	// qu'il renvoie (Scrollback) : emuMu entoure l'écriture de la sortie du
+	// shell, le redimensionnement et la lecture de l'historique. Le reste
+	// n'est touché que depuis la boucle de Bubble Tea.
 	emu      *vt.SafeEmulator
+	emuMu    *sync.Mutex
 	ptmx     *os.File
 	gen      int  // numéro de la session (un shell relancé change de numéro)
 	exited   bool // le shell s'est arrêté
@@ -135,9 +139,9 @@ func (m *Model) start() {
 		m.failed = fmt.Sprintf(i18n.T("Impossible de démarrer le shell : %v"), err)
 		return
 	}
-	emu := vt.NewSafeEmulator(m.w, m.h)
+	emu, mu := vt.NewSafeEmulator(m.w, m.h), &sync.Mutex{}
 	m.gen++
-	m.emu, m.ptmx, m.exited, m.back, m.selSet = emu, ptmx, false, 0, false
+	m.emu, m.emuMu, m.ptmx, m.exited, m.back, m.selSet = emu, mu, ptmx, false, 0, false
 	gen, redraw, exits := m.gen, m.redraw, m.exits
 
 	// Sortie du shell → écran ; réponses de l'émulateur et touches → shell.
@@ -146,7 +150,9 @@ func (m *Model) start() {
 		for {
 			n, err := ptmx.Read(buf)
 			if n > 0 {
+				mu.Lock()
 				_, _ = emu.Write(buf[:n])
+				mu.Unlock()
 				select { // un seul redessin en attente suffit
 				case redraw <- redrawMsg{}:
 				default:
@@ -172,7 +178,9 @@ func (m *Model) resize(w, h int) {
 	}
 	m.w, m.h = w, h
 	if m.emu != nil && !m.exited {
+		m.emuMu.Lock()
 		m.emu.Resize(w, h)
+		m.emuMu.Unlock()
 		_ = pty.Setsize(m.ptmx, &pty.Winsize{Rows: uint16(h), Cols: uint16(w)})
 	}
 }
@@ -190,7 +198,11 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 			if ee, ok := msg.err.(*exec.ExitError); ok {
 				m.exitCode = ee.ExitCode()
 			}
-			_ = m.emu.Close()
+			// Fermer l'entrée de l'émulateur arrête la copie vers le shell
+			// (Close de l'émulateur n'est pas sûr pendant cette lecture).
+			if c, ok := m.emu.InputPipe().(io.Closer); ok {
+				_ = c.Close()
+			}
 		}
 		return m, m.wait()
 
@@ -293,6 +305,8 @@ func (m *Model) lines() []string {
 	if m.emu == nil {
 		return nil
 	}
+	m.emuMu.Lock()
+	defer m.emuMu.Unlock()
 	var out []string
 	if sb := m.emu.Scrollback(); sb != nil {
 		for _, l := range sb.Lines() {
