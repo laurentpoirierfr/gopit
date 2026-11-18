@@ -103,7 +103,8 @@ func key(s string) tea.KeyPressMsg {
 func newModel(t *testing.T) (*Model, string) {
 	dir := t.TempDir()
 	m := New(theme.New(), &project.Project{Root: dir})
-	m.start = nil // pas de vrai gopls : voir TestLSP
+	m.start = nil     // pas de vrai gopls : voir TestLSP
+	m.watchFS = false // pas de surveillance du disque : voir TestWatchDisk
 	return m, dir
 }
 
@@ -793,4 +794,52 @@ func TestBreakpointsAndStopLine(t *testing.T) {
 	if len(shared.Files()) != 0 {
 		t.Error("pas de point d'arrêt hors fichier Go")
 	}
+}
+
+// TestWatchDisk vérifie que l'arbre et les fichiers ouverts suivent les
+// changements faits hors de gopit.
+func TestWatchDisk(t *testing.T) {
+	m, dir := newModel(t)
+	m.watchFS = true
+	t.Cleanup(func() {
+		if m.watcher != nil {
+			m.watcher.Close()
+		}
+	})
+	a := filepath.Join(dir, "a.go")
+	os.WriteFile(a, []byte("package a\n"), 0o600)
+	m.OpenFile("a.go", 1)
+	pump := newPump(t, m)
+	_, cmd := m.Update(key("esc")) // premier message : la surveillance démarre
+	inTree := func(name string) func() bool {
+		return func() bool {
+			m.tree.flatten(dir)
+			for _, r := range m.tree.rows {
+				if r.name == name {
+					return true
+				}
+			}
+			return false
+		}
+	}
+
+	// Fichier et dossier créés ailleurs : visibles dans l'arbre.
+	os.WriteFile(filepath.Join(dir, "nouveau.txt"), []byte("x"), 0o600)
+	os.Mkdir(filepath.Join(dir, "sous"), 0o755)
+	pump(cmd, func() bool { return inTree("nouveau.txt")() && inTree("sous")() })
+
+	// Dossier déplié : son contenu est surveillé aussi.
+	m.tree.expanded[filepath.Join(dir, "sous")] = true
+	m.Update(tea.WindowSizeMsg{})
+	os.WriteFile(filepath.Join(dir, "sous", "b.go"), []byte("package sous\n"), 0o600)
+	pump(nil, inTree("b.go"))
+
+	// Supprimé ailleurs : disparaît.
+	os.Remove(filepath.Join(dir, "nouveau.txt"))
+	pump(nil, func() bool { return !inTree("nouveau.txt")() })
+
+	// Fichier ouvert, non modifié, réécrit ailleurs : relu.
+	time.Sleep(10 * time.Millisecond)
+	os.WriteFile(a, []byte("package a\n\nvar Ailleurs = 1\n"), 0o600)
+	pump(nil, func() bool { return strings.Contains(m.doc().buf.String(), "Ailleurs") })
 }

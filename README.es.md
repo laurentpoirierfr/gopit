@@ -110,7 +110,10 @@ conexión; sin ella, la definición usa `gopls definition`, que lee el disco
 (hay que guardar antes).
 
 En el árbol: `↑` `↓` para moverse, `→` / `←` para desplegar o plegar una
-carpeta, `Intro` para abrir, `r` para releer el disco. Los archivos
+carpeta, `Intro` para abrir. El árbol sigue al disco: un archivo o carpeta creado,
+borrado o renombrado en otro lugar (terminal, otro editor, git) aparece por
+sí solo, y un archivo abierto sin modificar se relee si cambia
+(`GOPIT_WATCH=off` desactiva esta vigilancia; `r` relee el árbol). Los archivos
 abiertos, las carpetas desplegadas y la visibilidad del árbol se recuperan
 en el siguiente arranque.
 

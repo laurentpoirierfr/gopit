@@ -100,6 +100,9 @@ type Model struct {
 
 	dbg *panel.DebugState // points d'arrêt et ligne d'arrêt (partagés avec Débogage)
 
+	watchFS bool        // surveiller le disque (fswatch.go)
+	watcher *dirWatcher // nil : pas encore démarrée
+
 	// Connexion à gopls (lsp.go).
 	start    startFunc // nil : désactivée
 	lsp      *lsp.Client
@@ -122,7 +125,7 @@ type span struct{ x, w, close int }
 
 func New(th *theme.Theme, p *project.Project) *Model {
 	m := &Model{th: th, proj: p, textH: 20, tree: newTree(), define: gopls.Define, diags: map[string][]lsp.Diagnostic{},
-		dbg: panel.NewDebugState()}
+		dbg: panel.NewDebugState(), watchFS: os.Getenv("GOPIT_WATCH") != "off"}
 	if lspEnabled() {
 		m.start = lsp.Start
 	}
@@ -359,7 +362,7 @@ func (m *Model) Restore(st map[string]string) {
 
 func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	cmd := m.update(msg)
-	return m, tea.Batch(cmd, m.lspSync())
+	return m, tea.Batch(cmd, m.lspSync(), m.watchSync())
 }
 
 func (m *Model) update(msg tea.Msg) tea.Cmd {
@@ -376,6 +379,8 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 	case panel.RepoChangedMsg:
 		m.reloadClean()
 		return nil
+	case fsMsg:
+		return m.onFS(msg)
 	case tea.PasteMsg:
 		m.compl = nil
 		m.paste(msg.Content)

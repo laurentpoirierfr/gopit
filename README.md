@@ -109,7 +109,10 @@ désactive la connexion ; sans elle, la définition passe par
 `gopls definition`, qui lit le disque (il faut alors enregistrer d'abord).
 
 Dans l'arborescence : `↑` `↓` pour naviguer, `→` / `←` pour déplier ou
-replier un dossier, `Entrée` pour ouvrir, `r` pour relire le disque. Les
+replier un dossier, `Entrée` pour ouvrir. L'arbre suit le disque : un fichier ou un dossier créé,
+supprimé ou renommé ailleurs (terminal, autre éditeur, git) apparaît de
+lui-même, et un fichier ouvert non modifié est relu s'il change
+(`GOPIT_WATCH=off` désactive cette surveillance ; `r` relit l'arbre). Les
 fichiers ouverts, les dossiers dépliés et l'affichage de l'arborescence sont
 retrouvés au démarrage suivant.
 

@@ -106,7 +106,11 @@ into account. `GOPIT_GOPLS=off` disables the connection; without it, go to
 definition uses `gopls definition`, which reads from disk (save first).
 
 In the tree: `↑` `↓` to move, `→` / `←` to expand or collapse a folder,
-`Enter` to open, `r` to reload from disk. Open files, expanded folders and
+`Enter` to open. The tree follows the disk: a file or folder created,
+deleted or renamed elsewhere (terminal, another editor, git) shows up on its
+own, and an open, unmodified file is reloaded if it changes
+(`GOPIT_WATCH=off` turns this off; `r` reloads the tree). Open files,
+expanded folders and
 the tree's visibility are restored at the next startup.
 
 ## Architecture
