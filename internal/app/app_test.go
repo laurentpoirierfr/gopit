@@ -25,6 +25,7 @@ const width, height = 120, 40
 func newApp(t *testing.T, cfg *config.Config) *Model {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("GOPIT_GOPLS", "off") // pas de connexion à gopls
 	i18n.Set(i18n.FR)
 	t.Cleanup(func() { i18n.Set(i18n.FR) })
 	if cfg != nil {

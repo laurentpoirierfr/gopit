@@ -505,4 +505,8 @@ var en = map[string]string{
 	"Remplacer « %s » par : ": "Replace \"%s\" with: ",
 	"Remplacer par « %s » ?":  "Replace with \"%s\"?",
 	"  %d remplacement(s)":    "  %d replacement(s)",
+
+	// Connexion à gopls
+	"gopls s'est arrêté": "gopls has stopped",
+	"%s : %s":            "%s: %s",
 }

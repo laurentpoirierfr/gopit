@@ -3,15 +3,18 @@ package code
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/gopls"
+	"github.com/laurentpoirierfr/gopit/internal/lsp"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/textbuf"
@@ -98,6 +101,7 @@ func key(s string) tea.KeyPressMsg {
 func newModel(t *testing.T) (*Model, string) {
 	dir := t.TempDir()
 	m := New(theme.New(), &project.Project{Root: dir})
+	m.start = nil // pas de vrai gopls : voir TestLSP
 	return m, dir
 }
 
@@ -469,5 +473,86 @@ func TestReplace(t *testing.T) {
 	ask("zzz", "w")
 	if m.prompt != promptNone {
 		t.Error("introuvable : pas de revue")
+	}
+}
+
+// newPump renvoie une fonction qui exécute les commandes renvoyées par le
+// module (en arrière-plan, comme Bubble Tea) et lui repasse leurs messages,
+// jusqu'à ce que done soit vrai. Les commandes encore en attente (réception
+// des messages de gopls) restent actives d'un appel à l'autre.
+func newPump(t *testing.T, m *Model) func(cmd tea.Cmd, done func() bool) {
+	msgs := make(chan tea.Msg, 64)
+	run := func(c tea.Cmd) {
+		if c != nil {
+			go func() { msgs <- c() }()
+		}
+	}
+	return func(cmd tea.Cmd, done func() bool) {
+		t.Helper()
+		run(cmd)
+		deadline := time.After(60 * time.Second)
+		for !done() {
+			select {
+			case msg := <-msgs:
+				if b, ok := msg.(tea.BatchMsg); ok {
+					for _, c := range b {
+						run(c)
+					}
+					continue
+				}
+				if msg != nil {
+					_, c := m.Update(msg)
+					run(c)
+				}
+			case <-deadline:
+				t.Fatal("délai dépassé")
+			}
+		}
+	}
+}
+
+// TestLSP fait dialoguer l'éditeur avec le vrai gopls, s'il est installé.
+func TestLSP(t *testing.T) {
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls absent")
+	}
+	if testing.Short() {
+		t.Skip("lent")
+	}
+	m, dir := newModel(t)
+	m.start = lsp.Start
+	t.Cleanup(func() {
+		if m.lsp != nil {
+			m.lsp.Close()
+		}
+	})
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module m\n\ngo 1.22\n"), 0o600)
+	os.WriteFile(filepath.Join(dir, "m.go"), []byte("package m\n\nvar x = Trois()\n"), 0o600)
+	m.OpenFile("m.go", 3)
+	path := m.doc().path
+	pump := newPump(t, m)
+
+	// L'erreur du fichier est soulignée, marquée dans la marge et expliquée.
+	_, cmd := m.Update(tea.WindowSizeMsg{})
+	pump(cmd, func() bool { return len(m.diags[path]) > 0 })
+	out := ansi.Strip(m.View(100, 12))
+	if !strings.Contains(out, "3●") || !strings.Contains(out, "Trois") {
+		t.Errorf("diagnostic non affiché :\n%s", out)
+	}
+
+	// Corrigé dans le tampon, sans enregistrer : l'erreur disparaît.
+	m.doc().buf.SetText("package m\n\n// Deux renvoie 2.\nfunc Deux() int { return 2 }\n\nvar x = Deux()\n")
+	_, cmd = m.Update(tea.WindowSizeMsg{})
+	pump(cmd, func() bool { return len(m.diags[path]) == 0 })
+
+	// Définition dans le texte non enregistré.
+	if !m.doc().buf.Dirty() {
+		t.Fatal("le fichier doit rester modifié")
+	}
+	m.doc().buf.SetCursor(textbuf.Pos{Line: 5, Col: 9}, false)
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyF12})
+	pump(cmd, func() bool { return m.doc().buf.Cursor().Line == 3 })
+	if c := m.doc().buf.Cursor(); c != (textbuf.Pos{Line: 3, Col: 5}) {
+		t.Errorf("définition : %v", c)
 	}
 }

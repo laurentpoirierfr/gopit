@@ -20,6 +20,7 @@ import (
 
 	"github.com/laurentpoirierfr/gopit/internal/gopls"
 	"github.com/laurentpoirierfr/gopit/internal/i18n"
+	"github.com/laurentpoirierfr/gopit/internal/lsp"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/textbuf"
@@ -43,6 +44,10 @@ type doc struct {
 
 	hlVer int // version du tampon colorée (-1 : à calculer)
 	hl    [][]class
+
+	lspOpen     bool // signalé à gopls (lsp.go)
+	sentVer     int  // version du tampon envoyée à gopls
+	syncPending bool // envoi programmé
 }
 
 type promptKind int
@@ -88,9 +93,17 @@ type Model struct {
 	tree       tree // arborescence des fichiers, à gauche (tree.go)
 	closeArmed bool // Ctrl+W sur un fichier modifié : encore une fois pour fermer
 
-	define defineFunc // gopls (goto.go)
-	back   []mark     // positions d'avant les sauts vers une définition (Ctrl+T)
-	info   string     // documentation affichée sur le texte (vide : aucune)
+	define defineFunc // gopls en ligne de commande, sans connexion (goto.go)
+
+	// Connexion à gopls (lsp.go).
+	start    startFunc // nil : désactivée
+	lsp      *lsp.Client
+	lspState lspState
+	events   chan tea.Msg                // messages de la connexion
+	diags    map[string][]lsp.Diagnostic // par chemin
+
+	back []mark // positions d'avant les sauts vers une définition (Ctrl+T)
+	info string // documentation affichée sur le texte (vide : aucune)
 
 	// Géométrie du dernier rendu (souris, pages).
 	textH, gutterW int
@@ -102,7 +115,10 @@ type Model struct {
 type span struct{ x, w, close int }
 
 func New(th *theme.Theme, p *project.Project) *Model {
-	m := &Model{th: th, proj: p, textH: 20, tree: newTree(), define: gopls.Define}
+	m := &Model{th: th, proj: p, textH: 20, tree: newTree(), define: gopls.Define, diags: map[string][]lsp.Diagnostic{}}
+	if lspEnabled() {
+		m.start = lsp.Start
+	}
 	m.tree.focus = true // aucun fichier ouvert au départ
 	return m
 }
@@ -219,6 +235,7 @@ func (m *Model) closeDoc() tea.Cmd {
 		return panel.Flash(d.rel+i18n.T(" n'est pas enregistré : Ctrl+W encore pour fermer sans enregistrer"), true)
 	}
 	m.closeArmed = false
+	m.lspClosed(d)
 	m.docs = append(m.docs[:m.cur], m.docs[m.cur+1:]...)
 	m.cur = min(m.cur, len(m.docs)-1)
 	if len(m.docs) == 0 {
@@ -263,6 +280,7 @@ func (m *Model) save() tea.Cmd {
 		return panel.Flash(i18n.T("Enregistrement : ")+err.Error(), true)
 	}
 	d.buf.MarkSaved()
+	m.lspSaved(d)
 	if st, err := os.Stat(d.path); err == nil {
 		d.mtime = st.ModTime().UnixNano()
 	}
@@ -332,22 +350,31 @@ func (m *Model) Restore(st map[string]string) {
 // ─── Update ──────────────────────────────────────────────────────────────────
 
 func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
+	cmd := m.update(msg)
+	return m, tea.Batch(cmd, m.lspSync())
+}
+
+func (m *Model) update(msg tea.Msg) tea.Cmd {
+	if cmd, ok := m.onLSP(msg); ok {
+		return cmd
+	}
 	switch msg := msg.(type) {
 	case panel.EditMsg:
-		return m, m.action(msg.Action)
+		return m.action(msg.Action)
 	case defMsg:
-		return m, m.onDefinition(msg)
+		return m.onDefinition(msg)
 	case tea.PasteMsg:
 		m.paste(msg.Content)
+		return nil
 	case tea.MouseWheelMsg:
 		mo := tea.Mouse(msg)
 		m.wheel(mo.Button == tea.MouseWheelUp, mo.X < m.treeW)
 	case panel.ClickMsg:
 		m.click(msg)
 	case tea.KeyPressMsg:
-		return m, m.key(msg)
+		return m.key(msg)
 	}
-	return m, nil
+	return nil
 }
 
 // keyActions associe les raccourcis aux actions, en lecture comme en édition.

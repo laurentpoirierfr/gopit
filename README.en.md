@@ -60,7 +60,7 @@ that isn't available). You can change it while running (View menu, or
 | Docs — documentation of the module's packages and of the standard library, rendered with Glamour | ✅ |
 | Benchmarks — `go test -bench`, run history, comparison with a baseline (Δ % and noise), sparkline trend, CPU and memory profiles (`p`, `m`) with annotated source | ✅ |
 | Git — repository status, colored diff, recent commits; stage (`s`, `A`), unstage (`u`), commit (`c`) — no destructive action, no push | ✅ |
-| Editor — project tree, several open files, Go highlighting, automatic indentation, gofmt on save, find and replace, mouse selection, undo/redo, go to definition and symbol documentation (gopls) | ✅ |
+| Editor — project tree, several open files, Go highlighting, automatic indentation, gofmt on save, errors underlined as you type (gopls), find and replace, mouse selection, undo/redo, go to definition and symbol documentation (gopls) | ✅ |
 
 ### Built-in editor
 
@@ -88,8 +88,12 @@ cockpit keys stay active) and **edit** (`Enter` or a click; `Esc` to leave).
 | `Ctrl+T` | go back to the position before the jump |
 | `Ctrl+K` | documentation of the symbol under the cursor (also `K` in read mode) |
 
-Definitions and documentation come from gopls, which reads files from disk:
-save a modified file before asking.
+gopls runs in the background as soon as a Go file is open and receives the
+text as you type: errors and warnings are underlined (red, yellow, blue),
+marked with a `●` in the margin, and the message for the cursor's line is
+shown in the status bar. Definitions and documentation take unsaved text
+into account. `GOPIT_GOPLS=off` disables the connection; without it, go to
+definition uses `gopls definition`, which reads from disk (save first).
 
 In the tree: `↑` `↓` to move, `→` / `←` to expand or collapse a folder,
 `Enter` to open, `r` to reload from disk. Open files, expanded folders and
@@ -115,7 +119,8 @@ internal/bench/       go test -bench: parsing, comparison, history
 internal/prof/        pprof profiles: cost per function and per line
 internal/gitx/        git status / diff / log / add / restore / commit
 internal/textbuf/     editor buffer: cursor, selection, undo/redo
-internal/gopls/       gopls definition: a symbol's definition and documentation
+internal/lsp/         LSP client for "gopls serve": documents, diagnostics, definition, documentation
+internal/gopls/       gopls definition: a symbol's definition and documentation (without the connection)
 internal/config/      preferences (~/.config/gopit/config.json)
 internal/i18n/        interface translation (French → English, Spanish)
 internal/cover/       coverage profiles

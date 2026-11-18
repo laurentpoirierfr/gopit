@@ -61,7 +61,7 @@ préférences ; `gopit -lang en` l'impose pour une session.
 | Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
 | Benchmarks — `go test -bench`, historique des exécutions, comparaison avec une référence (Δ % et bruit), évolution en sparkline, profils CPU et mémoire (`p`, `m`) avec code source annoté | ✅ |
 | Git — état du dépôt, diff coloré, commits récents ; indexer (`s`, `A`), désindexer (`u`), commiter (`c`) — sans action destructive ni push | ✅ |
-| Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration Go, indentation automatique, gofmt à l'enregistrement, recherche et remplacement, sélection à la souris, annuler/rétablir, aller à la définition et documentation des symboles (gopls) | ✅ |
+| Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration Go, indentation automatique, gofmt à l'enregistrement, erreurs soulignées pendant la frappe (gopls), recherche et remplacement, sélection à la souris, annuler/rétablir, aller à la définition et documentation des symboles (gopls) | ✅ |
 
 ### Éditeur intégré
 
@@ -90,8 +90,13 @@ ou un clic ; `Échap` pour en sortir).
 | `Ctrl+T` | revenir à la position d'avant le saut |
 | `Ctrl+K` | documentation du symbole sous le curseur (aussi `K` en lecture) |
 
-La définition et la documentation viennent de gopls, qui lit les fichiers
-sur le disque : il faut enregistrer un fichier modifié avant de l'interroger.
+gopls tourne en arrière-plan dès qu'un fichier Go est ouvert et reçoit le
+texte au fil de la frappe : les erreurs et avertissements sont soulignés
+(rouge, jaune, bleu), marqués d'un `●` dans la marge, et le message de la
+ligne du curseur s'affiche dans la barre d'état. La définition et la
+documentation tiennent compte du texte non enregistré. `GOPIT_GOPLS=off`
+désactive la connexion ; sans elle, la définition passe par
+`gopls definition`, qui lit le disque (il faut alors enregistrer d'abord).
 
 Dans l'arborescence : `↑` `↓` pour naviguer, `→` / `←` pour déplier ou
 replier un dossier, `Entrée` pour ouvrir, `r` pour relire le disque. Les
@@ -118,7 +123,8 @@ internal/bench/       go test -bench : lecture, comparaison, historique
 internal/prof/        profils pprof : coût par fonction et par ligne
 internal/gitx/        git status / diff / log / add / restore / commit
 internal/textbuf/     tampon de l'éditeur : curseur, sélection, annuler/rétablir
-internal/gopls/       gopls definition : définition et documentation d'un symbole
+internal/lsp/         client LSP de « gopls serve » : documents, diagnostics, définition, documentation
+internal/gopls/       gopls definition : définition et documentation d'un symbole (sans connexion)
 internal/config/      préférences (~/.config/gopit/config.json)
 internal/i18n/        traduction de l'interface (français → anglais, espagnol)
 internal/cover/       profils de couverture

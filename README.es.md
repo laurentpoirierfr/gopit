@@ -62,7 +62,7 @@ está disponible). Se puede cambiar durante la ejecución (menú Ver, o
 | Docs — documentación de los paquetes del módulo y de la biblioteca estándar, mostrada con Glamour | ✅ |
 | Benchmarks — `go test -bench`, historial de ejecuciones, comparación con una referencia (Δ % y ruido), evolución en sparkline, perfiles de CPU y memoria (`p`, `m`) con código fuente anotado | ✅ |
 | Git — estado del repositorio, diff en color, commits recientes; indexar (`s`, `A`), desindexar (`u`), hacer commit (`c`), sin acciones destructivas ni push | ✅ |
-| Editor — árbol del proyecto, varios archivos abiertos, coloreado de Go, indentación automática, gofmt al guardar, buscar y reemplazar, selección con el ratón, deshacer/rehacer, ir a la definición y documentación de los símbolos (gopls) | ✅ |
+| Editor — árbol del proyecto, varios archivos abiertos, coloreado de Go, indentación automática, gofmt al guardar, errores subrayados mientras escribes (gopls), buscar y reemplazar, selección con el ratón, deshacer/rehacer, ir a la definición y documentación de los símbolos (gopls) | ✅ |
 
 ### Editor integrado
 
@@ -91,8 +91,13 @@ o un clic; `Esc` para salir).
 | `Ctrl+T` | volver a la posición anterior al salto |
 | `Ctrl+K` | documentación del símbolo bajo el cursor (también `K` en lectura) |
 
-La definición y la documentación vienen de gopls, que lee los archivos del
-disco: hay que guardar un archivo modificado antes de consultarlo.
+gopls se ejecuta en segundo plano en cuanto se abre un archivo Go y recibe
+el texto mientras escribes: los errores y advertencias se subrayan (rojo,
+amarillo, azul), se marcan con un `●` en el margen y el mensaje de la línea
+del cursor aparece en la barra de estado. La definición y la documentación
+tienen en cuenta el texto sin guardar. `GOPIT_GOPLS=off` desactiva la
+conexión; sin ella, la definición usa `gopls definition`, que lee el disco
+(hay que guardar antes).
 
 En el árbol: `↑` `↓` para moverse, `→` / `←` para desplegar o plegar una
 carpeta, `Intro` para abrir, `r` para releer el disco. Los archivos
@@ -119,7 +124,8 @@ internal/bench/       go test -bench: lectura, comparación, historial
 internal/prof/        perfiles pprof: coste por función y por línea
 internal/gitx/        git status / diff / log / add / restore / commit
 internal/textbuf/     búfer del editor: cursor, selección, deshacer/rehacer
-internal/gopls/       gopls definition: definición y documentación de un símbolo
+internal/lsp/         cliente LSP de «gopls serve»: documentos, diagnósticos, definición, documentación
+internal/gopls/       gopls definition: definición y documentación de un símbolo (sin conexión)
 internal/config/      preferencias (~/.config/gopit/config.json)
 internal/i18n/        traducción de la interfaz (francés → inglés, español)
 internal/cover/       perfiles de cobertura

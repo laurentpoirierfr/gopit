@@ -2,6 +2,7 @@ package code
 
 import (
 	"fmt"
+	"image/color"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/i18n"
+	"github.com/laurentpoirierfr/gopit/internal/lsp"
 	"github.com/laurentpoirierfr/gopit/internal/scroll"
 )
 
@@ -71,7 +73,19 @@ type cellStyle struct {
 	cls    class
 	sel    bool // sélectionné
 	cursor bool
-	line   bool // ligne du curseur
+	line   bool         // ligne du curseur
+	diag   lsp.Severity // diagnostic de gopls (0 : aucun)
+}
+
+// sevColor renvoie la couleur d'une gravité de diagnostic.
+func (m *Model) sevColor(s lsp.Severity) color.Color {
+	switch s {
+	case lsp.Error:
+		return m.th.P.Red
+	case lsp.Warning:
+		return m.th.P.Yellow
+	}
+	return m.th.P.Blue
 }
 
 func (m *Model) style(cache map[cellStyle]lipgloss.Style, cs cellStyle) lipgloss.Style {
@@ -101,6 +115,9 @@ func (m *Model) style(cache map[cellStyle]lipgloss.Style, cs cellStyle) lipgloss
 		st = st.Background(p.Surface1)
 	case cs.line:
 		st = st.Background(p.Surface0)
+	}
+	if cs.diag != 0 {
+		st = st.UnderlineStyle(lipgloss.UnderlineCurly).UnderlineColor(m.sevColor(cs.diag))
 	}
 	if cs.cursor {
 		st = st.Reverse(true)
@@ -246,6 +263,16 @@ func (m *Model) viewStatus(w int) string {
 		lang = "Go"
 	}
 	right = t.Dim.Render(right + " · " + lang)
+	if ds := m.lineDiags(d, c.Line); len(ds) > 0 { // problème sur la ligne du curseur
+		msg := strings.ReplaceAll(ds[0].Message, "\n", " ")
+		if ds[0].Source != "" {
+			msg = fmt.Sprintf(i18n.T("%s : %s"), ds[0].Source, msg)
+		}
+		room := w - lipgloss.Width(left) - lipgloss.Width(right) - 3
+		if room > 10 {
+			left += "  " + lipgloss.NewStyle().Foreground(m.sevColor(ds[0].Severity)).Render(ansi.Truncate(msg, room, "…"))
+		}
+	}
 	gap := w - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		return ansi.Truncate(left, w, "…")
@@ -353,13 +380,17 @@ func (m *Model) viewText(d *doc, w, h int) string {
 		if m.editing && l == c.Line {
 			cur = c.Col
 		}
-		num := fmt.Sprintf("%*d ", digits+1, l+1)
+		text := []rune(b.Line(l))
+		dcols, worst := diagSpans(m.lineDiags(d, l), l, len(text))
+		gst := gutter
 		if l == c.Line {
-			num = gutterCur.Render(num)
-		} else {
-			num = gutter.Render(num)
+			gst = gutterCur
 		}
-		lines = append(lines, num+m.renderLine([]rune(b.Line(l)), lcls, from, to, eol, cur, l == c.Line && m.editing, d.left, textW, cache))
+		num := gst.Render(fmt.Sprintf("%*d ", digits+1, l+1))
+		if worst != 0 { // marque dans la marge, à la place de l'espace
+			num = gst.Render(fmt.Sprintf("%*d", digits+1, l+1)) + lipgloss.NewStyle().Foreground(m.sevColor(worst)).Render("●")
+		}
+		lines = append(lines, num+m.renderLine(text, lcls, dcols, from, to, eol, cur, l == c.Line && m.editing, d.left, textW, cache))
 	}
 	return scroll.Render(lines, m.gutterW+textW, h, n, d.top, lipgloss.NewStyle().Foreground(t.P.Surface1),
 		lipgloss.NewStyle().Foreground(t.P.Accent))
@@ -367,7 +398,7 @@ func (m *Model) viewText(d *doc, w, h int) string {
 
 // renderLine dessine une ligne de texte entre les colonnes d'affichage left
 // et left+w.
-func (m *Model) renderLine(line []rune, cls []class, from, to int, eol bool, cursor int, curLine bool,
+func (m *Model) renderLine(line []rune, cls []class, dcols []lsp.Severity, from, to int, eol bool, cursor int, curLine bool,
 	left, w int, cache map[cellStyle]lipgloss.Style) string {
 	var out strings.Builder
 	var run strings.Builder
@@ -389,6 +420,9 @@ func (m *Model) renderLine(line []rune, cls []class, from, to int, eol bool, cur
 		cs := cellStyle{line: curLine, sel: i >= from && i < to}
 		if i < len(cls) {
 			cs.cls = cls[i]
+		}
+		if i < len(dcols) {
+			cs.diag = dcols[i]
 		}
 		// Partie visible du caractère.
 		vs, ve := max(col, left), min(next, left+w)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 
 	"github.com/laurentpoirierfr/gopit/internal/gopls"
 	"github.com/laurentpoirierfr/gopit/internal/i18n"
+	"github.com/laurentpoirierfr/gopit/internal/lsp"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/textbuf"
 )
@@ -29,23 +29,49 @@ const maxBack = 50
 // defineFunc interroge gopls ; remplacée dans les tests.
 type defineFunc func(ctx context.Context, root, file string, offset int) (*gopls.Definition, error)
 
-// defMsg est la réponse de gopls.
+// defMsg est la réponse de gopls : la définition ou la documentation du
+// symbole demandé.
 type defMsg struct {
-	from mark // position de la demande
-	jump bool // aller à la définition (sinon : afficher la documentation)
-	def  *gopls.Definition
+	from mark  // position de la demande
+	jump bool  // aller à la définition (sinon : afficher la documentation)
+	to   *mark // définition (nil : aucune)
+	doc  string
 	err  error
 }
 
-// lookup demande à gopls la définition du symbole sous le curseur.
+// lookup demande à gopls la définition (jump) ou la documentation du
+// symbole sous le curseur. Avec la connexion à gopls, le texte affiché fait
+// foi, même non enregistré ; sans elle, gopls lit le fichier sur le disque.
 func (m *Model) lookup(jump bool) tea.Cmd {
 	d := m.doc()
 	if d == nil {
 		return nil
 	}
-	if filepath.Ext(d.path) != ".go" {
+	if !isGo(d) {
 		return panel.Flash(i18n.T("gopls ne s'applique qu'aux fichiers Go"), true)
 	}
+	cur := d.buf.Cursor()
+	from := mark{d.path, cur}
+	if c := m.lsp; c != nil {
+		m.sendChange(d) // gopls doit voir le texte affiché
+		pos := lsp.Pos{Line: cur.Line, Col: cur.Col}
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			msg := defMsg{from: from, jump: jump}
+			if !jump {
+				msg.doc, msg.err = c.Hover(ctx, from.path, pos)
+				return msg
+			}
+			loc, err := c.Definition(ctx, from.path, pos)
+			msg.err = err
+			if loc != nil {
+				msg.to = &mark{loc.Path, textbuf.Pos{Line: loc.Pos.Line, Col: loc.Pos.Col}}
+			}
+			return msg
+		}
+	}
+
 	if d.buf.Dirty() {
 		return panel.Flash(i18n.T("Enregistre d'abord (Ctrl+S) : gopls lit le fichier sur le disque"), true)
 	}
@@ -53,14 +79,26 @@ func (m *Model) lookup(jump bool) tea.Cmd {
 	for i := range lines {
 		lines[i] = d.buf.Line(i)
 	}
-	cur := d.buf.Cursor()
 	off := gopls.Offset(lines, cur.Line, cur.Col)
-	from, root, define := mark{d.path, cur}, m.proj.Root, m.define
+	root, define := m.proj.Root, m.define
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		msg := defMsg{from: from, jump: jump}
 		def, err := define(ctx, root, from.path, off)
-		return defMsg{from: from, jump: jump, def: def, err: err}
+		if err != nil {
+			msg.err = err
+			return msg
+		}
+		msg.doc = def.Doc
+		src, err := os.ReadFile(def.File)
+		if err != nil {
+			msg.err = err
+			return msg
+		}
+		line, col := gopls.LineCol(src, def.Offset)
+		msg.to = &mark{def.File, textbuf.Pos{Line: line, Col: col}}
+		return msg
 	}
 }
 
@@ -78,18 +116,16 @@ func (m *Model) onDefinition(msg defMsg) tea.Cmd {
 		return nil
 	}
 	if !msg.jump {
-		m.info = msg.def.Doc
+		m.info = msg.doc
 		if m.info == "" {
 			return panel.Flash(i18n.T("Pas de documentation pour ce symbole"), false)
 		}
 		return nil
 	}
-	src, err := os.ReadFile(msg.def.File)
-	if err != nil {
-		return panel.Flash(i18n.T("Ouverture : ")+err.Error(), true)
+	if msg.to == nil {
+		return panel.Flash(gopls.ErrNoIdent.Error(), false)
 	}
-	line, col := gopls.LineCol(src, msg.def.Offset)
-	to := mark{msg.def.File, textbuf.Pos{Line: line, Col: col}}
+	to := *msg.to
 	if to == msg.from {
 		return panel.Flash(i18n.T("Déjà sur la définition"), false)
 	}
