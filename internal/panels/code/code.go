@@ -18,6 +18,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/laurentpoirierfr/gopit/internal/gopls"
 	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
@@ -83,6 +84,10 @@ type Model struct {
 	tree       tree // arborescence des fichiers, à gauche (tree.go)
 	closeArmed bool // Ctrl+W sur un fichier modifié : encore une fois pour fermer
 
+	define defineFunc // gopls (goto.go)
+	back   []mark     // positions d'avant les sauts vers une définition (Ctrl+T)
+	info   string     // documentation affichée sur le texte (vide : aucune)
+
 	// Géométrie du dernier rendu (souris, pages).
 	textH, gutterW int
 	treeW          int // largeur de l'arbre, séparateur compris (0 : masqué)
@@ -93,7 +98,7 @@ type Model struct {
 type span struct{ x, w, close int }
 
 func New(th *theme.Theme, p *project.Project) *Model {
-	m := &Model{th: th, proj: p, textH: 20, tree: newTree()}
+	m := &Model{th: th, proj: p, textH: 20, tree: newTree(), define: gopls.Define}
 	m.tree.focus = true // aucun fichier ouvert au départ
 	return m
 }
@@ -326,6 +331,8 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case panel.EditMsg:
 		return m, m.action(msg.Action)
+	case defMsg:
+		return m, m.onDefinition(msg)
 	case tea.PasteMsg:
 		m.paste(msg.Content)
 	case tea.MouseWheelMsg:
@@ -348,6 +355,7 @@ var keyActions = map[string]panel.EditAction{
 	"ctrl+a": panel.ActSelectAll, "ctrl+f": panel.ActFind, "f3": panel.ActFindNext,
 	"ctrl+g": panel.ActGoto, "ctrl+/": panel.ActComment, "ctrl+_": panel.ActComment,
 	"alt+shift+f": panel.ActFormat, "alt+F": panel.ActFormat,
+	"f12": panel.ActDefinition, "ctrl+]": panel.ActDefinition, "ctrl+t": panel.ActBack, "ctrl+k": panel.ActDoc,
 }
 
 // moves associe les touches de déplacement (sans Maj) aux mouvements.
@@ -377,6 +385,12 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
 	if s != "ctrl+w" && s != "ctrl+f4" {
 		m.closeArmed = false
+	}
+	if m.info != "" { // la documentation se ferme à la touche suivante
+		m.info = ""
+		if s == "esc" {
+			return nil
+		}
 	}
 	switch s {
 	case "ctrl+b": // afficher / masquer l'arbre
@@ -454,6 +468,10 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 			return m.action(panel.ActClose)
 		case "t":
 			m.focusTree()
+		case "d":
+			return m.action(panel.ActDefinition)
+		case "K":
+			return m.action(panel.ActDoc)
 		}
 		return nil
 	}
@@ -512,6 +530,9 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 		m.picker = &picker{all: all, matches: all}
 		return nil
 	}
+	if a == panel.ActBack {
+		return m.goBack()
+	}
 	d := m.doc()
 	if d == nil {
 		return nil
@@ -519,6 +540,10 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 	b := d.buf
 	m.follow = true
 	switch a {
+	case panel.ActDefinition:
+		return m.lookup(true)
+	case panel.ActDoc:
+		return m.lookup(false)
 	case panel.ActSave:
 		return m.save()
 	case panel.ActClose:
@@ -823,8 +848,9 @@ func (m *Model) Hints() []panel.Hint {
 		return []panel.Hint{{Key: "Entrée / Ctrl+O", Desc: i18n.T("ouvrir un fichier")}, {Key: "Ctrl+B", Desc: i18n.T("arbre")}}
 	case m.editing:
 		return []panel.Hint{{Key: "Ctrl+S", Desc: i18n.T("enregistrer")}, {Key: "Ctrl+W", Desc: i18n.T("fermer")}, {Key: "Ctrl+O", Desc: i18n.T("ouvrir")},
-			{Key: "Ctrl+F", Desc: i18n.T("chercher")}, {Key: "Ctrl+E", Desc: i18n.T("arbre")}, {Key: "Échap", Desc: i18n.T("lecture")}}
+			{Key: "Ctrl+F", Desc: i18n.T("chercher")}, {Key: "F12", Desc: i18n.T("définition")}, {Key: "Ctrl+E", Desc: i18n.T("arbre")}, {Key: "Échap", Desc: i18n.T("lecture")}}
 	}
 	return []panel.Hint{{Key: "Entrée", Desc: i18n.T("modifier")}, {Key: "w / Ctrl+W", Desc: i18n.T("fermer")}, {Key: "o", Desc: i18n.T("ouvrir")},
-		{Key: "s", Desc: i18n.T("enregistrer")}, {Key: "/", Desc: i18n.T("chercher")}, {Key: "t", Desc: i18n.T("arbre")}}
+		{Key: "s", Desc: i18n.T("enregistrer")}, {Key: "/", Desc: i18n.T("chercher")}, {Key: "d / F12", Desc: i18n.T("définition")},
+		{Key: "K", Desc: i18n.T("doc")}, {Key: "Ctrl+T", Desc: i18n.T("retour")}, {Key: "t", Desc: i18n.T("arbre")}}
 }

@@ -472,4 +472,23 @@ var es = map[string]string{
 	"aucun go.mod trouvé (gopit doit être lancé dans un module Go)": "no se encontró go.mod (gopit debe ejecutarse dentro de un módulo Go)",
 	"%s : ce n'est pas un répertoire":                               "%s: no es un directorio",
 	"%s : directive « module » absente":                             "%s: falta la directiva «module»",
+
+	// gopls dans l'éditeur
+	"Aller à la définition":                  "Ir a la definición",
+	"Documentation du symbole":               "Documentación del símbolo",
+	"Revenir à la position précédente":       "Volver a la posición anterior",
+	"gopls n'est pas installé":               "gopls no está instalado",
+	"Aucun symbole à cet endroit":            "Ningún símbolo aquí",
+	"sortie de gopls illisible : %w":         "salida de gopls ilegible: %w",
+	"définition":                             "definición",
+	"doc":                                    "doc",
+	"retour":                                 "volver",
+	"Aller à la définition (gopls)":          "Ir a la definición (gopls)",
+	"Documentation du symbole (gopls)":       "Documentación del símbolo (gopls)",
+	"Aucune position précédente":             "Ninguna posición anterior",
+	"gopls ne s'applique qu'aux fichiers Go": "gopls solo se aplica a archivos Go",
+	"Enregistre d'abord (Ctrl+S) : gopls lit le fichier sur le disque": "Guarda primero (Ctrl+S): gopls lee el archivo del disco",
+	"gopls n'est pas installé : ":                                      "gopls no está instalado: ",
+	"Pas de documentation pour ce symbole":                             "No hay documentación para este símbolo",
+	"Déjà sur la définition":                                           "Ya estás en la definición",
 }

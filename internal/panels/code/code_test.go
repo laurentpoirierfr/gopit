@@ -1,6 +1,7 @@
 package code
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,8 +11,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/laurentpoirierfr/gopit/internal/gopls"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
+	"github.com/laurentpoirierfr/gopit/internal/textbuf"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
 )
 
@@ -322,5 +325,82 @@ func TestCtrlCCopies(t *testing.T) {
 	}
 	if m.doc().buf.Dirty() {
 		t.Error("copier ne modifie pas le texte")
+	}
+}
+
+func TestDefinitionAndBack(t *testing.T) {
+	m, dir := newModel(t)
+	a := "package a\n\nvar x = Deux()\n"
+	b := "package a\n\n// Deux renvoie 2.\nfunc Deux() int { return 2 }\n"
+	for name, src := range map[string]string{"a.go": a, "b.go": b} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(src), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var asked int
+	m.define = func(_ context.Context, root, file string, off int) (*gopls.Definition, error) {
+		asked = off
+		if root != dir || filepath.Base(file) != "a.go" {
+			t.Errorf("demande : %s %s", root, file)
+		}
+		return &gopls.Definition{File: filepath.Join(dir, "b.go"), Offset: strings.Index(b, "Deux()"), Doc: "func Deux() int\nDeux renvoie 2."}, nil
+	}
+	// run exécute la commande renvoyée et repasse son message au modèle.
+	run := func(cmd tea.Cmd) {
+		t.Helper()
+		if cmd == nil {
+			t.Fatal("commande attendue")
+		}
+		if msg, ok := cmd().(defMsg); ok {
+			m.Update(msg)
+		} else {
+			t.Fatalf("message : %#v", msg)
+		}
+	}
+	m.OpenFile("a.go", 3)
+	m.Update(key("esc")) // lecture
+	m.doc().buf.SetCursor(textbuf.Pos{Line: 2, Col: 9}, false)
+
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyF12})
+	run(cmd)
+	if asked != strings.Index(a, "Deux")+1 {
+		t.Errorf("position demandée : %d", asked)
+	}
+	if d := m.doc(); d.rel != "b.go" || d.buf.Cursor() != (textbuf.Pos{Line: 3, Col: 5}) || m.editing {
+		t.Fatalf("après F12 : %s %v, édition %v", d.rel, d.buf.Cursor(), m.editing)
+	}
+
+	m.Update(tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
+	if d := m.doc(); d.rel != "a.go" || d.buf.Cursor() != (textbuf.Pos{Line: 2, Col: 9}) {
+		t.Fatalf("après Ctrl+T : %s %v", d.rel, d.buf.Cursor())
+	}
+
+	// Documentation : affichée sur le texte, fermée par Échap.
+	_, cmd = m.Update(key("K"))
+	run(cmd)
+	view := m.View(80, 20)
+	if !strings.Contains(ansi.Strip(view), "Deux renvoie 2.") {
+		t.Error("documentation non affichée")
+	}
+	for i, l := range strings.Split(view, "\n") {
+		if w := ansi.StringWidth(l); w > 80 {
+			t.Errorf("ligne %d : largeur %d > 80", i, w)
+		}
+	}
+	if n := strings.Count(view, "\n") + 1; n > 20 {
+		t.Errorf("%d lignes > 20", n)
+	}
+	m.Update(key("esc"))
+	if m.info != "" || m.Capturing() {
+		t.Error("Échap ferme la documentation et reste en lecture")
+	}
+
+	// Fichier modifié : gopls lirait l'ancienne version.
+	m.Update(key("enter"))
+	m.Update(key("z"))
+	if _, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyF12}); cmd == nil {
+		t.Fatal("message attendu")
+	} else if f, ok := cmd().(panel.FlashMsg); !ok || !f.Error {
+		t.Errorf("fichier modifié : %#v", cmd())
 	}
 }

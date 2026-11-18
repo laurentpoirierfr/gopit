@@ -118,6 +118,10 @@ const (
 	ActOpen      EditAction = "open"
 	ActSave      EditAction = "save"
 	ActClose     EditAction = "close"
+	// Avec gopls : aller à la définition, revenir, documentation du symbole.
+	ActDefinition EditAction = "definition"
+	ActBack       EditAction = "back"
+	ActDoc        EditAction = "doc"
 )
 
 // EditMsg transmet une action du menu Édition (ou de la palette) au module.

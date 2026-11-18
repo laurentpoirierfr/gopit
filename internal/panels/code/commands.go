@@ -26,5 +26,8 @@ func (m *Model) Commands() []panel.Command {
 		c(i18n.T("Aller à la ligne"), "Ctrl+G", panel.ActGoto),
 		c(i18n.T("Commenter / décommenter"), "Ctrl+/", panel.ActComment),
 		c(i18n.T("Formater (gofmt)"), "Alt+Maj+F", panel.ActFormat),
+		c(i18n.T("Aller à la définition (gopls)"), "F12", panel.ActDefinition),
+		c(i18n.T("Revenir à la position précédente"), "Ctrl+T", panel.ActBack),
+		c(i18n.T("Documentation du symbole (gopls)"), "Ctrl+K", panel.ActDoc),
 	}
 }

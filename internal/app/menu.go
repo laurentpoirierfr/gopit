@@ -58,7 +58,9 @@ func (m *Model) menus() []menu {
 		act(i18n.T("Coller"), "Ctrl+V", panel.ActPaste), act(i18n.T("Tout sélectionner"), "Ctrl+A", panel.ActSelectAll), {sep: true},
 		act(i18n.T("Rechercher"), "Ctrl+F", panel.ActFind), act(i18n.T("Occurrence suivante"), "F3", panel.ActFindNext),
 		act(i18n.T("Aller à la ligne"), "Ctrl+G", panel.ActGoto), {sep: true},
-		act(i18n.T("Commenter / décommenter"), "Ctrl+/", panel.ActComment), act(i18n.T("Formater (gofmt)"), "Alt+Maj+F", panel.ActFormat),
+		act(i18n.T("Commenter / décommenter"), "Ctrl+/", panel.ActComment), act(i18n.T("Formater (gofmt)"), "Alt+Maj+F", panel.ActFormat), {sep: true},
+		act(i18n.T("Aller à la définition"), "F12", panel.ActDefinition), act(i18n.T("Documentation du symbole"), "Ctrl+K", panel.ActDoc),
+		act(i18n.T("Revenir à la position précédente"), "Ctrl+T", panel.ActBack),
 	}
 	if !canEdit {
 		edit = append(edit, menuItem{label: i18n.T("Ouvre un fichier dans l'Éditeur pour modifier"), disabled: true})

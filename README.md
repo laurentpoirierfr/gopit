@@ -58,7 +58,7 @@ préférences ; `gopit -lang en` l'impose pour une session.
 | Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
 | Benchmarks — `go test -bench`, historique des exécutions, comparaison avec une référence (Δ % et bruit), évolution en sparkline, profils CPU et mémoire (`p`, `m`) avec code source annoté | ✅ |
 | Git — état du dépôt, diff coloré, commits récents ; indexer (`s`, `A`), désindexer (`u`), commiter (`c`) — sans action destructive ni push | ✅ |
-| Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration Go, indentation automatique, gofmt à l'enregistrement, recherche, sélection à la souris, annuler/rétablir | ✅ |
+| Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration Go, indentation automatique, gofmt à l'enregistrement, recherche, sélection à la souris, annuler/rétablir, aller à la définition et documentation des symboles (gopls) | ✅ |
 
 ### Éditeur intégré
 
@@ -82,6 +82,12 @@ ou un clic ; `Échap` pour en sortir).
 | `Tab` / `Maj+Tab` | indenter / désindenter (bloc sélectionné) |
 | `Ctrl+/` | commenter / décommenter |
 | `Alt+Maj+F` | formater sans enregistrer |
+| `F12` ou `Ctrl+]` | aller à la définition du symbole sous le curseur (aussi `d` en lecture) |
+| `Ctrl+T` | revenir à la position d'avant le saut |
+| `Ctrl+K` | documentation du symbole sous le curseur (aussi `K` en lecture) |
+
+La définition et la documentation viennent de gopls, qui lit les fichiers
+sur le disque : il faut enregistrer un fichier modifié avant de l'interroger.
 
 Dans l'arborescence : `↑` `↓` pour naviguer, `→` / `←` pour déplier ou
 replier un dossier, `Entrée` pour ouvrir, `r` pour relire le disque. Les
@@ -108,6 +114,7 @@ internal/bench/       go test -bench : lecture, comparaison, historique
 internal/prof/        profils pprof : coût par fonction et par ligne
 internal/gitx/        git status / diff / log / add / restore / commit
 internal/textbuf/     tampon de l'éditeur : curseur, sélection, annuler/rétablir
+internal/gopls/       gopls definition : définition et documentation d'un symbole
 internal/config/      préférences (~/.config/gopit/config.json)
 internal/i18n/        traduction de l'interface (français → anglais, espagnol)
 internal/cover/       profils de couverture

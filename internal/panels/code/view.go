@@ -131,6 +131,12 @@ func (m *Model) View(width, height int) string {
 		body = m.viewWelcome()
 	default:
 		body = m.viewText(d, width, m.textH)
+		if m.info != "" { // documentation du symbole, en bas du texte
+			box := strings.Split(m.viewInfo(width, m.textH*2/3), "\n")
+			lines := strings.Split(body, "\n")
+			keep := max(0, min(len(lines), m.textH-len(box)))
+			body = strings.Join(append(lines[:keep], box...), "\n")
+		}
 	}
 	body = lipgloss.NewStyle().Height(m.textH).MaxHeight(m.textH).Render(body)
 	right := m.viewTabs(width) + "\n" + body + "\n" + m.viewStatus(width)
