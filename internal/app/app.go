@@ -17,6 +17,7 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/panels/benchmarks"
+	"github.com/laurentpoirierfr/gopit/internal/panels/code"
 	"github.com/laurentpoirierfr/gopit/internal/panels/diagnostics"
 	"github.com/laurentpoirierfr/gopit/internal/panels/docs"
 	"github.com/laurentpoirierfr/gopit/internal/panels/git"
@@ -58,6 +59,9 @@ type Model struct {
 	modal     modalKind      // fenêtre d'aide ouverte
 	sidebar   bool           // barre latérale des modules
 	hideHints bool           // ligne des raccourcis masquée
+	external  bool           // ouvrir les fichiers dans l'éditeur externe
+	quitArmed bool           // fichiers non enregistrés : quitter une 2e fois
+	dragging  bool           // glissement de la souris commencé dans le module
 	cfg       *config.Config // préférences, enregistrées en quittant
 }
 
@@ -75,6 +79,7 @@ func New(p *project.Project) *Model {
 			docs.New(th, p),
 			benchmarks.New(th, p),
 			git.New(th, p),
+			code.New(th, p),
 		},
 		menu:  menuState{open: -1},
 		focus: focusContent,
@@ -124,6 +129,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case panel.OpenMsg:
+		return m, m.openFile(msg.File, msg.Line)
+
+	case tea.PasteMsg:
+		// Un collage ne concerne que le module affiché.
+		if m.pal.open || m.menu.open >= 0 || m.modal != modalNone {
+			return m, nil
+		}
+		return m, m.toPanel(msg)
+
 	case editor.DoneMsg:
 		if msg.Err != nil {
 			return m, m.setFlash("Éditeur : "+msg.Err.Error(), true)
@@ -136,15 +151,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseClickMsg:
 		mo := tea.Mouse(msg)
 		if mo.Button == tea.MouseLeft {
-			return m, m.handleClick(mo.X, mo.Y)
+			return m, m.handleClick(mo.X, mo.Y, mo.Mod.Contains(tea.ModShift))
 		}
 		return m, nil
 
+	case tea.MouseMotionMsg:
+		mo := tea.Mouse(msg)
+		if m.dragging && mo.Button == tea.MouseLeft {
+			x, y := m.contentPos(mo.X, mo.Y)
+			return m, m.toPanel(panel.ClickMsg{X: x, Y: y, Drag: true})
+		}
+		return m, nil
+
+	case tea.MouseReleaseMsg:
+		m.dragging = false
+		return m, nil
+
 	case tea.MouseWheelMsg:
-		// La molette fait défiler le module affiché (et lui seul).
+		// La molette fait défiler le module affiché (et lui seul), en
+		// coordonnées relatives à sa zone.
 		if m.pal.open || m.menu.open >= 0 || m.modal != modalNone {
 			return m, nil
 		}
+		msg.X, msg.Y = m.contentPos(msg.X, msg.Y)
 		return m, m.toPanel(msg)
 	}
 
@@ -164,6 +193,9 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 
 func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
+	if s != "q" && s != "ctrl+c" {
+		m.quitArmed = false
+	}
 	if s == "ctrl+c" {
 		return m.quit()
 	}
@@ -188,6 +220,8 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	case "f1":
 		m.modal = modalHelp
 		return nil
+	case "ctrl+o":
+		return m.openPicker()
 	}
 	for i, mn := range m.menus() {
 		if mn.hotkey != "" && s == mn.hotkey {
@@ -249,7 +283,24 @@ func (m *Model) toPanel(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-func (m *Model) handleClick(x, y int) tea.Cmd {
+// contentOrigin renvoie le coin haut gauche de la zone du module (celle de
+// Panel.View) à l'écran ; voir viewContent.
+func (m *Model) contentOrigin() (x, y int) {
+	x = 2 // bordure et marge
+	if m.sidebar {
+		x += navW
+	}
+	return x, topH + 1 + 2 // bordure, titre et ligne vide
+}
+
+// contentPos convertit une position à l'écran en position dans le module.
+func (m *Model) contentPos(x, y int) (int, int) {
+	ox, oy := m.contentOrigin()
+	return x - ox, y - oy
+}
+
+func (m *Model) handleClick(x, y int, shift bool) tea.Cmd {
+	m.dragging = false
 	switch {
 	case m.pal.open:
 		return nil
@@ -271,7 +322,47 @@ func (m *Model) handleClick(x, y int) tea.Cmd {
 		return nil
 	}
 	m.focus = focusContent
+	if px, py := m.contentPos(x, y); px >= 0 && py >= 0 {
+		m.dragging = true
+		return m.toPanel(panel.ClickMsg{X: px, Y: py, Shift: shift})
+	}
 	return nil
+}
+
+// openFile ouvre un fichier demandé par un module : dans l'éditeur intégré
+// (qui devient le module affiché), ou dans l'éditeur externe.
+func (m *Model) openFile(file string, line int) tea.Cmd {
+	if !m.external {
+		for i, p := range m.panels {
+			if o, ok := p.(panel.Opener); ok {
+				m.cur, m.focus = i, focusContent
+				return o.OpenFile(file, line)
+			}
+		}
+	}
+	return editor.Open(m.proj.Root, file, line)
+}
+
+// openPicker affiche l'éditeur intégré et sa liste de fichiers à ouvrir.
+func (m *Model) openPicker() tea.Cmd {
+	for i, p := range m.panels {
+		if _, ok := p.(panel.Opener); ok {
+			m.cur, m.focus = i, focusContent
+			return m.toPanel(panel.EditMsg{Action: panel.ActOpen})
+		}
+	}
+	return nil
+}
+
+// unsaved renvoie les fichiers non enregistrés de tous les modules.
+func (m *Model) unsaved() []string {
+	var out []string
+	for _, p := range m.panels {
+		if g, ok := p.(panel.Guard); ok {
+			out = append(out, g.Unsaved()...)
+		}
+	}
+	return out
 }
 
 func (m *Model) setFlash(s string, isErr bool) tea.Cmd {
@@ -316,7 +407,7 @@ func (m *Model) render() string {
 func (m *Model) restoreConfig() {
 	cfg, _ := config.Load() // préférences illisibles : on repart de zéro
 	m.cfg = cfg
-	m.sidebar, m.hideHints = cfg.Sidebar, cfg.HideHints
+	m.sidebar, m.hideHints, m.external = cfg.Sidebar, cfg.HideHints, cfg.ExternalEditor
 	for i, p := range m.panels {
 		if p.Title() == cfg.LastModule {
 			m.cur = i
@@ -334,7 +425,7 @@ func (m *Model) saveConfig() error {
 		return nil
 	}
 	m.cfg.LastModule = m.panels[m.cur].Title()
-	m.cfg.Sidebar, m.cfg.HideHints = m.sidebar, m.hideHints
+	m.cfg.Sidebar, m.cfg.HideHints, m.cfg.ExternalEditor = m.sidebar, m.hideHints, m.external
 	for _, p := range m.panels {
 		if ps, ok := p.(panel.Persister); ok {
 			m.cfg.Panels[p.Title()] = ps.State()
@@ -343,8 +434,17 @@ func (m *Model) saveConfig() error {
 	return m.cfg.Save()
 }
 
-// quit enregistre les préférences puis quitte.
+// quit enregistre les préférences puis quitte. S'il reste des fichiers non
+// enregistrés, il faut confirmer en quittant une deuxième fois.
 func (m *Model) quit() tea.Cmd {
+	if u := m.unsaved(); len(u) > 0 && !m.quitArmed {
+		m.quitArmed = true
+		what := u[0]
+		if len(u) > 1 {
+			what = fmt.Sprintf("%d fichiers", len(u))
+		}
+		return m.setFlash(what+" non enregistré(s) : q ou Ctrl+C encore pour quitter sans enregistrer", true)
+	}
 	_ = m.saveConfig() // une erreur d'écriture ne doit pas empêcher de quitter
 	return tea.Quit
 }

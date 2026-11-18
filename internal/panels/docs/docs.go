@@ -255,7 +255,7 @@ func (m *Model) openSource() tea.Cmd {
 	p, sym := m.current()
 	switch {
 	case sym != nil:
-		return editor.Open(m.proj.Root, sym.File, sym.Line)
+		return panel.Open(sym.File, sym.Line)
 	case p != nil:
 		return editor.Open(p.Dir, "", 0)
 	}

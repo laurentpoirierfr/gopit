@@ -44,15 +44,23 @@ func yes(b bool) *bool { return &b }
 
 // menus construit les menus selon l'état courant (module affiché…).
 func (m *Model) menus() []menu {
-	soon := func(label, key string) menuItem {
-		return menuItem{label: label, key: key, disabled: true}
+	// Le menu Édition agit sur le module affiché s'il édite du texte.
+	ed, canEdit := m.panels[m.cur].(panel.Editor)
+	canEdit = canEdit && ed.CanEdit()
+	act := func(label, key string, a panel.EditAction) menuItem {
+		return menuItem{label: label, key: key, disabled: !canEdit,
+			run: func(m *Model) tea.Cmd { m.focus = focusContent; return m.toPanel(panel.EditMsg{Action: a}) }}
 	}
 	edit := []menuItem{
-		soon("Annuler", "Ctrl+Z"), soon("Rétablir", "Ctrl+Y"), {sep: true},
-		soon("Couper", "Ctrl+X"), soon("Copier", "Ctrl+Insert"), soon("Coller", "Ctrl+V"), {sep: true},
-		soon("Rechercher", "Ctrl+F"), soon("Remplacer", "Ctrl+H"), {sep: true},
-		soon("Formater (gofmt)", "Alt+Maj+F"),
-		{label: "Disponible avec l'éditeur intégré (à venir)", disabled: true},
+		act("Annuler", "Ctrl+Z", panel.ActUndo), act("Rétablir", "Ctrl+Y", panel.ActRedo), {sep: true},
+		act("Couper", "Ctrl+X", panel.ActCut), act("Copier", "Ctrl+Insert", panel.ActCopy),
+		act("Coller", "Ctrl+V", panel.ActPaste), act("Tout sélectionner", "Ctrl+A", panel.ActSelectAll), {sep: true},
+		act("Rechercher", "Ctrl+F", panel.ActFind), act("Occurrence suivante", "F3", panel.ActFindNext),
+		act("Aller à la ligne", "Ctrl+G", panel.ActGoto), {sep: true},
+		act("Commenter / décommenter", "Ctrl+/", panel.ActComment), act("Formater (gofmt)", "Alt+Maj+F", panel.ActFormat),
+	}
+	if !canEdit {
+		edit = append(edit, menuItem{label: "Ouvre un fichier dans l'Éditeur pour modifier", disabled: true})
 	}
 
 	var modules []menuItem
@@ -66,7 +74,7 @@ func (m *Model) menus() []menu {
 	if c, ok := cur.(panel.Commander); ok {
 		for _, cmd := range c.Commands() {
 			actions = append(actions, menuItem{label: cmd.Title, key: keyLabel(cmd.Key),
-				run: func(m *Model) tea.Cmd { m.focus = focusContent; return m.toPanel(keyMsg(cmd.Key)) }})
+				run: func(m *Model) tea.Cmd { m.focus = focusContent; return m.toPanel(commandMsg(cmd)) }})
 		}
 	}
 	if len(actions) == 0 {
@@ -75,8 +83,13 @@ func (m *Model) menus() []menu {
 
 	return []menu{
 		{title: "Fichier", hotkey: "alt+f", items: []menuItem{
+			{label: "Ouvrir un fichier…", key: "Ctrl+O", run: func(m *Model) tea.Cmd { return m.openPicker() }},
+			{label: "Fermer le fichier", key: "Ctrl+W", disabled: !canEdit,
+				run: func(m *Model) tea.Cmd { return m.toPanel(panel.EditMsg{Action: panel.ActClose}) }},
 			{label: "Ouvrir le projet dans l'éditeur externe", key: "e",
 				run: func(m *Model) tea.Cmd { return editor.Open(m.proj.Root, "", 0) }},
+			{label: "Ouvrir les fichiers dans l'éditeur externe", checked: yes(m.external),
+				run: func(m *Model) tea.Cmd { m.external = !m.external; return nil }},
 			{label: "Préférences…", run: func(m *Model) tea.Cmd {
 				m.saveConfig()
 				p, err := config.Path()
@@ -314,6 +327,7 @@ func (m *Model) viewModal() string {
 			row(fmt.Sprintf("1…%d", len(m.panels)), "changer de module"),
 			row("F1", "cette aide"),
 			row("e", "éditeur externe"),
+			row("Ctrl+O", "ouvrir un fichier dans l'éditeur intégré"),
 			row("q / Ctrl+C", "quitter"),
 			"",
 			title.Render("Module " + m.panels[m.cur].Title()),

@@ -51,10 +51,12 @@ func Flash(text string, isErr bool) tea.Cmd {
 
 // Command est une action d'un module, proposée dans la palette (Ctrl+P).
 // L'exécuter revient à afficher le module et à lui envoyer la touche Key
-// (au format de tea.KeyPressMsg.String : « a », « enter », « f5 »…).
+// (au format de tea.KeyPressMsg.String : « a », « enter », « f5 »…), ou le
+// message Msg s'il est renseigné (Key n'est alors qu'affichée).
 type Command struct {
 	Title string
 	Key   string
+	Msg   tea.Msg
 }
 
 // Commander est implémenté par les modules qui exposent des commandes à la
@@ -68,4 +70,67 @@ type Commander interface {
 type Persister interface {
 	State() map[string]string
 	Restore(state map[string]string)
+}
+
+// ─── Éditeur intégré ─────────────────────────────────────────────────────────
+
+// OpenMsg demande l'ouverture d'un fichier à une ligne (1 = première ; 0 :
+// sans ligne précise). Le cadre l'envoie à l'éditeur intégré, ou à l'éditeur
+// externe selon les préférences.
+type OpenMsg struct {
+	File string
+	Line int
+}
+
+// Open renvoie une commande qui ouvre file à la ligne line.
+func Open(file string, line int) tea.Cmd {
+	return func() tea.Msg { return OpenMsg{File: file, Line: line} }
+}
+
+// Opener est implémenté par le module qui ouvre les fichiers (éditeur).
+type Opener interface {
+	OpenFile(file string, line int) tea.Cmd
+}
+
+// EditAction est une action du menu Édition.
+type EditAction string
+
+const (
+	ActUndo      EditAction = "undo"
+	ActRedo      EditAction = "redo"
+	ActCut       EditAction = "cut"
+	ActCopy      EditAction = "copy"
+	ActPaste     EditAction = "paste"
+	ActSelectAll EditAction = "selectall"
+	ActFind      EditAction = "find"
+	ActFindNext  EditAction = "findnext"
+	ActGoto      EditAction = "goto"
+	ActComment   EditAction = "comment"
+	ActFormat    EditAction = "format"
+	ActOpen      EditAction = "open"
+	ActSave      EditAction = "save"
+	ActClose     EditAction = "close"
+)
+
+// EditMsg transmet une action du menu Édition (ou de la palette) au module.
+type EditMsg struct{ Action EditAction }
+
+// Editor est implémenté par les modules qui acceptent les actions du menu
+// Édition ; CanEdit indique si elles sont disponibles (fichier ouvert…).
+type Editor interface {
+	CanEdit() bool
+}
+
+// Guard est implémenté par les modules qui peuvent avoir un travail non
+// enregistré : Unsaved renvoie ce qui serait perdu en quittant.
+type Guard interface {
+	Unsaved() []string
+}
+
+// ClickMsg est un clic (ou un glissement, bouton gauche enfoncé) dans la
+// zone du module, en coordonnées relatives à cette zone (celle de View).
+type ClickMsg struct {
+	X, Y  int
+	Drag  bool
+	Shift bool
 }

@@ -50,7 +50,7 @@ func (m *Model) openPalette() {
 			items = append(items, paletteItem{module: p.Title(), title: cmd.Title, key: cmd.Key,
 				run: func(m *Model) tea.Cmd {
 					m.cur, m.focus = i, focusContent
-					return m.toPanel(keyMsg(cmd.Key))
+					return m.toPanel(commandMsg(cmd))
 				}})
 		}
 	}
@@ -71,6 +71,14 @@ func (m *Model) openPalette() {
 	m.menu.open = -1
 	m.pal = palette{open: true, items: items}
 	m.filterPalette()
+}
+
+// commandMsg renvoie le message qui exécute une commande de module.
+func commandMsg(c panel.Command) tea.Msg {
+	if c.Msg != nil {
+		return c.Msg
+	}
+	return keyMsg(c.Key)
 }
 
 // keyMsg construit le message clavier correspondant à une touche nommée.

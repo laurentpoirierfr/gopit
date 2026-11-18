@@ -20,7 +20,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/cover"
-	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/gotest"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
@@ -451,7 +450,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		if msg.err != nil {
 			return m, panel.Flash(msg.err.Error(), true)
 		}
-		return m, editor.Open(m.proj.Root, msg.file, msg.line)
+		return m, panel.Open(msg.file, msg.line)
 
 	case tea.KeyPressMsg:
 		return m, m.handleKey(msg.String())
@@ -610,7 +609,7 @@ func (m *Model) openFailure() tea.Cmd {
 	}
 	if file == "" && r.test == nil {
 		if f, l, ok := m.firstUncovered(r.pkg.Path); ok {
-			return editor.Open(m.proj.Root, f, l)
+			return panel.Open(f, l)
 		}
 	}
 	if file == "" {

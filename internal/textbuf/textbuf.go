@@ -481,6 +481,105 @@ func (b *Buffer) SetText(text string) {
 	b.goal = b.cursor.Col
 }
 
+// ─── Opérations sur des lignes entières ──────────────────────────────────────
+
+// lineRange renvoie les lignes touchées par la sélection, ou la ligne du
+// curseur. Une sélection qui s'arrête en colonne 0 n'inclut pas sa dernière
+// ligne.
+func (b *Buffer) lineRange() (first, last int) {
+	s, e, ok := b.Selection()
+	if !ok {
+		return b.cursor.Line, b.cursor.Line
+	}
+	last = e.Line
+	if e.Col == 0 && e.Line > s.Line {
+		last--
+	}
+	return s.Line, last
+}
+
+// mapLines transforme les lignes touchées en une seule étape d'annulation.
+// Avec une sélection, les lignes transformées restent sélectionnées ; sinon
+// le curseur suit le texte de sa ligne.
+func (b *Buffer) mapLines(f func(l []rune, multi bool) []rune) {
+	first, last := b.lineRange()
+	_, _, hadSel := b.Selection()
+	cur, oldLen := b.cursor, len(b.lines[b.cursor.Line])
+	parts := make([]string, 0, last-first+1)
+	changed := false
+	for l := first; l <= last; l++ {
+		nl := string(f(b.lines[l], last > first))
+		changed = changed || nl != string(b.lines[l])
+		parts = append(parts, nl)
+	}
+	if !changed {
+		return
+	}
+	b.apply(Pos{first, 0}, Pos{last, len(b.lines[last])}, strings.Join(parts, "\n"))
+	if hadSel {
+		b.anchor = &Pos{first, 0}
+		b.cursor = Pos{last, len(b.lines[last])}
+	} else {
+		b.cursor = b.clamp(Pos{cur.Line, max(0, cur.Col+len(b.lines[cur.Line])-oldLen)})
+	}
+	b.goal = b.cursor.Col
+}
+
+// Indent ajoute une tabulation en tête des lignes touchées (les lignes vides
+// d'un bloc sont laissées telles quelles).
+func (b *Buffer) Indent() {
+	b.mapLines(func(l []rune, multi bool) []rune {
+		if multi && len(l) == 0 {
+			return l
+		}
+		return append([]rune{'\t'}, l...)
+	})
+}
+
+// Dedent retire un niveau d'indentation (une tabulation ou jusqu'à quatre
+// espaces) des lignes touchées.
+func (b *Buffer) Dedent() {
+	b.mapLines(func(l []rune, _ bool) []rune {
+		if len(l) > 0 && l[0] == '\t' {
+			return l[1:]
+		}
+		n := 0
+		for n < 4 && n < len(l) && l[n] == ' ' {
+			n++
+		}
+		return l[n:]
+	})
+}
+
+// ToggleComment commente les lignes touchées avec « // », ou les décommente
+// si elles le sont toutes déjà. Les lignes blanches sont ignorées.
+func (b *Buffer) ToggleComment() {
+	first, last := b.lineRange()
+	all := true
+	for l := first; l <= last; l++ {
+		line := b.lines[l]
+		rest := string(line[indentWidth(line):])
+		if rest != "" && !strings.HasPrefix(rest, "//") {
+			all = false
+			break
+		}
+	}
+	b.mapLines(func(l []rune, _ bool) []rune {
+		i := indentWidth(l)
+		rest := string(l[i:])
+		switch {
+		case rest == "":
+			return l
+		case all:
+			rest = strings.TrimPrefix(rest, "//")
+			rest = strings.TrimPrefix(rest, " ")
+		default:
+			rest = "// " + rest
+		}
+		return []rune(string(l[:i]) + rest)
+	})
+}
+
 // ─── Annuler / rétablir ──────────────────────────────────────────────────────
 
 // endOf renvoie la fin d'un texte inséré à partir de at.

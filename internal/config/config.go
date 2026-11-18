@@ -18,6 +18,9 @@ type Config struct {
 	Sidebar bool `json:"sidebar,omitempty"`
 	// HideHints masque la ligne des raccourcis en bas de l'écran.
 	HideHints bool `json:"hide_hints,omitempty"`
+	// ExternalEditor ouvre les fichiers dans $VISUAL / $EDITOR plutôt que
+	// dans l'éditeur intégré.
+	ExternalEditor bool `json:"external_editor,omitempty"`
 	// Panels contient les réglages de chaque module, par titre.
 	Panels map[string]map[string]string `json:"panels,omitempty"`
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/bench"
-	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/prof"
 )
@@ -145,7 +144,7 @@ func (m *Model) profileKey(s string) tea.Cmd {
 			if _, err := os.Stat(f.File); err != nil {
 				return panel.Flash("Source introuvable : "+f.File, true)
 			}
-			return editor.Open(m.proj.Root, f.File, f.Line)
+			return panel.Open(f.File, f.Line)
 		}
 	}
 	return nil

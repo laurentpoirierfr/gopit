@@ -17,7 +17,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/diag"
-	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
@@ -189,7 +188,7 @@ func (m *Model) handleKey(s string) tea.Cmd {
 		return m.runAll()
 	case "enter", "o":
 		if d := m.selected(); d != nil {
-			return editor.Open(m.proj.Root, d.File, d.Line)
+			return panel.Open(d.File, d.Line)
 		}
 	case "s":
 		m.sevFilter = (m.sevFilter + 1) % len(sevFilters)

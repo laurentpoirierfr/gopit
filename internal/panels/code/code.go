@@ -1,0 +1,823 @@
+// Package code est le module « Éditeur » : un éditeur de texte intégré,
+// pensé pour Go (coloration, indentation, gofmt à l'enregistrement), avec
+// plusieurs fichiers ouverts à la fois.
+//
+// Deux modes : LECTURE (les touches du cockpit restent actives, les flèches
+// déplacent le curseur) et ÉDITION (toutes les touches vont au texte ;
+// Échap revient en lecture).
+package code
+
+import (
+	"go/format"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/laurentpoirierfr/gopit/internal/panel"
+	"github.com/laurentpoirierfr/gopit/internal/project"
+	"github.com/laurentpoirierfr/gopit/internal/textbuf"
+	"github.com/laurentpoirierfr/gopit/internal/theme"
+)
+
+const (
+	tabWidth  = 4
+	wheelStep = 3
+)
+
+// doc est un fichier ouvert.
+type doc struct {
+	path  string // chemin absolu
+	rel   string // chemin affiché (relatif au projet si possible)
+	buf   *textbuf.Buffer
+	perm  fs.FileMode
+	mtime int64 // date de modification au chargement (ns)
+
+	top, left int // défilement (ligne, colonne d'affichage)
+
+	hlVer int // version du tampon colorée (-1 : à calculer)
+	hl    [][]class
+}
+
+type promptKind int
+
+const (
+	promptNone promptKind = iota
+	promptFind
+	promptGoto
+)
+
+// picker est la liste de choix d'un fichier à ouvrir.
+type picker struct {
+	all     []string
+	query   string
+	matches []string
+	cursor  int
+	offset  int
+}
+
+type Model struct {
+	th   *theme.Theme
+	proj *project.Project
+
+	docs    []*doc
+	cur     int
+	editing bool
+	clip    string // presse-papiers interne
+
+	follow bool // garder le curseur visible au prochain rendu
+	center bool // … et le placer au tiers de la hauteur
+
+	prompt   promptKind
+	input    string
+	origin   textbuf.Pos // position avant la recherche (Échap y revient)
+	notFound bool
+	lastFind string
+
+	picker     *picker
+	tree       tree // arborescence des fichiers, à gauche (tree.go)
+	closeArmed bool // Ctrl+W sur un fichier modifié : encore une fois pour fermer
+
+	// Géométrie du dernier rendu (souris, pages).
+	textH, gutterW int
+	treeW          int // largeur de l'arbre, séparateur compris (0 : masqué)
+	tabSpans       []span
+}
+
+// span est la place d'un onglet ; close est la colonne de sa croix.
+type span struct{ x, w, close int }
+
+func New(th *theme.Theme, p *project.Project) *Model {
+	m := &Model{th: th, proj: p, textH: 20, tree: newTree()}
+	m.tree.focus = true // aucun fichier ouvert au départ
+	return m
+}
+
+func (m *Model) Title() string { return "Éditeur" }
+func (m *Model) Icon() string  { return "" }
+func (m *Model) Init() tea.Cmd { return nil }
+func (m *Model) CanEdit() bool { return m.doc() != nil }
+func (m *Model) Capturing() bool {
+	return (m.editing && !m.tree.focus) || m.picker != nil || m.prompt != promptNone
+}
+
+// doc renvoie le fichier affiché (nil : aucun).
+func (m *Model) doc() *doc {
+	if m.cur < 0 || m.cur >= len(m.docs) {
+		return nil
+	}
+	return m.docs[m.cur]
+}
+
+// Unsaved renvoie les fichiers modifiés et non enregistrés.
+func (m *Model) Unsaved() []string {
+	var out []string
+	for _, d := range m.docs {
+		if d.buf.Dirty() {
+			out = append(out, d.rel)
+		}
+	}
+	return out
+}
+
+// ─── Fichiers ────────────────────────────────────────────────────────────────
+
+func (m *Model) abs(file string) string {
+	if !filepath.IsAbs(file) {
+		file = filepath.Join(m.proj.Root, file)
+	}
+	return filepath.Clean(file)
+}
+
+func (m *Model) relName(path string) string {
+	if rel, err := filepath.Rel(m.proj.Root, path); err == nil && !strings.HasPrefix(rel, "..") {
+		return filepath.ToSlash(rel)
+	}
+	return path
+}
+
+// load ouvre un fichier (ou l'active s'il est déjà ouvert) sans changer de
+// mode ; un fichier non modifié qui a changé sur le disque est relu.
+func (m *Model) load(file string) (*doc, error) {
+	path := m.abs(file)
+	for i, d := range m.docs {
+		if d.path != path {
+			continue
+		}
+		m.cur = i
+		if st, err := os.Stat(path); err == nil && !d.buf.Dirty() && st.ModTime().UnixNano() != d.mtime {
+			if text, perm, err := readText(path); err == nil {
+				cur := d.buf.Cursor()
+				d.buf = textbuf.New(text)
+				d.buf.SetCursor(cur, false)
+				d.perm, d.mtime, d.hlVer = perm, st.ModTime().UnixNano(), -1
+			}
+		}
+		return d, nil
+	}
+	text, perm, err := readText(path)
+	if err != nil {
+		return nil, err
+	}
+	d := &doc{path: path, rel: m.relName(path), buf: textbuf.New(text), perm: perm, hlVer: -1}
+	if st, err := os.Stat(path); err == nil {
+		d.mtime = st.ModTime().UnixNano()
+	}
+	m.docs = append(m.docs, d)
+	m.cur = len(m.docs) - 1
+	return d, nil
+}
+
+// OpenFile ouvre file à la ligne line (1 = première ; 0 : position gardée)
+// et passe en édition.
+func (m *Model) OpenFile(file string, line int) tea.Cmd {
+	d, err := m.load(file)
+	if err != nil {
+		return panel.Flash("Ouverture : "+err.Error(), true)
+	}
+	m.picker, m.prompt = nil, promptNone
+	m.tree.focus, m.tree.reveal = false, d.path
+	if line > 0 {
+		d.buf.SetCursor(textbuf.Pos{Line: line - 1}, false)
+		if d.buf.Cursor().Col == 0 {
+			d.buf.MoveCursor(textbuf.LineStart, 1, false) // après l'indentation
+		}
+		m.center = true
+	}
+	m.editing, m.follow = true, true
+	return nil
+}
+
+// closeDoc ferme le fichier courant (après confirmation s'il est modifié).
+func (m *Model) closeDoc() tea.Cmd {
+	d := m.doc()
+	if d == nil {
+		return nil
+	}
+	if d.buf.Dirty() && !m.closeArmed {
+		m.closeArmed = true
+		return panel.Flash(d.rel+" n'est pas enregistré : Ctrl+W encore pour fermer sans enregistrer", true)
+	}
+	m.closeArmed = false
+	m.docs = append(m.docs[:m.cur], m.docs[m.cur+1:]...)
+	m.cur = min(m.cur, len(m.docs)-1)
+	if len(m.docs) == 0 {
+		m.cur, m.editing = 0, false
+		if m.tree.visible {
+			m.tree.focus = true // plus de texte : retour à l'arbre
+		}
+	} else {
+		m.tree.reveal = m.doc().path
+	}
+	return nil
+}
+
+// formatDoc passe le fichier Go courant à gofmt (une étape d'annulation).
+func formatDoc(d *doc) error {
+	src, err := format.Source([]byte(d.buf.String()))
+	if err != nil {
+		return err
+	}
+	d.buf.SetText(string(src))
+	return nil
+}
+
+func isGo(d *doc) bool { return strings.HasSuffix(d.path, ".go") }
+
+// save enregistre le fichier courant ; un fichier Go est d'abord formaté
+// (s'il ne se compile pas, il est enregistré tel quel avec un avertissement).
+func (m *Model) save() tea.Cmd {
+	d := m.doc()
+	if d == nil {
+		return nil
+	}
+	var fmtErr error
+	if isGo(d) {
+		fmtErr = formatDoc(d)
+	}
+	perm := d.perm
+	if perm == 0 {
+		perm = 0o644
+	}
+	if err := os.WriteFile(d.path, []byte(d.buf.String()), perm); err != nil {
+		return panel.Flash("Enregistrement : "+err.Error(), true)
+	}
+	d.buf.MarkSaved()
+	if st, err := os.Stat(d.path); err == nil {
+		d.mtime = st.ModTime().UnixNano()
+	}
+	m.follow = true
+	if fmtErr != nil {
+		return panel.Flash("Enregistré sans gofmt : "+firstLine(fmtErr.Error()), true)
+	}
+	return panel.Flash("Enregistré : "+d.rel, false)
+}
+
+func firstLine(s string) string {
+	s, _, _ = strings.Cut(s, "\n")
+	return s
+}
+
+// ─── Préférences ─────────────────────────────────────────────────────────────
+
+// State garde la liste des fichiers ouverts et le fichier affiché.
+func (m *Model) State() map[string]string {
+	files := make([]string, len(m.docs))
+	for i, d := range m.docs {
+		files[i] = d.path
+	}
+	st := map[string]string{"files": strings.Join(files, "\n"), "tree": "1"}
+	if d := m.doc(); d != nil {
+		st["current"] = d.path
+	}
+	if !m.tree.visible {
+		st["tree"] = "0"
+	}
+	var dirs []string
+	for d, open := range m.tree.expanded {
+		if open {
+			dirs = append(dirs, d)
+		}
+	}
+	slices.Sort(dirs)
+	st["expanded"] = strings.Join(dirs, "\n")
+	return st
+}
+
+func (m *Model) Restore(st map[string]string) {
+	for f := range strings.SplitSeq(st["files"], "\n") {
+		if f != "" {
+			_, _ = m.load(f) // fichier disparu depuis : ignoré
+		}
+	}
+	m.cur = 0
+	for i, d := range m.docs {
+		if d.path == st["current"] {
+			m.cur = i
+		}
+	}
+	m.tree.visible = st["tree"] != "0"
+	for d := range strings.SplitSeq(st["expanded"], "\n") {
+		if d != "" {
+			m.tree.expanded[d] = true
+		}
+	}
+	if d := m.doc(); d != nil {
+		m.tree.reveal = d.path
+	} else {
+		m.tree.focus = m.tree.visible
+	}
+}
+
+// ─── Update ──────────────────────────────────────────────────────────────────
+
+func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case panel.EditMsg:
+		return m, m.action(msg.Action)
+	case tea.PasteMsg:
+		m.paste(msg.Content)
+	case tea.MouseWheelMsg:
+		mo := tea.Mouse(msg)
+		m.wheel(mo.Button == tea.MouseWheelUp, mo.X < m.treeW)
+	case panel.ClickMsg:
+		m.click(msg)
+	case tea.KeyPressMsg:
+		return m, m.key(msg)
+	}
+	return m, nil
+}
+
+// keyActions associe les raccourcis aux actions, en lecture comme en édition.
+var keyActions = map[string]panel.EditAction{
+	"ctrl+s": panel.ActSave, "ctrl+o": panel.ActOpen, "ctrl+w": panel.ActClose, "ctrl+f4": panel.ActClose,
+	"ctrl+z": panel.ActUndo, "ctrl+y": panel.ActRedo, "ctrl+shift+z": panel.ActRedo,
+	"ctrl+x": panel.ActCut, "ctrl+insert": panel.ActCopy, "alt+c": panel.ActCopy,
+	"ctrl+v": panel.ActPaste, "shift+insert": panel.ActPaste,
+	"ctrl+a": panel.ActSelectAll, "ctrl+f": panel.ActFind, "f3": panel.ActFindNext,
+	"ctrl+g": panel.ActGoto, "ctrl+/": panel.ActComment, "ctrl+_": panel.ActComment,
+	"alt+shift+f": panel.ActFormat, "alt+F": panel.ActFormat,
+}
+
+// moves associe les touches de déplacement (sans Maj) aux mouvements.
+var moves = map[string]textbuf.Move{
+	"left": textbuf.Left, "right": textbuf.Right, "up": textbuf.Up, "down": textbuf.Down,
+	"home": textbuf.LineStart, "end": textbuf.LineEnd,
+	"ctrl+left": textbuf.WordLeft, "ctrl+right": textbuf.WordRight,
+	"alt+left": textbuf.WordLeft, "alt+right": textbuf.WordRight,
+	"ctrl+home": textbuf.DocStart, "ctrl+end": textbuf.DocEnd,
+	"pgup": textbuf.Up, "pgdown": textbuf.Down,
+}
+
+// moveFor reconnaît une touche de déplacement, avec ou sans Maj.
+func moveFor(s string) (mv textbuf.Move, extend, page, ok bool) {
+	plain := strings.Replace(s, "shift+", "", 1)
+	mv, ok = moves[plain]
+	return mv, plain != s, strings.HasPrefix(plain, "pg"), ok
+}
+
+func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
+	if m.picker != nil {
+		return m.pickerKey(k)
+	}
+	if m.prompt != promptNone {
+		return m.promptKey(k)
+	}
+	s := k.String()
+	if s != "ctrl+w" && s != "ctrl+f4" {
+		m.closeArmed = false
+	}
+	switch s {
+	case "ctrl+b": // afficher / masquer l'arbre
+		return m.action(actTree)
+	case "ctrl+e": // passer du texte à l'arbre et inversement
+		if m.tree.focus && m.doc() != nil {
+			m.tree.focus = false
+		} else {
+			m.focusTree()
+		}
+		return nil
+	}
+	if m.doc() == nil && m.tree.visible {
+		m.tree.focus = true // rien à éditer : l'arbre a la main
+	}
+	if m.tree.focus && m.tree.visible {
+		if handled, file := m.treeKey(s); handled {
+			if file != "" {
+				return m.OpenFile(file, 0)
+			}
+			return nil
+		}
+		// Les autres touches de lettre ne doivent pas modifier le texte.
+		if _, ok := keyActions[s]; !ok && !strings.HasPrefix(s, "ctrl+") {
+			return nil
+		}
+	}
+	if a, ok := keyActions[s]; ok {
+		return m.action(a)
+	}
+	switch s {
+	case "shift+f3":
+		return m.findNext(false)
+	case "ctrl+pgdown", "ctrl+tab":
+		m.switchDoc(1)
+		return nil
+	case "ctrl+pgup", "ctrl+shift+tab":
+		m.switchDoc(-1)
+		return nil
+	}
+	d := m.doc()
+	if d == nil {
+		if s == "enter" || s == "o" {
+			return m.action(panel.ActOpen)
+		}
+		return nil
+	}
+	if mv, extend, page, ok := moveFor(s); ok {
+		n := 1
+		if page {
+			n = max(1, m.textH-1)
+		}
+		d.buf.MoveCursor(mv, n, extend)
+		m.follow = true
+		return nil
+	}
+
+	if !m.editing {
+		switch s {
+		case "enter", "i":
+			m.editing, m.follow = true, true
+		case "o":
+			return m.action(panel.ActOpen)
+		case "s":
+			return m.action(panel.ActSave)
+		case "/":
+			return m.action(panel.ActFind)
+		case "n":
+			return m.findNext(true)
+		case "N":
+			return m.findNext(false)
+		case "g":
+			return m.action(panel.ActGoto)
+		case "w":
+			return m.action(panel.ActClose)
+		case "t":
+			m.focusTree()
+		}
+		return nil
+	}
+
+	b := d.buf
+	switch s {
+	case "esc":
+		if _, _, ok := b.Selection(); ok {
+			b.ClearSelection()
+		} else {
+			m.editing = false
+		}
+	case "enter":
+		b.Newline()
+	case "tab":
+		if st, e, ok := b.Selection(); ok && st.Line != e.Line {
+			b.Indent()
+		} else {
+			b.Insert("\t")
+		}
+	case "shift+tab":
+		b.Dedent()
+	case "backspace", "shift+backspace":
+		b.Backspace()
+	case "delete":
+		b.Delete()
+	default:
+		if k.Text == "" || k.Mod.Contains(tea.ModCtrl) || k.Mod.Contains(tea.ModAlt) || k.Mod.Contains(tea.ModSuper) {
+			return nil
+		}
+		b.Insert(k.Text)
+	}
+	m.follow = true
+	return nil
+}
+
+func (m *Model) switchDoc(d int) {
+	if n := len(m.docs); n > 1 {
+		m.cur = ((m.cur+d)%n + n) % n
+		m.follow = true
+	}
+}
+
+// action exécute une action du menu Édition, de la palette ou d'un raccourci.
+func (m *Model) action(a panel.EditAction) tea.Cmd {
+	if a == actTree {
+		if m.tree.visible {
+			m.tree.visible, m.tree.focus = false, false
+		} else {
+			m.focusTree()
+		}
+		return nil
+	}
+	if a == panel.ActOpen {
+		all := listFiles(m.proj.Root)
+		m.picker = &picker{all: all, matches: all}
+		return nil
+	}
+	d := m.doc()
+	if d == nil {
+		return nil
+	}
+	b := d.buf
+	m.follow = true
+	switch a {
+	case panel.ActSave:
+		return m.save()
+	case panel.ActClose:
+		cmd := m.closeDoc()
+		if len(m.docs) == 0 {
+			m.closeArmed = false
+		}
+		return cmd
+	case panel.ActUndo:
+		if !b.Undo() {
+			return panel.Flash("Rien à annuler", false)
+		}
+	case panel.ActRedo:
+		if !b.Redo() {
+			return panel.Flash("Rien à rétablir", false)
+		}
+	case panel.ActCut:
+		m.clip = b.CutLine()
+		return tea.SetClipboard(m.clip)
+	case panel.ActCopy:
+		m.clip = b.CopyText()
+		return tea.SetClipboard(m.clip)
+	case panel.ActPaste:
+		if m.clip != "" {
+			b.Insert(m.clip)
+		}
+	case panel.ActSelectAll:
+		b.SelectAll()
+	case panel.ActComment:
+		b.ToggleComment()
+	case panel.ActFormat:
+		if !isGo(d) {
+			return panel.Flash("gofmt ne s'applique qu'aux fichiers Go", true)
+		}
+		if err := formatDoc(d); err != nil {
+			return panel.Flash("gofmt : "+firstLine(err.Error()), true)
+		}
+	case panel.ActFind:
+		m.prompt, m.input, m.notFound = promptFind, "", false
+		m.origin = b.Cursor()
+		if t := b.SelectedText(); t != "" && !strings.Contains(t, "\n") {
+			m.input = t // chercher le texte sélectionné
+			s, _, _ := b.Selection()
+			m.origin = s
+		}
+	case panel.ActFindNext:
+		return m.findNext(true)
+	case panel.ActGoto:
+		m.prompt, m.input = promptGoto, ""
+	}
+	return nil
+}
+
+func (m *Model) findNext(forward bool) tea.Cmd {
+	d := m.doc()
+	if d == nil {
+		return nil
+	}
+	if m.lastFind == "" {
+		return m.action(panel.ActFind)
+	}
+	m.follow = true
+	if !d.buf.Find(m.lastFind, forward) {
+		return panel.Flash("Introuvable : "+m.lastFind, true)
+	}
+	return nil
+}
+
+// paste insère un collage du terminal (au texte, dans la saisie en cours…).
+func (m *Model) paste(text string) {
+	switch {
+	case m.picker != nil:
+		m.picker.query += firstLine(text)
+		m.filterPicker()
+	case m.prompt != promptNone:
+		m.input += firstLine(text)
+		m.searchAsYouType()
+	case m.doc() != nil && m.editing:
+		m.doc().buf.Insert(text)
+		m.follow = true
+	}
+}
+
+// ─── Saisie : recherche, aller à la ligne ────────────────────────────────────
+
+// editInput applique une touche à une saisie d'une ligne ; il renvoie false
+// si la touche n'est pas une modification de la saisie.
+func editInput(s *string, k tea.KeyPressMsg) bool {
+	switch k.String() {
+	case "backspace":
+		if r := []rune(*s); len(r) > 0 {
+			*s = string(r[:len(r)-1])
+		}
+		return true
+	case "ctrl+u":
+		*s = ""
+		return true
+	}
+	if k.Text != "" && !k.Mod.Contains(tea.ModCtrl) && !k.Mod.Contains(tea.ModAlt) {
+		*s += k.Text
+		return true
+	}
+	return false
+}
+
+func (m *Model) searchAsYouType() {
+	d := m.doc()
+	if d == nil || m.prompt != promptFind {
+		return
+	}
+	d.buf.SetCursor(m.origin, false)
+	m.notFound = m.input != "" && !d.buf.Find(m.input, true)
+	m.follow = true
+}
+
+func (m *Model) promptKey(k tea.KeyPressMsg) tea.Cmd {
+	d := m.doc()
+	if d == nil {
+		m.prompt = promptNone
+		return nil
+	}
+	switch k.String() {
+	case "esc":
+		if m.prompt == promptFind {
+			d.buf.SetCursor(m.origin, false)
+		}
+		m.prompt = promptNone
+		m.follow = true
+		return nil
+	case "enter":
+		kind := m.prompt
+		m.prompt = promptNone
+		m.follow = true
+		if kind == promptFind {
+			if m.input != "" {
+				m.lastFind = m.input
+			}
+			if m.notFound {
+				return panel.Flash("Introuvable : "+m.input, true)
+			}
+			return nil
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(m.input))
+		if err != nil || n < 1 {
+			return panel.Flash("Numéro de ligne attendu", true)
+		}
+		d.buf.SetCursor(textbuf.Pos{Line: n - 1}, false)
+		d.buf.MoveCursor(textbuf.LineStart, 1, false)
+		m.center = true
+		return nil
+	case "f3", "down", "ctrl+g":
+		if m.prompt == promptFind && m.input != "" {
+			m.notFound = !d.buf.Find(m.input, true)
+			m.follow = true
+		}
+		return nil
+	case "shift+f3", "up":
+		if m.prompt == promptFind && m.input != "" {
+			m.notFound = !d.buf.Find(m.input, false)
+			m.follow = true
+		}
+		return nil
+	}
+	if editInput(&m.input, k) {
+		m.searchAsYouType()
+	}
+	return nil
+}
+
+// ─── Choix d'un fichier ──────────────────────────────────────────────────────
+
+func (m *Model) filterPicker() {
+	p := m.picker
+	p.matches = filterFiles(p.all, p.query)
+	p.cursor, p.offset = 0, 0
+}
+
+func (m *Model) pickerKey(k tea.KeyPressMsg) tea.Cmd {
+	p := m.picker
+	switch k.String() {
+	case "esc", "ctrl+o":
+		m.picker = nil
+	case "up", "ctrl+k":
+		p.cursor = max(0, p.cursor-1)
+	case "down", "ctrl+j":
+		p.cursor = min(len(p.matches)-1, p.cursor+1)
+	case "pgup":
+		p.cursor = max(0, p.cursor-m.pickerRows())
+	case "pgdown":
+		p.cursor = min(len(p.matches)-1, p.cursor+m.pickerRows())
+	case "enter":
+		if p.cursor >= 0 && p.cursor < len(p.matches) {
+			return m.OpenFile(p.matches[p.cursor], 0)
+		}
+	default:
+		if editInput(&p.query, k) {
+			m.filterPicker()
+		}
+	}
+	return nil
+}
+
+// pickerRows est le nombre de fichiers affichés à la fois.
+func (m *Model) pickerRows() int { return max(1, m.textH-1) }
+
+// ─── Souris ──────────────────────────────────────────────────────────────────
+
+func (m *Model) wheel(up, overTree bool) {
+	if overTree {
+		t := &m.tree
+		if up {
+			t.offset = max(0, t.offset-wheelStep)
+		} else {
+			t.offset += wheelStep
+		}
+		t.cursor = min(max(t.cursor, t.offset), t.offset+max(1, m.textH)-1)
+		return
+	}
+	if p := m.picker; p != nil {
+		if up {
+			p.cursor = max(0, p.cursor-wheelStep)
+		} else {
+			p.cursor = min(len(p.matches)-1, p.cursor+wheelStep)
+		}
+		return
+	}
+	d := m.doc()
+	if d == nil {
+		return
+	}
+	if up {
+		d.top -= wheelStep
+	} else {
+		d.top += wheelStep
+	}
+	m.follow = false
+}
+
+func (m *Model) click(c panel.ClickMsg) {
+	if c.X < m.treeW && !c.Drag {
+		if f := m.treeClick(c.Y, c.Drag); f != "" {
+			m.OpenFile(f, 0)
+		}
+		return
+	}
+	c.X -= m.treeW
+	m.tree.focus = false
+	if c.Y == 0 && !c.Drag { // onglets
+		for i, sp := range m.tabSpans {
+			if c.X >= sp.x && c.X < sp.x+sp.w {
+				m.cur, m.picker, m.prompt = i, nil, promptNone
+				m.follow = true
+				if c.X == sp.close {
+					m.closeArmed = false
+					m.closeDoc() // fichier modifié : un deuxième clic confirme
+				}
+				m.tree.reveal = ""
+				if d := m.doc(); d != nil {
+					m.tree.reveal = d.path
+				}
+				return
+			}
+		}
+		return
+	}
+	if p := m.picker; p != nil {
+		if i := p.offset + c.Y - 2; !c.Drag && c.Y >= 2 && i < len(p.matches) {
+			if i == p.cursor {
+				m.OpenFile(p.matches[i], 0)
+			} else {
+				p.cursor = i
+			}
+		}
+		return
+	}
+	d := m.doc()
+	if d == nil || m.prompt != promptNone {
+		return
+	}
+	row := min(max(c.Y-1, 0), m.textH-1)
+	line := min(d.top+row, d.buf.LineCount()-1)
+	x := max(0, c.X-m.gutterW) + d.left
+	col := runeAtCol([]rune(d.buf.Line(line)), x)
+	d.buf.SetCursor(textbuf.Pos{Line: line, Col: col}, c.Drag || c.Shift)
+	m.editing, m.follow = true, true
+}
+
+// ─── Hints, commandes ────────────────────────────────────────────────────────
+
+func (m *Model) Hints() []panel.Hint {
+	switch {
+	case m.picker != nil:
+		return []panel.Hint{{Key: "↑↓", Desc: "choisir"}, {Key: "Entrée", Desc: "ouvrir"}, {Key: "Échap", Desc: "annuler"}}
+	case m.prompt == promptFind:
+		return []panel.Hint{{Key: "Entrée", Desc: "valider"}, {Key: "F3 / ↓", Desc: "suivante"}, {Key: "Maj+F3 / ↑", Desc: "précédente"}, {Key: "Échap", Desc: "annuler"}}
+	case m.prompt == promptGoto:
+		return []panel.Hint{{Key: "Entrée", Desc: "aller"}, {Key: "Échap", Desc: "annuler"}}
+	case m.tree.focus && m.tree.visible:
+		return []panel.Hint{{Key: "↑↓", Desc: "naviguer"}, {Key: "←→", Desc: "replier / déplier"}, {Key: "Entrée", Desc: "ouvrir"},
+			{Key: "Ctrl+E / Échap", Desc: "texte"}, {Key: "Ctrl+B", Desc: "masquer l'arbre"}, {Key: "r", Desc: "relire"}}
+	case m.doc() == nil:
+		return []panel.Hint{{Key: "Entrée / Ctrl+O", Desc: "ouvrir un fichier"}, {Key: "Ctrl+B", Desc: "arbre"}}
+	case m.editing:
+		return []panel.Hint{{Key: "Ctrl+S", Desc: "enregistrer"}, {Key: "Ctrl+W", Desc: "fermer"}, {Key: "Ctrl+O", Desc: "ouvrir"},
+			{Key: "Ctrl+F", Desc: "chercher"}, {Key: "Ctrl+E", Desc: "arbre"}, {Key: "Échap", Desc: "lecture"}}
+	}
+	return []panel.Hint{{Key: "Entrée", Desc: "modifier"}, {Key: "w / Ctrl+W", Desc: "fermer"}, {Key: "o", Desc: "ouvrir"},
+		{Key: "s", Desc: "enregistrer"}, {Key: "/", Desc: "chercher"}, {Key: "t", Desc: "arbre"}}
+}

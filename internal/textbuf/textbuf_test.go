@@ -239,3 +239,41 @@ func TestFindRuneCount(t *testing.T) {
 		t.Errorf("casse ignorée : %q", b.SelectedText())
 	}
 }
+
+func TestIndentDedentComment(t *testing.T) {
+	b, _ := buf("a\n\nb\nc")
+	b.SetCursor(Pos{0, 0}, false)
+	b.SetCursor(Pos{3, 0}, true) // jusqu'au début de « c » : c exclu
+	b.Indent()
+	if b.String() != "\ta\n\n\tb\nc" {
+		t.Errorf("indentation du bloc : %q", b.String())
+	}
+	if b.SelectedText() != "\ta\n\n\tb" {
+		t.Errorf("bloc toujours sélectionné : %q", b.SelectedText())
+	}
+	b.Dedent()
+	if b.String() != "a\n\nb\nc" {
+		t.Errorf("désindentation : %q", b.String())
+	}
+	b.Undo()
+	if b.String() != "\ta\n\n\tb\nc" {
+		t.Errorf("une étape d'annulation : %q", b.String())
+	}
+
+	// Commentaires, curseur qui suit sa ligne.
+	b2, _ := buf("\tx := 1\n\ty := 2")
+	b2.SetCursor(Pos{0, 3}, false)
+	b2.ToggleComment()
+	if b2.String() != "\t// x := 1\n\ty := 2" || b2.Cursor() != (Pos{0, 6}) {
+		t.Errorf("commenter : %q %v", b2.String(), b2.Cursor())
+	}
+	b2.SelectAll()
+	b2.ToggleComment() // une ligne non commentée : tout commenter
+	if b2.String() != "\t// // x := 1\n\t// y := 2" {
+		t.Errorf("commenter le bloc : %q", b2.String())
+	}
+	b2.ToggleComment()
+	if b2.String() != "\t// x := 1\n\ty := 2" {
+		t.Errorf("décommenter le bloc : %q", b2.String())
+	}
+}

@@ -14,7 +14,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/laurentpoirierfr/gopit/internal/editor"
 	"github.com/laurentpoirierfr/gopit/internal/gitx"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
@@ -273,7 +272,7 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 		m.typing, m.message = true, ""
 	case "o", "enter":
 		if r != nil && r.change != nil {
-			return editor.Open(m.proj.Root, filepath.Join(m.proj.Root, r.change.Path), 0)
+			return panel.Open(filepath.Join(m.proj.Root, r.change.Path), 0)
 		}
 	}
 	return nil
