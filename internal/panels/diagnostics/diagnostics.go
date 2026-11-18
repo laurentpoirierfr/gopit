@@ -33,6 +33,13 @@ type toolDoneMsg struct {
 
 type spinMsg struct{ gen int }
 
+// autoMsg relance l'analyse après un enregistrement (si aucun autre n'a
+// suivi entre-temps).
+type autoMsg struct{ gen int }
+
+// autoDelay regroupe les enregistrements rapprochés en une seule analyse.
+const autoDelay = 500 * time.Millisecond
+
 type toolState struct {
 	running bool
 	missing bool
@@ -77,6 +84,9 @@ type Model struct {
 	listH  int
 	spin   int
 	source map[string][]string // lignes des fichiers, pour les extraits
+
+	autoGen int  // dernier enregistrement reçu
+	quiet   bool // analyse relancée automatiquement : pas de bilan affiché
 }
 
 func New(th *theme.Theme, p *project.Project) *Model {
@@ -165,11 +175,31 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 			return m, nil
 		}
 		m.cancel = nil
+		if m.quiet {
+			m.quiet = false
+			return m, nil
+		}
 		e, w, i := diag.Counts(m.all)
 		if e+w+i == 0 {
 			return m, panel.Flash(i18n.T("Diagnostics : aucun problème"), false)
 		}
 		return m, panel.Flash(fmt.Sprintf(i18n.T("Diagnostics : %d erreur(s), %d avertissement(s), %d info(s)"), e, w, i), e > 0)
+
+	case panel.SavedMsg:
+		// Fichier Go (ou go.mod) enregistré dans l'éditeur : l'analyse est
+		// relancée peu après, sans bilan (l'éditeur souligne déjà les
+		// erreurs).
+		if base := filepath.Base(msg.Path); strings.HasSuffix(base, ".go") || base == "go.mod" || base == "go.sum" {
+			m.autoGen++
+			gen := m.autoGen
+			return m, tea.Tick(autoDelay, func(time.Time) tea.Msg { return autoMsg{gen} })
+		}
+
+	case autoMsg:
+		if msg.gen == m.autoGen {
+			m.quiet = true
+			return m, m.runAll()
+		}
 
 	case spinMsg:
 		if msg.gen == m.gen && m.running() {
@@ -186,6 +216,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 func (m *Model) handleKey(s string) tea.Cmd {
 	switch s {
 	case "a", "f5":
+		m.quiet = false
 		return m.runAll()
 	case "enter", "o":
 		if d := m.selected(); d != nil {

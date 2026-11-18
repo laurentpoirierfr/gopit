@@ -57,7 +57,7 @@ está disponible). Se puede cambiar durante la ejecución (menú Ver, o
 |---|---|
 | Inicio — resumen del módulo (versión de Go, paquetes, archivos, git) | ✅ |
 | Pruebas — `go test -json` en directo, relanzamiento selectivo, apertura del error, relanzamiento automático al guardar (`w`), cobertura por paquete y por archivo (`v`) | ✅ |
-| Diagnósticos — `go vet`, staticcheck, gopls y gofmt, combinados, con extracto del código | ✅ |
+| Diagnósticos — `go vet`, staticcheck, gopls y gofmt, combinados, con extracto del código; se relanzan con cada guardado en el editor | ✅ |
 | Módulos — dependencias, actualizaciones (`go get` tras confirmación), `go mod why`, `govulncheck` | ✅ |
 | Docs — documentación de los paquetes del módulo y de la biblioteca estándar, mostrada con Glamour | ✅ |
 | Benchmarks — `go test -bench`, historial de ejecuciones, comparación con una referencia (Δ % y ruido), evolución en sparkline, perfiles de CPU y memoria (`p`, `m`) con código fuente anotado | ✅ |

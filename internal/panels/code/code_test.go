@@ -130,7 +130,16 @@ func TestEditSaveFormatsGo(t *testing.T) {
 	if !slices.Equal(m.Unsaved(), []string{"a.go"}) {
 		t.Errorf("non enregistré : %v", m.Unsaved())
 	}
-	m.Update(key("ctrl+s"))
+	_, cmd := m.Update(key("ctrl+s"))
+	saved := false
+	for _, msg := range collect(cmd) {
+		if sm, ok := msg.(panel.SavedMsg); ok && sm.Path == path {
+			saved = true
+		}
+	}
+	if !saved {
+		t.Error("l'enregistrement est annoncé aux autres modules (SavedMsg)")
+	}
 	data, _ := os.ReadFile(path)
 	if want := "package a\n\nfunc f() {}\n\nvar x = 1\n"; string(data) != want {
 		t.Errorf("enregistré avec gofmt :\n%q\nattendu\n%q", data, want)
@@ -717,4 +726,21 @@ func TestNewFile(t *testing.T) {
 	if m.prompt != promptNew || m.input != "cmd/" {
 		t.Errorf("« n » dans l'arbre : invite %d, saisie %q", m.prompt, m.input)
 	}
+}
+
+// collect exécute une commande (et celles qu'elle regroupe) et renvoie les
+// messages obtenus.
+func collect(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	if b, ok := msg.(tea.BatchMsg); ok {
+		var out []tea.Msg
+		for _, c := range b {
+			out = append(out, collect(c)...)
+		}
+		return out
+	}
+	return []tea.Msg{msg}
 }

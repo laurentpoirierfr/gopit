@@ -55,7 +55,7 @@ that isn't available). You can change it while running (View menu, or
 |---|---|
 | Home — module summary (Go version, packages, files, git) | ✅ |
 | Tests — live `go test -json`, targeted reruns, open the failure, automatic rerun on save (`w`), coverage per package and per file (`v`) | ✅ |
-| Diagnostics — `go vet`, staticcheck, gopls and gofmt, merged, with a code excerpt | ✅ |
+| Diagnostics — `go vet`, staticcheck, gopls and gofmt, merged, with a code excerpt; rerun on every save in the editor | ✅ |
 | Modules — dependencies, updates (`go get` after confirmation), `go mod why`, `govulncheck` | ✅ |
 | Docs — documentation of the module's packages and of the standard library, rendered with Glamour | ✅ |
 | Benchmarks — `go test -bench`, run history, comparison with a baseline (Δ % and noise), sparkline trend, CPU and memory profiles (`p`, `m`) with annotated source | ✅ |

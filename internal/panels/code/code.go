@@ -288,9 +288,9 @@ func (m *Model) save() tea.Cmd {
 	}
 	m.follow = true
 	if fmtErr != nil {
-		return panel.Flash(i18n.T("Enregistré sans gofmt : ")+firstLine(fmtErr.Error()), true)
+		return tea.Batch(panel.Saved(d.path), panel.Flash(i18n.T("Enregistré sans gofmt : ")+firstLine(fmtErr.Error()), true))
 	}
-	return panel.Flash(i18n.T("Enregistré : ")+d.rel, false)
+	return tea.Batch(panel.Saved(d.path), panel.Flash(i18n.T("Enregistré : ")+d.rel, false))
 }
 
 func firstLine(s string) string {

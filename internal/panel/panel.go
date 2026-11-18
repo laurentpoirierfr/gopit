@@ -57,6 +57,15 @@ func Flash(text string, isErr bool) tea.Cmd {
 	return func() tea.Msg { return FlashMsg{Text: text, Error: isErr} }
 }
 
+// SavedMsg est diffusé à tous les modules quand un fichier est enregistré
+// dans l'éditeur intégré (pour relancer une analyse…).
+type SavedMsg struct{ Path string }
+
+// Saved renvoie une commande qui diffuse SavedMsg.
+func Saved(path string) tea.Cmd {
+	return func() tea.Msg { return SavedMsg{Path: path} }
+}
+
 // LangMsg est envoyé à tous les modules quand la langue de l'interface
 // change : ceux qui gardent du texte déjà traduit le recalculent.
 type LangMsg struct{}

@@ -56,7 +56,7 @@ préférences ; `gopit -lang en` l'impose pour une session.
 |---|---|
 | Accueil — résumé du module (version Go, paquets, fichiers, git) | ✅ |
 | Tests — `go test -json` en direct, relance ciblée, ouverture de l'erreur, relance automatique à l'enregistrement (`w`), couverture par paquet et par fichier (`v`) | ✅ |
-| Diagnostics — `go vet`, staticcheck, gopls et gofmt, fusionnés, avec extrait du code | ✅ |
+| Diagnostics — `go vet`, staticcheck, gopls et gofmt, fusionnés, avec extrait du code ; relancés à chaque enregistrement dans l'éditeur | ✅ |
 | Modules — dépendances, mises à jour (`go get` après confirmation), `go mod why`, `govulncheck` | ✅ |
 | Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
 | Benchmarks — `go test -bench`, historique des exécutions, comparaison avec une référence (Δ % et bruit), évolution en sparkline, profils CPU et mémoire (`p`, `m`) avec code source annoté | ✅ |
