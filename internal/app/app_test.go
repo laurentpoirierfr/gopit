@@ -131,7 +131,7 @@ func savedConfig(t *testing.T) *config.Config {
 
 func TestQuitSavesPreferences(t *testing.T) {
 	m := newApp(t, nil)
-	press(m, "7") // Git
+	press(m, "5") // Git
 	if !isQuit(press(m, "q")) {
 		t.Fatal("q quitte")
 	}
@@ -186,14 +186,19 @@ func TestCtrlC(t *testing.T) {
 
 func TestSwitchModule(t *testing.T) {
 	m := newApp(t, nil)
-	press(m, "2")
-	if m.panels[m.cur].Title() != "Tests" {
-		t.Fatalf("2 : %s", m.panels[m.cur].Title())
+	// Ordre d'usage : Accueil, Éditeur, Tests, Diagnostics, Git, Terminal,
+	// Docs, Modules, Benchmarks.
+	for key, want := range map[string]string{"2": "Éditeur", "3": "Tests", "5": "Git", "6": "Terminal", "9": "Benchmarks"} {
+		press(m, "1") // retour à l'Accueil (le Terminal capte les touches)
+		press(m, key)
+		if got := m.panels[m.cur].Title(); got != want {
+			t.Errorf("%s : %s, attendu %s", key, got, want)
+		}
+		if want == "Terminal" {
+			press(m, "esc") // sortir de la saisie
+		}
 	}
-	press(m, "9") // au-delà des modules : rien
-	if m.panels[m.cur].Title() != "Tests" {
-		t.Errorf("9 : %s", m.panels[m.cur].Title())
-	}
+	press(m, "3")
 	openInEditor(t, m)
 	typeText(m, "3")
 	if m.panels[m.cur].Title() != "Éditeur" {

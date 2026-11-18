@@ -27,7 +27,7 @@ to the first `go.mod`.
 
 | Key | Action |
 |---|---|
-| `↑` `↓` or `1`…`8` | choose a module |
+| `↑` `↓` or `1`…`9` | choose a module |
 | `Ctrl+P` | command palette: every action of every module |
 | `F10` or `Alt` + underlined letter | menu bar |
 | `Ctrl+O` / `Ctrl+N` | open / create a project file in the built-in editor |
@@ -54,17 +54,18 @@ that isn't available). You can change it while running (View menu, or
 | Module | Status |
 |---|---|
 | Home — module summary (Go version, packages, files, git) | ✅ |
+| Editor — project tree, several open files, Go highlighting, automatic indentation, gofmt on save, errors underlined as you type and completion (gopls), find and replace, mouse selection, undo/redo, go to definition and symbol documentation (gopls) | ✅ |
 | Tests — live `go test -json`, targeted reruns, open the failure, automatic rerun on save (`w`), coverage per package and per file (`v`) | ✅ |
 | Diagnostics — `go vet`, staticcheck, gopls and gofmt, merged, with a code excerpt; rerun on every save in the editor | ✅ |
-| Modules — dependencies, updates (`go get` after confirmation), `go mod why`, `govulncheck` | ✅ |
-| Docs — documentation of the module's packages and of the standard library, rendered with Glamour | ✅ |
-| Benchmarks — `go test -bench`, run history, comparison with a baseline (Δ % and noise), sparkline trend, CPU and memory profiles (`p`, `m`) with annotated source | ✅ |
 | Git — repository status, colored diff, recent commits; stage (`s`, `A`), unstage (`u`), commit (`c`) — no destructive action, no push | ✅ |
-| Editor — project tree, several open files, Go highlighting, automatic indentation, gofmt on save, errors underlined as you type and completion (gopls), find and replace, mouse selection, undo/redo, go to definition and symbol documentation (gopls) | ✅ |
+| Terminal — shell commands in the project directory (`go build`, `make`, `go run .`…), live output, history, rerun (`r`), stop (`Ctrl+C`), open `file.go:line` locations (`o`); no interactive programs | ✅ |
+| Docs — documentation of the module's packages and of the standard library, rendered with Glamour | ✅ |
+| Modules — dependencies, updates (`go get` after confirmation), `go mod why`, `govulncheck` | ✅ |
+| Benchmarks — `go test -bench`, run history, comparison with a baseline (Δ % and noise), sparkline trend, CPU and memory profiles (`p`, `m`) with annotated source | ✅ |
 
 ### Built-in editor
 
-Opening a file from Tests, Diagnostics, Docs, Benchmarks or Git (`Enter` /
+Opening a file from Tests, Diagnostics, Git, Terminal, Docs or Benchmarks (`Enter` /
 `o`) shows it in the editor, at the right line. Two modes: **read** (the
 cockpit keys stay active) and **edit** (`Enter` or a click; `Esc` to leave).
 
@@ -107,7 +108,7 @@ the tree's visibility are restored at the next startup.
 cmd/gopit/            entry point (options, module detection)
 internal/app/         application frame: navigation, bars, focus
 internal/panel/       Panel interface shared by all modules
-internal/panels/      one package per module (home, tests, diagnostics, modules, docs, benchmarks, git, code)
+internal/panels/      one package per module (home, code, tests, diagnostics, git, shell, docs, modules, benchmarks)
 internal/project/     reading go.mod
 internal/theme/       light / dark Catppuccin palette and styles
 internal/version/     version injected by the Makefile

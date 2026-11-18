@@ -318,7 +318,7 @@ func TestTabCloseCross(t *testing.T) {
 
 func TestCtrlCCopies(t *testing.T) {
 	m, dir := newModel(t)
-	if m.CopiesOnCtrlC() {
+	if m.TakesCtrlC() {
 		t.Error("aucun fichier ouvert : Ctrl+C quitte")
 	}
 	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n\nvar x = 1\n"), 0o600); err != nil {
@@ -328,7 +328,7 @@ func TestCtrlCCopies(t *testing.T) {
 		t.Fatalf("ouverture : %v", cmd())
 	}
 	for _, editing := range []bool{true, false} {
-		if !m.CopiesOnCtrlC() {
+		if !m.TakesCtrlC() {
 			t.Fatalf("fichier affiché (édition : %v) : Ctrl+C copie", editing)
 		}
 		m.clip = ""

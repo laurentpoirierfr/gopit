@@ -38,11 +38,12 @@ type Capturer interface {
 	Capturing() bool
 }
 
-// Copier est implémenté par les panneaux où Ctrl+C copie au lieu de quitter
-// (l'éditeur) : tant que CopiesOnCtrlC renvoie true, Ctrl+C leur est transmis.
+// CtrlCTaker est implémenté par les panneaux qui donnent un sens à Ctrl+C
+// (copier dans l'éditeur, arrêter la commande du terminal) : tant que
+// TakesCtrlC renvoie true, Ctrl+C leur est transmis au lieu de quitter.
 // Ctrl+Q quitte toujours.
-type Copier interface {
-	CopiesOnCtrlC() bool
+type CtrlCTaker interface {
+	TakesCtrlC() bool
 }
 
 // FlashMsg permet à un panneau d'afficher un message temporaire dans la barre

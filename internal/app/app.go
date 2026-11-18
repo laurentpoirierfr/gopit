@@ -24,6 +24,7 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/panels/git"
 	"github.com/laurentpoirierfr/gopit/internal/panels/home"
 	"github.com/laurentpoirierfr/gopit/internal/panels/modules"
+	"github.com/laurentpoirierfr/gopit/internal/panels/shell"
 	"github.com/laurentpoirierfr/gopit/internal/panels/tests"
 	"github.com/laurentpoirierfr/gopit/internal/project"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
@@ -73,15 +74,19 @@ func New(p *project.Project) *Model {
 	m := &Model{
 		th:   th,
 		proj: p,
+		// Par ordre d'usage pendant le développement : on écrit, on teste, on
+		// corrige, on commite ; la documentation, les dépendances et les
+		// benchmarks viennent plus rarement.
 		panels: []panel.Panel{
 			home.New(th, p),
+			code.New(th, p),
 			tests.New(th, p),
 			diagnostics.New(th, p),
-			modules.New(th, p),
-			docs.New(th, p),
-			benchmarks.New(th, p),
 			git.New(th, p),
-			code.New(th, p),
+			shell.New(th, p),
+			docs.New(th, p),
+			modules.New(th, p),
+			benchmarks.New(th, p),
 		},
 		menu:  menuState{open: -1},
 		focus: focusContent,
@@ -196,7 +201,7 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	s := k.String()
 	if s == "ctrl+c" && !m.pal.open && m.modal == modalNone && m.menu.open < 0 {
-		if c, ok := m.panels[m.cur].(panel.Copier); ok && c.CopiesOnCtrlC() {
+		if c, ok := m.panels[m.cur].(panel.CtrlCTaker); ok && c.TakesCtrlC() {
 			m.quitArmed = false
 			return m.toPanel(k)
 		}

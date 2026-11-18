@@ -28,7 +28,7 @@ hasta el primer `go.mod`.
 
 | Tecla | Acción |
 |---|---|
-| `↑` `↓` o `1`…`8` | elegir un módulo |
+| `↑` `↓` o `1`…`9` | elegir un módulo |
 | `Ctrl+P` | paleta de comandos: todas las acciones de todos los módulos |
 | `F10` o `Alt` + letra subrayada | barra de menús |
 | `Ctrl+O` / `Ctrl+N` | abrir / crear un archivo del proyecto en el editor integrado |
@@ -56,17 +56,18 @@ está disponible). Se puede cambiar durante la ejecución (menú Ver, o
 | Módulo | Estado |
 |---|---|
 | Inicio — resumen del módulo (versión de Go, paquetes, archivos, git) | ✅ |
+| Editor — árbol del proyecto, varios archivos abiertos, coloreado de Go, indentación automática, gofmt al guardar, errores subrayados mientras escribes y autocompletado (gopls), buscar y reemplazar, selección con el ratón, deshacer/rehacer, ir a la definición y documentación de los símbolos (gopls) | ✅ |
 | Pruebas — `go test -json` en directo, relanzamiento selectivo, apertura del error, relanzamiento automático al guardar (`w`), cobertura por paquete y por archivo (`v`) | ✅ |
 | Diagnósticos — `go vet`, staticcheck, gopls y gofmt, combinados, con extracto del código; se relanzan con cada guardado en el editor | ✅ |
-| Módulos — dependencias, actualizaciones (`go get` tras confirmación), `go mod why`, `govulncheck` | ✅ |
-| Docs — documentación de los paquetes del módulo y de la biblioteca estándar, mostrada con Glamour | ✅ |
-| Benchmarks — `go test -bench`, historial de ejecuciones, comparación con una referencia (Δ % y ruido), evolución en sparkline, perfiles de CPU y memoria (`p`, `m`) con código fuente anotado | ✅ |
 | Git — estado del repositorio, diff en color, commits recientes; indexar (`s`, `A`), desindexar (`u`), hacer commit (`c`), sin acciones destructivas ni push | ✅ |
-| Editor — árbol del proyecto, varios archivos abiertos, coloreado de Go, indentación automática, gofmt al guardar, errores subrayados mientras escribes y autocompletado (gopls), buscar y reemplazar, selección con el ratón, deshacer/rehacer, ir a la definición y documentación de los símbolos (gopls) | ✅ |
+| Terminal — comandos del shell en el directorio del proyecto (`go build`, `make`, `go run .`…), salida en directo, historial, relanzamiento (`r`), detención (`Ctrl+C`), apertura de las ubicaciones `archivo.go:línea` (`o`); sin programas interactivos | ✅ |
+| Docs — documentación de los paquetes del módulo y de la biblioteca estándar, mostrada con Glamour | ✅ |
+| Módulos — dependencias, actualizaciones (`go get` tras confirmación), `go mod why`, `govulncheck` | ✅ |
+| Benchmarks — `go test -bench`, historial de ejecuciones, comparación con una referencia (Δ % y ruido), evolución en sparkline, perfiles de CPU y memoria (`p`, `m`) con código fuente anotado | ✅ |
 
 ### Editor integrado
 
-Abrir un archivo desde Pruebas, Diagnósticos, Docs, Benchmarks o Git
+Abrir un archivo desde Pruebas, Diagnósticos, Git, Terminal, Docs o Benchmarks
 (`Intro` / `o`) lo muestra en el editor, en la línea correcta. Dos modos:
 **lectura** (las teclas del cockpit siguen activas) y **edición** (`Intro`
 o un clic; `Esc` para salir).
@@ -112,7 +113,7 @@ en el siguiente arranque.
 cmd/gopit/            punto de entrada (opciones, detección del módulo)
 internal/app/         marco de la aplicación: navegación, barras, foco
 internal/panel/       interfaz Panel común a todos los módulos
-internal/panels/      un paquete por módulo (home, tests, diagnostics, modules, docs, benchmarks, git, code)
+internal/panels/      un paquete por módulo (home, code, tests, diagnostics, git, shell, docs, modules, benchmarks)
 internal/project/     lectura de go.mod
 internal/theme/       paleta Catppuccin clara / oscura y estilos
 internal/version/     versión inyectada por el Makefile

@@ -133,9 +133,9 @@ func (m *Model) Capturing() bool {
 	return (m.editing && !m.tree.focus) || m.picker != nil || m.prompt != promptNone
 }
 
-// CopiesOnCtrlC : Ctrl+C copie dès qu'un fichier est affiché et que le texte
+// TakesCtrlC : Ctrl+C copie dès qu'un fichier est affiché et que le texte
 // a le focus (en lecture comme en édition) ; ailleurs, il quitte.
-func (m *Model) CopiesOnCtrlC() bool {
+func (m *Model) TakesCtrlC() bool {
 	return m.doc() != nil && !m.tree.focus && m.picker == nil && m.prompt == promptNone
 }
 
