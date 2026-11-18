@@ -13,7 +13,23 @@ intégré, pensé pour Go ; tu peux aussi garder ton éditeur (`$VISUAL` /
 Construit avec la pile [Charm](https://charm.land/) : Bubble Tea v2,
 Lip Gloss v2.
 
-![gopit : le module Tests en cours d'exécution sur gopit lui-même](assets/screenshot.png)
+![gopit : l'éditeur intégré sur gopit lui-même, avec la complétion de gopls](assets/screenshots/02-editeur.png)
+
+## Captures d'écran
+
+gopit sur son propre dépôt (captures produites par `make screenshots`) :
+
+| | |
+|---|---|
+| ![Accueil : résumé du module](assets/screenshots/01-accueil.png)<br>Accueil : résumé du module | ![Éditeur : complétion de gopls, erreur soulignée](assets/screenshots/02-editeur.png)<br>Éditeur : complétion de gopls, erreur soulignée |
+| ![Tests : résultats en direct et couverture](assets/screenshots/03-tests.png)<br>Tests : résultats en direct et couverture | ![Diagnostics : go vet, gopls, gofmt](assets/screenshots/04-diagnostics.png)<br>Diagnostics : go vet, gopls, gofmt |
+| ![Débogage : point d'arrêt atteint dans l'éditeur](assets/screenshots/05-debogage-editeur.png)<br>Débogage : point d'arrêt atteint dans l'éditeur | ![Débogage : pile d'appels et variables](assets/screenshots/05-debogage.png)<br>Débogage : pile d'appels et variables |
+| ![Git : état, diff et commits](assets/screenshots/06-git.png)<br>Git : état, diff et commits | ![Terminal : un vrai shell](assets/screenshots/07-terminal.png)<br>Terminal : un vrai shell |
+| ![Docs : documentation d'un paquet](assets/screenshots/08-docs.png)<br>Docs : documentation d'un paquet | ![Modules : dépendances](assets/screenshots/09-modules.png)<br>Modules : dépendances |
+| ![Benchmarks : mesures et comparaison](assets/screenshots/10-benchmarks.png)<br>Benchmarks : mesures et comparaison |  |
+
+Pour les refaire : `make screenshots` (police Nerd Font, gopls et Delve nécessaires).
+
 
 ## Utilisation
 

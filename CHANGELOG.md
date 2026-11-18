@@ -21,6 +21,11 @@ montre ce qui sera publié).
   pilotant gopit sur son propre dépôt (`assets/screenshots/`).
 - Benchmarks de l'éditeur (frappe, recherche, remplacement, coloration).
 
+### Modifié
+
+- README : nouvelle image principale (l'éditeur) et galerie de captures de
+  tous les modules, en français, anglais et espagnol.
+
 ## [0.3.0] - 2026-11-18
 
 ### Ajouté

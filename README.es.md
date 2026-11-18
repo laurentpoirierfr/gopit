@@ -14,7 +14,23 @@ externo».
 Construido con la pila [Charm](https://charm.land/): Bubble Tea v2,
 Lip Gloss v2.
 
-![gopit: el módulo Pruebas ejecutándose sobre el propio gopit](assets/screenshot.png)
+![gopit: el editor integrado sobre el propio gopit, con el autocompletado de gopls](assets/screenshots/02-editeur.png)
+
+## Capturas de pantalla
+
+gopit sobre su propio repositorio (capturas producidas con `make screenshots`, interfaz en francés):
+
+| | |
+|---|---|
+| ![Inicio: resumen del módulo](assets/screenshots/01-accueil.png)<br>Inicio: resumen del módulo | ![Editor: autocompletado de gopls, error subrayado](assets/screenshots/02-editeur.png)<br>Editor: autocompletado de gopls, error subrayado |
+| ![Pruebas: resultados en directo y cobertura](assets/screenshots/03-tests.png)<br>Pruebas: resultados en directo y cobertura | ![Diagnósticos: go vet, gopls, gofmt](assets/screenshots/04-diagnostics.png)<br>Diagnósticos: go vet, gopls, gofmt |
+| ![Depuración: punto de interrupción alcanzado en el editor](assets/screenshots/05-debogage-editeur.png)<br>Depuración: punto de interrupción alcanzado en el editor | ![Depuración: pila de llamadas y variables](assets/screenshots/05-debogage.png)<br>Depuración: pila de llamadas y variables |
+| ![Git: estado, diff y commits](assets/screenshots/06-git.png)<br>Git: estado, diff y commits | ![Terminal: un shell real](assets/screenshots/07-terminal.png)<br>Terminal: un shell real |
+| ![Docs: documentación de un paquete](assets/screenshots/08-docs.png)<br>Docs: documentación de un paquete | ![Módulos: dependencias](assets/screenshots/09-modules.png)<br>Módulos: dependencias |
+| ![Benchmarks: mediciones y comparación](assets/screenshots/10-benchmarks.png)<br>Benchmarks: mediciones y comparación |  |
+
+Para regenerarlas: `make screenshots` (requiere una Nerd Font, gopls y Delve).
+
 
 ## Uso
 

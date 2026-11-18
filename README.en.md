@@ -13,7 +13,23 @@ File menu → "Open files in external editor".
 Built with the [Charm](https://charm.land/) stack: Bubble Tea v2,
 Lip Gloss v2.
 
-![gopit: the Tests module running on gopit itself](assets/screenshot.png)
+![gopit: the built-in editor on gopit itself, with gopls completion](assets/screenshots/02-editeur.png)
+
+## Screenshots
+
+gopit on its own repository (screenshots produced by `make screenshots`, interface in French):
+
+| | |
+|---|---|
+| ![Home: module summary](assets/screenshots/01-accueil.png)<br>Home: module summary | ![Editor: gopls completion, underlined error](assets/screenshots/02-editeur.png)<br>Editor: gopls completion, underlined error |
+| ![Tests: live results and coverage](assets/screenshots/03-tests.png)<br>Tests: live results and coverage | ![Diagnostics: go vet, gopls, gofmt](assets/screenshots/04-diagnostics.png)<br>Diagnostics: go vet, gopls, gofmt |
+| ![Debug: breakpoint hit in the editor](assets/screenshots/05-debogage-editeur.png)<br>Debug: breakpoint hit in the editor | ![Debug: call stack and variables](assets/screenshots/05-debogage.png)<br>Debug: call stack and variables |
+| ![Git: status, diff and commits](assets/screenshots/06-git.png)<br>Git: status, diff and commits | ![Terminal: a real shell](assets/screenshots/07-terminal.png)<br>Terminal: a real shell |
+| ![Docs: package documentation](assets/screenshots/08-docs.png)<br>Docs: package documentation | ![Modules: dependencies](assets/screenshots/09-modules.png)<br>Modules: dependencies |
+| ![Benchmarks: measurements and comparison](assets/screenshots/10-benchmarks.png)<br>Benchmarks: measurements and comparison |  |
+
+To regenerate them: `make screenshots` (needs a Nerd Font, gopls and Delve).
+
 
 ## Usage
 
