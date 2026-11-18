@@ -160,3 +160,8 @@ editor depending on the preferences.
 make help     # list of targets
 make check    # formatting + go vet + tests
 ```
+
+Changes for each version are recorded (in French) in
+[CHANGELOG.md](CHANGELOG.md): add yours under "Non publié"; the version's
+section becomes the GitHub release notes (`make release-notes TAG=vX.Y.Z` to
+review it before tagging).

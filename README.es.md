@@ -164,3 +164,8 @@ externo según las preferencias.
 make help     # lista de objetivos
 make check    # formato + go vet + pruebas
 ```
+
+Los cambios de cada versión se registran (en francés) en
+[CHANGELOG.md](CHANGELOG.md): añade los tuyos bajo «Non publié»; la sección
+de la versión se usa como notas de versión en GitHub
+(`make release-notes TAG=vX.Y.Z` para revisarla antes de crear el tag).

@@ -2,6 +2,9 @@
 # arm64) et sommes de contrôle attachés à une release GitHub, via GoReleaser.
 #
 #   git tag v0.1.0 && git push origin v0.1.0
+#
+# Les notes de version sont la section du tag dans CHANGELOG.md
+# (make release-notes TAG=v0.1.0 pour les relire avant).
 name: Release
 
 on:
@@ -21,6 +24,11 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Pas de version sans ses notes : la section du tag doit exister dans
+      # CHANGELOG.md, sinon rien n'est publié.
+      - name: Notes de version dans CHANGELOG.md
+        run: make -s release-notes TAG="${GITHUB_REF_NAME}"
+
       - run: make check
 
   goreleaser:
@@ -38,9 +46,12 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Notes de version
+        run: make -s release-notes TAG="${GITHUB_REF_NAME}" > "${RUNNER_TEMP}/notes.md"
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean
+          args: release --clean --release-notes ${{ runner.temp }}/notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -20,7 +20,7 @@ PODMAN := $(shell $(DOCKER) version 2>&1 | grep -qi podman && echo 1)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build run install uninstall test cover vet fmt fmt-check check tidy clean release-snapshot act
+.PHONY: help build run install uninstall test cover vet fmt fmt-check check tidy clean release-snapshot release-notes act
 
 help: ## Affiche la liste des cibles
 	@sed -n -E 's/^([a-zA-Z0-9_-]+):[^#]*## ?(.*)$$/  \1  \2/p' $(MAKEFILE_LIST)
@@ -63,6 +63,14 @@ clean: ## Supprime bin/, dist/ et la couverture
 
 release-snapshot: ## Essai local de GoReleaser dans dist/, sans rien publier
 	go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
+
+release-notes: ## Notes de version d'un tag, tirées de CHANGELOG.md (TAG=v0.3.0)
+	@test -n "$(TAG)" || { echo "TAG manquant : make release-notes TAG=v0.3.0" >&2; exit 1; }
+	@notes=$$(awk -v v="$(patsubst v%,%,$(TAG))" '/^## \[/ { if (p) exit; if (index($$0, "## [" v "]") == 1) { p = 1; next } } /^\[[^]]+\]: / { if (p) exit } p' CHANGELOG.md); \
+	if [ -z "$$(printf '%s' "$$notes" | tr -d '[:space:]')" ]; then \
+		echo "CHANGELOG.md : aucune section « ## [$(patsubst v%,%,$(TAG))] » (ou section vide)" >&2; exit 1; \
+	fi; \
+	printf '%s\n' "$$notes" | sed -e '/./,$$!d'
 
 # act parle à l'API Docker : avec podman, on utilise le socket utilisateur
 # (systemctl --user start podman.socket), sauf si DOCKER_HOST est déjà défini.

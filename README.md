@@ -163,3 +163,8 @@ cadre l'envoie à l'éditeur intégré ou externe selon les préférences.
 make help     # liste des cibles
 make check    # formatage + go vet + tests
 ```
+
+Les évolutions de chaque version sont consignées dans
+[CHANGELOG.md](CHANGELOG.md) : on y ajoute ses changements sous « Non
+publié », et la section de la version sert de notes de version sur GitHub
+(`make release-notes TAG=vX.Y.Z` pour la relire avant de créer le tag).
