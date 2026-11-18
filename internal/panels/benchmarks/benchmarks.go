@@ -337,7 +337,7 @@ func (m *Model) handleKey(s string) tea.Cmd {
 		if m.pr.report != nil {
 			m.pr.open = true
 		}
-	case "a", "f5":
+	case "a":
 		return m.runAll()
 	case "enter":
 		return m.runSelected()

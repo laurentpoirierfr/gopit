@@ -215,7 +215,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 
 func (m *Model) handleKey(s string) tea.Cmd {
 	switch s {
-	case "a", "f5":
+	case "a":
 		m.quiet = false
 		return m.runAll()
 	case "enter", "o":

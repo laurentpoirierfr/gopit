@@ -23,13 +23,15 @@ jobs:
 
       # Les tests de l'éditeur et du client LSP dialoguent avec le vrai gopls
       # (ils sont sautés sans lui) : version fixée, pour des résultats stables.
-      - name: Installer gopls
+      # Idem pour le débogueur : les tests du module Débogage pilotent Delve.
+      - name: Installer gopls et Delve
         run: |
           go install golang.org/x/tools/gopls@v0.24.0
+          go install github.com/go-delve/delve/cmd/dlv@v1.27.2
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Vérifier gopls
-        run: gopls version
+      - name: Vérifier gopls et Delve
+        run: gopls version && dlv version
 
       - name: Formatage, vet et tests
         run: make check

@@ -39,7 +39,7 @@ const paletteRows = 12
 func (m *Model) openPalette() {
 	var items []paletteItem
 	for i, p := range m.panels {
-		items = append(items, paletteItem{title: i18n.T("Aller à : ") + i18n.T(p.Title()), key: fmt.Sprint(i + 1),
+		items = append(items, paletteItem{title: i18n.T("Aller à : ") + i18n.T(p.Title()), key: moduleKey(i),
 			run: func(m *Model) tea.Cmd { m.cur, m.focus = i, focusContent; return nil }})
 	}
 	for i, p := range m.panels {

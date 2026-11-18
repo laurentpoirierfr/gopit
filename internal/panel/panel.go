@@ -3,7 +3,11 @@
 // Panel et à l'enregistrer dans app.New.
 package panel
 
-import tea "charm.land/bubbletea/v2"
+import (
+	"slices"
+
+	tea "charm.land/bubbletea/v2"
+)
 
 // Hint est un raccourci affiché dans la ligne d'aide en bas de l'écran.
 type Hint struct {
@@ -161,4 +165,86 @@ type ClickMsg struct {
 	X, Y  int
 	Drag  bool
 	Shift bool
+}
+
+// ─── Débogage ────────────────────────────────────────────────────────────────
+
+// DebugState est l'état de débogage partagé entre l'éditeur (qui pose les
+// points d'arrêt et montre la ligne où le programme est arrêté) et le
+// module Débogage (qui pilote Delve). Le cadre le crée et le confie aux
+// modules qui implémentent DebugUser ; on n'y accède que depuis la boucle
+// de Bubble Tea.
+type DebugState struct {
+	bps      map[string]map[int]bool // chemin absolu → lignes (à partir de 1)
+	StopPath string                  // position où le programme est arrêté
+	StopLine int                     // (0 : nulle part)
+}
+
+// NewDebugState crée un état vide.
+func NewDebugState() *DebugState { return &DebugState{bps: map[string]map[int]bool{}} }
+
+// Toggle pose ou retire un point d'arrêt ; il renvoie true s'il est posé.
+func (d *DebugState) Toggle(path string, line int) bool {
+	if d.bps[path][line] {
+		delete(d.bps[path], line)
+		if len(d.bps[path]) == 0 {
+			delete(d.bps, path)
+		}
+		return false
+	}
+	if d.bps[path] == nil {
+		d.bps[path] = map[int]bool{}
+	}
+	d.bps[path][line] = true
+	return true
+}
+
+// Has indique si la ligne a un point d'arrêt.
+func (d *DebugState) Has(path string, line int) bool { return d.bps[path][line] }
+
+// Lines renvoie les lignes des points d'arrêt d'un fichier, dans l'ordre.
+func (d *DebugState) Lines(path string) []int {
+	var out []int
+	for l := range d.bps[path] {
+		out = append(out, l)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// Files renvoie les fichiers qui ont des points d'arrêt, dans l'ordre.
+func (d *DebugState) Files() []string {
+	var out []string
+	for p := range d.bps {
+		out = append(out, p)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// DebugUser est implémenté par les modules qui partagent l'état de débogage.
+type DebugUser interface {
+	UseDebug(*DebugState)
+}
+
+// Debugger est implémenté par le module Débogage : le cadre lui transmet
+// les touches F5 à F8, quel que soit le module affiché.
+type Debugger interface {
+	DebugKey(key string) tea.Cmd
+}
+
+// BreakpointsMsg est diffusé quand les points d'arrêt d'un fichier changent.
+type BreakpointsMsg struct{ Path string }
+
+// ShowMsg demande d'afficher une position dans l'éditeur (ligne où le
+// programme est arrêté) ; le cadre ne quitte pas le module Débogage s'il
+// est affiché.
+type ShowMsg struct {
+	File string
+	Line int
+}
+
+// Shower est implémenté par l'éditeur : afficher une position, en lecture.
+type Shower interface {
+	ShowLine(file string, line int) tea.Cmd
 }

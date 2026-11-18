@@ -106,7 +106,7 @@ func (m *Model) menus() []menu {
 
 	var modules []menuItem
 	for i, p := range m.panels {
-		modules = append(modules, menuItem{label: p.Icon() + "  " + i18n.T(p.Title()), key: fmt.Sprint(i + 1), checked: yes(i == m.cur),
+		modules = append(modules, menuItem{label: p.Icon() + "  " + i18n.T(p.Title()), key: moduleKey(i), checked: yes(i == m.cur),
 			run: func(m *Model) tea.Cmd { m.cur, m.focus = i, focusContent; return nil }})
 	}
 
@@ -388,7 +388,10 @@ func (m *Model) viewModal() string {
 			title.Render(i18n.T("Général")),
 			row("F10 / Alt+…", fmt.Sprintf(i18n.T("barre de menus (Alt+%s)"), hotkeyLetters(m.menus()))),
 			row("Ctrl+P", i18n.T("palette de commandes")),
-			row(fmt.Sprintf("1…%d", len(m.panels)), i18n.T("changer de module")),
+			row("1…"+moduleKey(len(m.panels)-1), i18n.T("changer de module")),
+			row("F5 / Maj+F5", i18n.T("déboguer : lancer, continuer / arrêter")),
+			row("F6 F7 F8", i18n.T("pas à pas : principal, entrer, sortir")),
+			row("F9", i18n.T("point d'arrêt (éditeur)")),
 			row("F1", i18n.T("cette aide")),
 			row("e", i18n.T("éditeur externe")),
 			row("Ctrl+O", i18n.T("ouvrir un fichier dans l'éditeur intégré")),

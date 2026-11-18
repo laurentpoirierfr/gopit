@@ -744,3 +744,53 @@ func collect(cmd tea.Cmd) []tea.Msg {
 	}
 	return []tea.Msg{msg}
 }
+
+func TestBreakpointsAndStopLine(t *testing.T) {
+	m, dir := newModel(t)
+	shared := panel.NewDebugState()
+	m.UseDebug(shared)
+	os.WriteFile(filepath.Join(dir, "m.go"), []byte("package m\n\nvar a = 1\nvar b = 2\n"), 0o600)
+	m.OpenFile("m.go", 3)
+	path := m.doc().path
+
+	// F9 : point d'arrêt sur la ligne du curseur, annoncé au module Débogage.
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyF9})
+	if !shared.Has(path, 3) {
+		t.Fatal("point d'arrêt attendu ligne 3")
+	}
+	announced := false
+	for _, msg := range collect(cmd) {
+		if b, ok := msg.(panel.BreakpointsMsg); ok && b.Path == path {
+			announced = true
+		}
+	}
+	if !announced {
+		t.Error("BreakpointsMsg attendu")
+	}
+	if out := ansi.Strip(m.View(60, 8)); !strings.Contains(out, "3●") {
+		t.Errorf("marque dans la marge :\n%s", out)
+	}
+
+	// Ligne d'arrêt du débogueur : flèche, et affichage en lecture.
+	shared.StopPath, shared.StopLine = path, 4
+	m.ShowLine(path, 4)
+	if m.editing || m.doc().buf.Cursor().Line != 3 {
+		t.Errorf("ShowLine : édition %v, curseur %v", m.editing, m.doc().buf.Cursor())
+	}
+	if out := ansi.Strip(m.View(60, 8)); !strings.Contains(out, "4▶") {
+		t.Errorf("flèche de la ligne d'arrêt :\n%s", out)
+	}
+
+	// F9 de nouveau (ligne 3) : retiré. Hors fichier Go : refusé.
+	m.doc().buf.SetCursor(textbuf.Pos{Line: 2}, false)
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF9})
+	if shared.Has(path, 3) {
+		t.Error("point d'arrêt retiré attendu")
+	}
+	os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x\n"), 0o600)
+	m.OpenFile("notes.txt", 1)
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF9})
+	if len(shared.Files()) != 0 {
+		t.Error("pas de point d'arrêt hors fichier Go")
+	}
+}

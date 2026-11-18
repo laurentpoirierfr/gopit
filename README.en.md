@@ -27,7 +27,10 @@ to the first `go.mod`.
 
 | Key | Action |
 |---|---|
-| `↑` `↓` or `1`…`9` | choose a module |
+| `↑` `↓` or `1`…`9`, `0` | choose a module |
+| `F5` / `Shift+F5` | debug: start, continue (or pause) / stop |
+| `F6` `F7` `F8` | step over, step into, step out |
+| `F9` | breakpoint on the cursor's line (editor) |
 | `Ctrl+P` | command palette: every action of every module |
 | `F10` or `Alt` + underlined letter | menu bar |
 | `Ctrl+O` / `Ctrl+N` | open / create a project file in the built-in editor |
@@ -57,6 +60,7 @@ that isn't available). You can change it while running (View menu, or
 | Editor — project tree, several open files, syntax highlighting (Go, go.mod / go.sum, and with chroma Markdown, YAML, Makefile, Dockerfile, JSON, SQL, shell scripts…), automatic indentation, gofmt on save, errors underlined as you type and completion (gopls), find and replace, mouse selection, undo/redo, go to definition and symbol documentation (gopls) | ✅ |
 | Tests — live `go test -json`, targeted reruns, open the failure, automatic rerun on save (`w`), coverage per package and per file (`v`) | ✅ |
 | Diagnostics — `go vet`, staticcheck, gopls and gofmt, merged, with a code excerpt; rerun on every save in the editor | ✅ |
+| Debug — Delve (`dlv dap`): a package's program or tests (target `c`: `.`, `./cmd/tool -- args`, `test ./pkg -run TestX`), breakpoints set in the editor (`F9`, kept between sessions), stepping (`F5` to `F8`) with the current line shown in the editor, call stack (`u` / `d`), expandable variables, program output | ✅ |
 | Git — repository status, colored diff, recent commits; stage (`s`, `A`), unstage (`u`), commit (`c`) — no destructive action, no push | ✅ |
 | Terminal — shell commands in the project directory (`go build`, `make`, `go run .`…), live output, history, rerun (`r`), stop (`Ctrl+C`), open `file.go:line` locations (`o`); no interactive programs | ✅ |
 | Docs — documentation of the module's packages and of the standard library, rendered with Glamour | ✅ |
@@ -108,7 +112,7 @@ the tree's visibility are restored at the next startup.
 cmd/gopit/            entry point (options, module detection)
 internal/app/         application frame: navigation, bars, focus
 internal/panel/       Panel interface shared by all modules
-internal/panels/      one package per module (home, code, tests, diagnostics, git, shell, docs, modules, benchmarks)
+internal/panels/      one package per module (home, code, tests, diagnostics, debug, git, shell, docs, modules, benchmarks)
 internal/project/     reading go.mod
 internal/theme/       light / dark Catppuccin palette and styles
 internal/version/     version injected by the Makefile
@@ -122,6 +126,7 @@ internal/bench/       go test -bench: parsing, comparison, history
 internal/prof/        pprof profiles: cost per function and per line
 internal/gitx/        git status / diff / log / add / restore / commit
 internal/textbuf/     editor buffer: cursor, selection, undo/redo
+internal/dap/         DAP client for "dlv dap": launch, breakpoints, stepping, stack, variables
 internal/lsp/         LSP client for "gopls serve": documents, diagnostics, definition, documentation
 internal/gopls/       gopls definition: a symbol's definition and documentation (without the connection)
 internal/config/      preferences (~/.config/gopit/config.json)

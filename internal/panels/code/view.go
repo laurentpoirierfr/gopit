@@ -89,6 +89,7 @@ type cellStyle struct {
 	cursor bool
 	line   bool         // ligne du curseur
 	diag   lsp.Severity // diagnostic de gopls (0 : aucun)
+	stop   bool         // ligne où le programme débogué est arrêté
 }
 
 // sevColor renvoie la couleur d'une gravité de diagnostic.
@@ -132,6 +133,8 @@ func (m *Model) style(cache map[cellStyle]lipgloss.Style, cs cellStyle) lipgloss
 	}
 	switch {
 	case cs.sel:
+		st = st.Background(p.Surface1)
+	case cs.stop:
 		st = st.Background(p.Surface1)
 	case cs.line:
 		st = st.Background(p.Surface0)
@@ -412,10 +415,18 @@ func (m *Model) viewText(d *doc, w, h int) string {
 			gst = gutterCur
 		}
 		num := gst.Render(fmt.Sprintf("%*d ", digits+1, l+1))
-		if worst != 0 { // marque dans la marge, à la place de l'espace
+		// Marque dans la marge, à la place de l'espace : ligne d'arrêt du
+		// débogueur, point d'arrêt, puis diagnostic.
+		stopped := m.dbg.StopLine == l+1 && m.dbg.StopPath == d.path
+		switch {
+		case stopped:
+			num = gst.Render(fmt.Sprintf("%*d", digits+1, l+1)) + lipgloss.NewStyle().Foreground(t.P.Yellow).Bold(true).Render("▶")
+		case m.dbg.Has(d.path, l+1):
+			num = gst.Render(fmt.Sprintf("%*d", digits+1, l+1)) + lipgloss.NewStyle().Foreground(t.P.Red).Render("●")
+		case worst != 0:
 			num = gst.Render(fmt.Sprintf("%*d", digits+1, l+1)) + lipgloss.NewStyle().Foreground(m.sevColor(worst)).Render("●")
 		}
-		lines = append(lines, num+m.renderLine(text, lcls, dcols, from, to, eol, cur, l == c.Line && m.editing, d.left, textW, cache))
+		lines = append(lines, num+m.renderLine(text, lcls, dcols, from, to, eol, cur, l == c.Line && m.editing, stopped, d.left, textW, cache))
 	}
 	return scroll.Render(lines, m.gutterW+textW, h, n, d.top, lipgloss.NewStyle().Foreground(t.P.Surface1),
 		lipgloss.NewStyle().Foreground(t.P.Accent))
@@ -423,7 +434,7 @@ func (m *Model) viewText(d *doc, w, h int) string {
 
 // renderLine dessine une ligne de texte entre les colonnes d'affichage left
 // et left+w.
-func (m *Model) renderLine(line []rune, cls []class, dcols []lsp.Severity, from, to int, eol bool, cursor int, curLine bool,
+func (m *Model) renderLine(line []rune, cls []class, dcols []lsp.Severity, from, to int, eol bool, cursor int, curLine, stop bool,
 	left, w int, cache map[cellStyle]lipgloss.Style) string {
 	var out strings.Builder
 	var run strings.Builder
@@ -442,7 +453,7 @@ func (m *Model) renderLine(line []rune, cls []class, dcols []lsp.Severity, from,
 	col := 0
 	for i, r := range line {
 		next := advance(r, col)
-		cs := cellStyle{line: curLine, sel: i >= from && i < to}
+		cs := cellStyle{line: curLine, sel: i >= from && i < to, stop: stop}
 		if i < len(cls) {
 			cs.cls = cls[i]
 		}
@@ -483,8 +494,8 @@ func (m *Model) renderLine(line []rune, cls []class, dcols []lsp.Severity, from,
 			emit(" ", cellStyle{line: curLine, sel: true})
 		}
 	}
-	if curLine && used < w {
-		emit(strings.Repeat(" ", w-used), cellStyle{line: true})
+	if (curLine || stop) && used < w {
+		emit(strings.Repeat(" ", w-used), cellStyle{line: curLine, stop: stop})
 	}
 	if run.Len() > 0 {
 		out.WriteString(m.style(cache, runSt).Render(run.String()))

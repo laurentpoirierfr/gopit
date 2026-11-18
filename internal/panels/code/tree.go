@@ -194,7 +194,7 @@ func (m *Model) treeKey(s string) (handled bool, open string) {
 			break
 		}
 		return true, r.path
-	case "r", "f5":
+	case "r":
 		t.refresh()
 	case "n":
 		m.startNewFile()

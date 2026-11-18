@@ -289,7 +289,7 @@ func (m *Model) handleKey(s string) tea.Cmd {
 	}
 
 	switch s {
-	case "a", "f5":
+	case "a":
 		return m.load(m.updChecked)
 	case "u":
 		return m.load(true)

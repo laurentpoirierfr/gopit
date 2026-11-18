@@ -234,7 +234,7 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 
 	r := m.selected()
 	switch s {
-	case "r", "f5":
+	case "r":
 		return m.load()
 	case "up", "k":
 		m.move(-1)

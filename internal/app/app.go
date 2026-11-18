@@ -21,6 +21,7 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/panels/benchmarks"
 	"github.com/laurentpoirierfr/gopit/internal/panels/code"
+	"github.com/laurentpoirierfr/gopit/internal/panels/debug"
 	"github.com/laurentpoirierfr/gopit/internal/panels/diagnostics"
 	"github.com/laurentpoirierfr/gopit/internal/panels/docs"
 	"github.com/laurentpoirierfr/gopit/internal/panels/git"
@@ -95,6 +96,7 @@ func New(p *project.Project) *Model {
 			code.New(th, p),
 			tests.New(th, p),
 			diagnostics.New(th, p),
+			debug.New(th, p),
 			git.New(th, p),
 			shell.New(th, p),
 			docs.New(th, p),
@@ -103,6 +105,14 @@ func New(p *project.Project) *Model {
 		},
 		menu:  menuState{open: -1},
 		focus: focusContent,
+	}
+	// L'éditeur et le module Débogage partagent les points d'arrêt (avant la
+	// lecture des préférences, qui les contiennent).
+	dbg := panel.NewDebugState()
+	for _, p := range m.panels {
+		if u, ok := p.(panel.DebugUser); ok {
+			u.UseDebug(dbg)
+		}
 	}
 	m.restoreConfig()
 	return m
@@ -161,6 +171,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case panel.OpenMsg:
 		return m, m.openFile(msg.File, msg.Line)
+
+	case panel.ShowMsg:
+		return m, m.show(msg)
 
 	case tea.PasteMsg:
 		// Un collage ne concerne que le module affiché.
@@ -247,6 +260,8 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 		return m.menuKey(s)
 	}
 	switch s {
+	case "f5", "shift+f5", "f6", "f7", "f8":
+		return m.debugKey(s)
 	case "ctrl+p":
 		m.openPalette()
 		return nil
@@ -286,8 +301,12 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	case "e":
 		return editor.Open(m.proj.Root, "", 0)
 	}
-	if len(s) == 1 && s[0] >= '1' && s[0] <= '9' {
-		if i := int(s[0] - '1'); i < len(m.panels) {
+	if len(s) == 1 && s[0] >= '0' && s[0] <= '9' {
+		i := int(s[0] - '1')
+		if s == "0" {
+			i = 9 // dixième module
+		}
+		if i < len(m.panels) {
 			m.cur = i
 		}
 		return nil
@@ -379,6 +398,44 @@ func (m *Model) openFile(file string, line int) tea.Cmd {
 		}
 	}
 	return editor.Open(m.proj.Root, file, line)
+}
+
+// show affiche dans l'éditeur la ligne où le programme débogué est arrêté.
+// Depuis le module Débogage (qui montre la pile et les variables), on y
+// reste ; sinon l'éditeur s'affiche.
+func (m *Model) show(msg panel.ShowMsg) tea.Cmd {
+	_, inDebug := m.panels[m.cur].(panel.Debugger)
+	for i, p := range m.panels {
+		if s, ok := p.(panel.Shower); ok {
+			if !inDebug {
+				m.cur, m.focus = i, focusContent
+			}
+			return s.ShowLine(msg.File, msg.Line)
+		}
+	}
+	return nil
+}
+
+// debugKey transmet F5 à F8 au module Débogage, quel que soit le module
+// affiché.
+func (m *Model) debugKey(s string) tea.Cmd {
+	for _, p := range m.panels {
+		if d, ok := p.(panel.Debugger); ok {
+			return d.DebugKey(s)
+		}
+	}
+	return nil
+}
+
+// moduleKey renvoie la touche d'un module : 1 à 9, puis 0 pour le dixième.
+func moduleKey(i int) string {
+	switch {
+	case i < 9:
+		return fmt.Sprint(i + 1)
+	case i == 9:
+		return "0"
+	}
+	return ""
 }
 
 // editorAction affiche l'éditeur intégré et lui envoie une action (ouvrir
@@ -545,7 +602,7 @@ func (m *Model) viewNav(h int) string {
 	iw := navW - 2
 	lines := make([]string, len(m.panels))
 	for i, p := range m.panels {
-		label := ansi.Truncate(fmt.Sprintf("%d %s  %s", i+1, p.Icon(), i18n.T(p.Title())), iw-2, "…")
+		label := ansi.Truncate(fmt.Sprintf("%s %s  %s", moduleKey(i), p.Icon(), i18n.T(p.Title())), iw-2, "…")
 		st := t.NavItem
 		if i == m.cur {
 			st = t.NavItemBlur
@@ -606,7 +663,7 @@ func (m *Model) viewStatus() string {
 
 func (m *Model) viewHints() string {
 	t := m.th
-	hints := []panel.Hint{{Key: "F10", Desc: i18n.T("menus")}, {Key: fmt.Sprintf("1-%d", len(m.panels)), Desc: i18n.T("module")}}
+	hints := []panel.Hint{{Key: "F10", Desc: i18n.T("menus")}, {Key: "1-" + moduleKey(len(m.panels)-1), Desc: i18n.T("module")}}
 	if m.sidebar {
 		hints = append(hints, panel.Hint{Key: "Tab", Desc: i18n.T("focus")})
 	}

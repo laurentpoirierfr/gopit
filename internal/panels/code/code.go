@@ -8,6 +8,7 @@
 package code
 
 import (
+	"fmt"
 	"go/format"
 	"io/fs"
 	"os"
@@ -97,6 +98,8 @@ type Model struct {
 
 	define defineFunc // gopls en ligne de commande, sans connexion (goto.go)
 
+	dbg *panel.DebugState // points d'arrêt et ligne d'arrêt (partagés avec Débogage)
+
 	// Connexion à gopls (lsp.go).
 	start    startFunc // nil : désactivée
 	lsp      *lsp.Client
@@ -118,7 +121,8 @@ type Model struct {
 type span struct{ x, w, close int }
 
 func New(th *theme.Theme, p *project.Project) *Model {
-	m := &Model{th: th, proj: p, textH: 20, tree: newTree(), define: gopls.Define, diags: map[string][]lsp.Diagnostic{}}
+	m := &Model{th: th, proj: p, textH: 20, tree: newTree(), define: gopls.Define, diags: map[string][]lsp.Diagnostic{},
+		dbg: panel.NewDebugState()}
 	if lspEnabled() {
 		m.start = lsp.Start
 	}
@@ -415,7 +419,7 @@ var keyActions = map[string]panel.EditAction{
 	"ctrl+g": panel.ActGoto, "ctrl+/": panel.ActComment, "ctrl+_": panel.ActComment,
 	"alt+shift+f": panel.ActFormat, "alt+F": panel.ActFormat,
 	"f12": panel.ActDefinition, "ctrl+]": panel.ActDefinition, "ctrl+t": panel.ActBack, "ctrl+k": panel.ActDoc,
-	"ctrl+space": actComplete, "ctrl+@": actComplete,
+	"ctrl+space": actComplete, "ctrl+@": actComplete, "f9": actBreakpoint,
 }
 
 // moves associe les touches de déplacement (sans Maj) aux mouvements.
@@ -609,6 +613,8 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 	b := d.buf
 	m.follow = true
 	switch a {
+	case actBreakpoint:
+		return m.toggleBreakpoint()
 	case actComplete:
 		m.editing = true
 		return m.requestCompletion("")
@@ -963,4 +969,41 @@ func (m *Model) Hints() []panel.Hint {
 	return []panel.Hint{{Key: "Entrée", Desc: i18n.T("modifier")}, {Key: "w / Ctrl+W", Desc: i18n.T("fermer")}, {Key: "o", Desc: i18n.T("ouvrir")},
 		{Key: "s", Desc: i18n.T("enregistrer")}, {Key: "/", Desc: i18n.T("chercher")}, {Key: "d / F12", Desc: i18n.T("définition")},
 		{Key: "K", Desc: i18n.T("doc")}, {Key: "Ctrl+T", Desc: i18n.T("retour")}, {Key: "t", Desc: i18n.T("arbre")}}
+}
+
+// actBreakpoint pose ou retire un point d'arrêt (F9).
+const actBreakpoint panel.EditAction = "breakpoint"
+
+// UseDebug partage l'état de débogage avec le module Débogage.
+func (m *Model) UseDebug(s *panel.DebugState) { m.dbg = s }
+
+// toggleBreakpoint pose ou retire un point d'arrêt sur la ligne du curseur.
+func (m *Model) toggleBreakpoint() tea.Cmd {
+	d := m.doc()
+	if d == nil || !isGo(d) {
+		return panel.Flash(i18n.T("Les points d'arrêt se posent dans un fichier Go"), true)
+	}
+	line := d.buf.Cursor().Line + 1
+	set := m.dbg.Toggle(d.path, line)
+	msg := fmt.Sprintf(i18n.T("Point d'arrêt retiré : %s:%d"), d.rel, line)
+	if set {
+		msg = fmt.Sprintf(i18n.T("Point d'arrêt : %s:%d"), d.rel, line)
+	}
+	path := d.path
+	return tea.Batch(panel.Flash(msg, false), func() tea.Msg { return panel.BreakpointsMsg{Path: path} })
+}
+
+// ShowLine affiche une position en lecture (ligne où le programme débogué
+// est arrêté).
+func (m *Model) ShowLine(file string, line int) tea.Cmd {
+	d, err := m.load(file)
+	if err != nil {
+		return panel.Flash(i18n.T("Ouverture : ")+err.Error(), true)
+	}
+	m.picker, m.prompt, m.compl, m.info = nil, promptNone, nil, ""
+	m.tree.focus, m.tree.reveal = false, d.path
+	d.buf.SetCursor(textbuf.Pos{Line: max(0, line-1)}, false)
+	d.buf.MoveCursor(textbuf.LineStart, 1, false)
+	m.editing, m.follow, m.center = false, true, true
+	return nil
 }

@@ -456,7 +456,7 @@ func (m *Model) browseKey(s string) tea.Cmd {
 		m.moveCursor(len(m.lines))
 	case "o":
 		return m.openLocation()
-	case "r", "f5":
+	case "r":
 		return m.act(actRerun)
 	case "x", "ctrl+c":
 		m.stop()

@@ -469,7 +469,7 @@ func (m *Model) handleKey(s string) tea.Cmd {
 			return panel.Flash(i18n.T("Couverture activée : elle sera mesurée aux prochaines exécutions (a pour tout relancer)"), false)
 		}
 		return panel.Flash(i18n.T("Couverture désactivée"), false)
-	case "a", "f5":
+	case "a":
 		return m.runAll()
 	case "enter":
 		return m.runSelected()

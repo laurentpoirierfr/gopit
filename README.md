@@ -27,7 +27,10 @@ jusqu'au premier `go.mod`.
 
 | Touche | Action |
 |---|---|
-| `↑` `↓` ou `1`…`9` | choisir un module |
+| `↑` `↓` ou `1`…`9`, `0` | choisir un module |
+| `F5` / `Maj+F5` | déboguer : lancer, continuer (ou interrompre) / arrêter |
+| `F6` `F7` `F8` | pas à pas : principal, entrer dans la fonction, en sortir |
+| `F9` | point d'arrêt sur la ligne du curseur (éditeur) |
 | `Ctrl+P` | palette de commandes : toutes les actions de tous les modules |
 | `F10` ou `Alt` + lettre soulignée | barre de menus |
 | `Ctrl+O` / `Ctrl+N` | ouvrir / créer un fichier du projet dans l'éditeur intégré |
@@ -58,6 +61,7 @@ préférences ; `gopit -lang en` l'impose pour une session.
 | Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration syntaxique (Go, go.mod / go.sum, et avec chroma Markdown, YAML, Makefile, Dockerfile, JSON, SQL, scripts shell…), indentation automatique, gofmt à l'enregistrement, erreurs soulignées pendant la frappe et complétion (gopls), recherche et remplacement, sélection à la souris, annuler/rétablir, aller à la définition et documentation des symboles (gopls) | ✅ |
 | Tests — `go test -json` en direct, relance ciblée, ouverture de l'erreur, relance automatique à l'enregistrement (`w`), couverture par paquet et par fichier (`v`) | ✅ |
 | Diagnostics — `go vet`, staticcheck, gopls et gofmt, fusionnés, avec extrait du code ; relancés à chaque enregistrement dans l'éditeur | ✅ |
+| Débogage — Delve (`dlv dap`) : programme ou tests d'un paquet (cible `c` : `.`, `./cmd/outil -- args`, `test ./pkg -run TestX`), points d'arrêt posés dans l'éditeur (`F9`, gardés d'une session à l'autre), pas à pas (`F5` à `F8`) avec la ligne courante dans l'éditeur, pile d'appels (`u` / `d`), variables dépliables, sortie du programme | ✅ |
 | Git — état du dépôt, diff coloré, commits récents ; indexer (`s`, `A`), désindexer (`u`), commiter (`c`) — sans action destructive ni push | ✅ |
 | Terminal — commandes du shell dans le répertoire du projet (`go build`, `make`, `go run .`…), sortie en direct, historique, relance (`r`), arrêt (`Ctrl+C`), ouverture des `fichier.go:ligne` (`o`) ; pas de programme interactif | ✅ |
 | Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
@@ -112,7 +116,7 @@ retrouvés au démarrage suivant.
 cmd/gopit/            point d'entrée (options, détection du module)
 internal/app/         cadre de l'application : navigation, barres, focus
 internal/panel/       interface Panel commune à tous les modules
-internal/panels/      un paquet par module (home, code, tests, diagnostics, git, shell, docs, modules, benchmarks)
+internal/panels/      un paquet par module (home, code, tests, diagnostics, debug, git, shell, docs, modules, benchmarks)
 internal/project/     lecture de go.mod
 internal/theme/       palette Catppuccin claire / sombre et styles
 internal/version/     version injectée par le Makefile
@@ -126,6 +130,7 @@ internal/bench/       go test -bench : lecture, comparaison, historique
 internal/prof/        profils pprof : coût par fonction et par ligne
 internal/gitx/        git status / diff / log / add / restore / commit
 internal/textbuf/     tampon de l'éditeur : curseur, sélection, annuler/rétablir
+internal/dap/         client DAP de « dlv dap » : lancement, points d'arrêt, pas à pas, pile, variables
 internal/lsp/         client LSP de « gopls serve » : documents, diagnostics, définition, documentation
 internal/gopls/       gopls definition : définition et documentation d'un symbole (sans connexion)
 internal/config/      préférences (~/.config/gopit/config.json)
