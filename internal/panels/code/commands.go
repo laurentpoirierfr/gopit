@@ -23,6 +23,7 @@ func (m *Model) Commands() []panel.Command {
 		c(i18n.T("Afficher / masquer l'arbre des fichiers"), "Ctrl+B", actTree),
 		c(i18n.T("Rechercher"), "Ctrl+F", panel.ActFind),
 		c(i18n.T("Occurrence suivante"), "F3", panel.ActFindNext),
+		c(i18n.T("Remplacer"), "Ctrl+H", panel.ActReplace),
 		c(i18n.T("Aller à la ligne"), "Ctrl+G", panel.ActGoto),
 		c(i18n.T("Commenter / décommenter"), "Ctrl+/", panel.ActComment),
 		c(i18n.T("Formater (gofmt)"), "Alt+Maj+F", panel.ActFormat),

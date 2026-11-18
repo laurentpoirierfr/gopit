@@ -58,7 +58,7 @@ préférences ; `gopit -lang en` l'impose pour une session.
 | Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
 | Benchmarks — `go test -bench`, historique des exécutions, comparaison avec une référence (Δ % et bruit), évolution en sparkline, profils CPU et mémoire (`p`, `m`) avec code source annoté | ✅ |
 | Git — état du dépôt, diff coloré, commits récents ; indexer (`s`, `A`), désindexer (`u`), commiter (`c`) — sans action destructive ni push | ✅ |
-| Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration Go, indentation automatique, gofmt à l'enregistrement, recherche, sélection à la souris, annuler/rétablir, aller à la définition et documentation des symboles (gopls) | ✅ |
+| Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration Go, indentation automatique, gofmt à l'enregistrement, recherche et remplacement, sélection à la souris, annuler/rétablir, aller à la définition et documentation des symboles (gopls) | ✅ |
 
 ### Éditeur intégré
 
@@ -78,6 +78,7 @@ ou un clic ; `Échap` pour en sortir).
 | `Ctrl+Z` / `Ctrl+Y` | annuler / rétablir |
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | couper / copier (la ligne sans sélection) / coller |
 | `Ctrl+F`, `F3`, `Maj+F3` | rechercher, occurrence suivante, précédente |
+| `Ctrl+H` ou `Ctrl+R` | remplacer : texte cherché, remplacement, puis chaque occurrence (`Entrée` remplace, `Espace` passe, `a` remplace tout, `Échap` termine) |
 | `Ctrl+G` | aller à la ligne |
 | `Tab` / `Maj+Tab` | indenter / désindenter (bloc sélectionné) |
 | `Ctrl+/` | commenter / décommenter |

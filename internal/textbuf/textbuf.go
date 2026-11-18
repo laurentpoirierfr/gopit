@@ -639,17 +639,7 @@ func (b *Buffer) Find(query string, forward bool) bool {
 			start = s
 		}
 	}
-	match := func(l []rune, col int) bool {
-		if col < 0 || col+len(q) > len(l) {
-			return false
-		}
-		for i, r := range q {
-			if unicode.ToLower(l[col+i]) != r {
-				return false
-			}
-		}
-		return true
-	}
+	match := func(l []rune, col int) bool { return matchAt(l, col, q) }
 	for step := 0; step <= n; step++ {
 		var li int
 		if forward {
@@ -683,6 +673,56 @@ func (b *Buffer) Find(query string, forward bool) bool {
 		}
 	}
 	return false
+}
+
+// matchAt indique si q (déjà en minuscules) se trouve en colonne col de l,
+// sans tenir compte de la casse.
+func matchAt(l []rune, col int, q []rune) bool {
+	if col < 0 || col+len(q) > len(l) {
+		return false
+	}
+	for i, r := range q {
+		if unicode.ToLower(l[col+i]) != r {
+			return false
+		}
+	}
+	return true
+}
+
+// ReplaceAll remplace toutes les occurrences de query (sans tenir compte de
+// la casse, comme Find) par with, en une seule étape d'annulation, et
+// renvoie leur nombre. Le curseur reste sur sa ligne.
+func (b *Buffer) ReplaceAll(query, with string) int {
+	if query == "" {
+		return 0
+	}
+	q := foldRunes([]rune(query))
+	w := []rune(with)
+	n := 0
+	out := make([]string, len(b.lines))
+	for i, l := range b.lines {
+		var nl []rune
+		for col := 0; col < len(l); {
+			if matchAt(l, col, q) {
+				nl = append(nl, w...)
+				col += len(q)
+				n++
+				continue
+			}
+			nl = append(nl, l[col])
+			col++
+		}
+		out[i] = string(nl)
+	}
+	if n == 0 {
+		return 0
+	}
+	cur := b.cursor
+	last := len(b.lines) - 1
+	b.apply(Pos{}, Pos{last, len(b.lines[last])}, strings.Join(out, "\n"))
+	b.cursor = b.clamp(cur)
+	b.goal = b.cursor.Col
+	return n
 }
 
 // foldRunes met chaque rune en minuscule, une à une : contrairement à

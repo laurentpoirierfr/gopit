@@ -491,4 +491,17 @@ var es = map[string]string{
 	"gopls n'est pas installé : ":                                      "gopls no está instalado: ",
 	"Pas de documentation pour ce symbole":                             "No hay documentación para este símbolo",
 	"Déjà sur la définition":                                           "Ya estás en la definición",
+
+	// Remplacer
+	"Remplacer…":              "Reemplazar…",
+	"Remplacer":               "Reemplazar",
+	"remplacer":               "reemplazar",
+	"passer":                  "omitir",
+	"tout remplacer":          "reemplazar todo",
+	"terminer":                "terminar",
+	"%d remplacement(s)":      "%d reemplazo(s)",
+	"Remplacer : ":            "Reemplazar: ",
+	"Remplacer « %s » par : ": "Reemplazar «%s» por: ",
+	"Remplacer par « %s » ?":  "¿Reemplazar por «%s»?",
+	"  %d remplacement(s)":    "  %d reemplazo(s)",
 }

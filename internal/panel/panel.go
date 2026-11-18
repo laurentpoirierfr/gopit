@@ -112,6 +112,7 @@ const (
 	ActSelectAll EditAction = "selectall"
 	ActFind      EditAction = "find"
 	ActFindNext  EditAction = "findnext"
+	ActReplace   EditAction = "replace"
 	ActGoto      EditAction = "goto"
 	ActComment   EditAction = "comment"
 	ActFormat    EditAction = "format"

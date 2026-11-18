@@ -57,6 +57,7 @@ func (m *Model) menus() []menu {
 		act(i18n.T("Couper"), "Ctrl+X", panel.ActCut), act(i18n.T("Copier"), "Ctrl+C", panel.ActCopy),
 		act(i18n.T("Coller"), "Ctrl+V", panel.ActPaste), act(i18n.T("Tout sélectionner"), "Ctrl+A", panel.ActSelectAll), {sep: true},
 		act(i18n.T("Rechercher"), "Ctrl+F", panel.ActFind), act(i18n.T("Occurrence suivante"), "F3", panel.ActFindNext),
+		act(i18n.T("Remplacer…"), "Ctrl+H", panel.ActReplace),
 		act(i18n.T("Aller à la ligne"), "Ctrl+G", panel.ActGoto), {sep: true},
 		act(i18n.T("Commenter / décommenter"), "Ctrl+/", panel.ActComment), act(i18n.T("Formater (gofmt)"), "Alt+Maj+F", panel.ActFormat), {sep: true},
 		act(i18n.T("Aller à la définition"), "F12", panel.ActDefinition), act(i18n.T("Documentation du symbole"), "Ctrl+K", panel.ActDoc),

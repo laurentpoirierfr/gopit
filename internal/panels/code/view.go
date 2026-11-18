@@ -211,6 +211,18 @@ func (m *Model) viewStatus(w int) string {
 	case promptGoto:
 		return t.Label.Render(fmt.Sprintf(i18n.T("Aller à la ligne (1-%d) : "), d.buf.LineCount())) +
 			t.Value.Render(m.input) + t.Text.Reverse(true).Render(" ")
+	case promptReplace:
+		s := t.Label.Render(i18n.T("Remplacer : ")) + t.Value.Render(m.input) + t.Text.Reverse(true).Render(" ")
+		if m.notFound {
+			s += t.Err.Render(i18n.T("  introuvable"))
+		}
+		return s
+	case promptWith:
+		return t.Label.Render(fmt.Sprintf(i18n.T("Remplacer « %s » par : "), m.repl.find)) +
+			t.Value.Render(m.input) + t.Text.Reverse(true).Render(" ")
+	case promptConfirm:
+		return t.Label.Render(fmt.Sprintf(i18n.T("Remplacer par « %s » ?"), m.repl.with)) +
+			t.Dim.Render(fmt.Sprintf(i18n.T("  %d remplacement(s)"), m.repl.count))
 	}
 	if d == nil {
 		return ""

@@ -404,3 +404,70 @@ func TestDefinitionAndBack(t *testing.T) {
 		t.Errorf("fichier modifié : %#v", cmd())
 	}
 }
+
+func TestReplace(t *testing.T) {
+	m, dir := newModel(t)
+	if err := os.WriteFile(filepath.Join(dir, "r.txt"), []byte("a b a\nA\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m.OpenFile("r.txt", 1)
+	ctrl := func(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Mod: tea.ModCtrl} }
+	space := tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
+	ask := func(find, with string) {
+		t.Helper()
+		m.doc().buf.SetCursor(textbuf.Pos{}, false)
+		m.Update(ctrl('h'))
+		for _, r := range find {
+			m.Update(key(string(r)))
+		}
+		m.Update(key("enter"))
+		if m.prompt != promptWith {
+			t.Fatalf("après le texte cherché : invite %d", m.prompt)
+		}
+		if m.input != m.repl.with {
+			t.Errorf("remplacement précédent proposé : %q", m.input)
+		}
+		for range m.input { // effacer la proposition
+			m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+		}
+		for _, r := range with {
+			m.Update(key(string(r)))
+		}
+		m.Update(key("enter"))
+	}
+
+	// Une à une : remplacer, passer, remplacer, puis fin après un tour.
+	ask("a", "x")
+	if m.prompt != promptConfirm || m.doc().buf.SelectedText() != "a" {
+		t.Fatalf("revue attendue sur la 1re occurrence : %d %q", m.prompt, m.doc().buf.SelectedText())
+	}
+	m.Update(key("enter"))
+	m.Update(space)
+	_, cmd := m.Update(key("enter"))
+	if got := m.doc().buf.String(); got != "x b a\nx\n" {
+		t.Errorf("texte : %q", got)
+	}
+	if m.prompt != promptNone || cmd == nil {
+		t.Fatalf("fin de la revue attendue après un tour : invite %d", m.prompt)
+	}
+	if f, ok := cmd().(panel.FlashMsg); !ok || !strings.Contains(f.Text, "2") {
+		t.Errorf("bilan : %#v", cmd())
+	}
+
+	// Tout remplacer, puis annuler en une fois.
+	ask("x", "yy")
+	m.Update(key("a"))
+	if got := m.doc().buf.String(); got != "yy b a\nyy\n" || m.prompt != promptNone {
+		t.Errorf("tout remplacer : %q", got)
+	}
+	m.Update(ctrl('z'))
+	if got := m.doc().buf.String(); got != "x b a\nx\n" {
+		t.Errorf("annuler : %q", got)
+	}
+
+	// Rien à remplacer.
+	ask("zzz", "w")
+	if m.prompt != promptNone {
+		t.Error("introuvable : pas de revue")
+	}
+}

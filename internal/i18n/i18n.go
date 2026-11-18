@@ -117,6 +117,6 @@ func Key(k string) string {
 }
 
 var keyWords = map[Lang]*strings.Replacer{
-	EN: strings.NewReplacer("Entrée", "Enter", "Échap", "Esc", "Maj+", "Shift+", "molette", "wheel", "Suppr", "Del"),
-	ES: strings.NewReplacer("Entrée", "Intro", "Échap", "Esc", "Maj+", "Mayús+", "molette", "rueda", "Suppr", "Supr"),
+	EN: strings.NewReplacer("Entrée", "Enter", "Échap", "Esc", "Maj+", "Shift+", "molette", "wheel", "Suppr", "Del", "Espace", "Space"),
+	ES: strings.NewReplacer("Entrée", "Intro", "Échap", "Esc", "Maj+", "Mayús+", "molette", "rueda", "Suppr", "Supr", "Espace", "Espacio"),
 }

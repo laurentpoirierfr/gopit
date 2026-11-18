@@ -51,6 +51,9 @@ const (
 	promptNone promptKind = iota
 	promptFind
 	promptGoto
+	promptReplace // texte à remplacer (replace.go)
+	promptWith    // texte de remplacement
+	promptConfirm // revue des occurrences
 )
 
 // picker est la liste de choix d'un fichier à ouvrir.
@@ -79,6 +82,7 @@ type Model struct {
 	origin   textbuf.Pos // position avant la recherche (Échap y revient)
 	notFound bool
 	lastFind string
+	repl     replace // remplacement en cours (replace.go)
 
 	picker     *picker
 	tree       tree // arborescence des fichiers, à gauche (tree.go)
@@ -353,6 +357,7 @@ var keyActions = map[string]panel.EditAction{
 	"ctrl+x": panel.ActCut, "ctrl+c": panel.ActCopy, "ctrl+insert": panel.ActCopy, "alt+c": panel.ActCopy,
 	"ctrl+v": panel.ActPaste, "shift+insert": panel.ActPaste,
 	"ctrl+a": panel.ActSelectAll, "ctrl+f": panel.ActFind, "f3": panel.ActFindNext,
+	"ctrl+h": panel.ActReplace, "ctrl+r": panel.ActReplace,
 	"ctrl+g": panel.ActGoto, "ctrl+/": panel.ActComment, "ctrl+_": panel.ActComment,
 	"alt+shift+f": panel.ActFormat, "alt+F": panel.ActFormat,
 	"f12": panel.ActDefinition, "ctrl+]": panel.ActDefinition, "ctrl+t": panel.ActBack, "ctrl+k": panel.ActDoc,
@@ -581,8 +586,11 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 		if err := formatDoc(d); err != nil {
 			return panel.Flash(i18n.T("gofmt : ")+firstLine(err.Error()), true)
 		}
-	case panel.ActFind:
+	case panel.ActFind, panel.ActReplace:
 		m.prompt, m.input, m.notFound = promptFind, "", false
+		if a == panel.ActReplace {
+			m.prompt = promptReplace
+		}
 		m.origin = b.Cursor()
 		if t := b.SelectedText(); t != "" && !strings.Contains(t, "\n") {
 			m.input = t // chercher le texte sélectionné
@@ -651,7 +659,7 @@ func editInput(s *string, k tea.KeyPressMsg) bool {
 
 func (m *Model) searchAsYouType() {
 	d := m.doc()
-	if d == nil || m.prompt != promptFind {
+	if d == nil || (m.prompt != promptFind && m.prompt != promptReplace) {
 		return
 	}
 	d.buf.SetCursor(m.origin, false)
@@ -665,15 +673,31 @@ func (m *Model) promptKey(k tea.KeyPressMsg) tea.Cmd {
 		m.prompt = promptNone
 		return nil
 	}
+	if m.prompt == promptConfirm {
+		return m.confirmKey(k.String())
+	}
+	searching := m.prompt == promptFind || m.prompt == promptReplace
 	switch k.String() {
 	case "esc":
-		if m.prompt == promptFind {
+		if searching || m.prompt == promptWith {
 			d.buf.SetCursor(m.origin, false)
 		}
 		m.prompt = promptNone
 		m.follow = true
 		return nil
 	case "enter":
+		switch m.prompt {
+		case promptReplace:
+			if m.input == "" {
+				m.prompt = promptNone
+				return nil
+			}
+			m.repl.find, m.prompt, m.input = m.input, promptWith, m.repl.with
+			return nil
+		case promptWith:
+			m.repl.with = m.input
+			return m.startReview()
+		}
 		kind := m.prompt
 		m.prompt = promptNone
 		m.follow = true
@@ -695,13 +719,13 @@ func (m *Model) promptKey(k tea.KeyPressMsg) tea.Cmd {
 		m.center = true
 		return nil
 	case "f3", "down", "ctrl+g":
-		if m.prompt == promptFind && m.input != "" {
+		if searching && m.input != "" {
 			m.notFound = !d.buf.Find(m.input, true)
 			m.follow = true
 		}
 		return nil
 	case "shift+f3", "up":
-		if m.prompt == promptFind && m.input != "" {
+		if searching && m.input != "" {
 			m.notFound = !d.buf.Find(m.input, false)
 			m.follow = true
 		}
@@ -841,6 +865,11 @@ func (m *Model) Hints() []panel.Hint {
 		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("valider")}, {Key: "F3 / ↓", Desc: i18n.T("suivante")}, {Key: "Maj+F3 / ↑", Desc: i18n.T("précédente")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	case m.prompt == promptGoto:
 		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("aller")}, {Key: "Échap", Desc: i18n.T("annuler")}}
+	case m.prompt == promptReplace || m.prompt == promptWith:
+		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("valider")}, {Key: "Échap", Desc: i18n.T("annuler")}}
+	case m.prompt == promptConfirm:
+		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("remplacer")}, {Key: "Espace / F3", Desc: i18n.T("passer")},
+			{Key: "a", Desc: i18n.T("tout remplacer")}, {Key: "Échap", Desc: i18n.T("terminer")}}
 	case m.tree.focus && m.tree.visible:
 		return []panel.Hint{{Key: "↑↓", Desc: i18n.T("naviguer")}, {Key: "←→", Desc: i18n.T("replier / déplier")}, {Key: "Entrée", Desc: i18n.T("ouvrir")},
 			{Key: "Ctrl+E / Échap", Desc: i18n.T("texte")}, {Key: "Ctrl+B", Desc: i18n.T("masquer l'arbre")}, {Key: "r", Desc: i18n.T("relire")}}

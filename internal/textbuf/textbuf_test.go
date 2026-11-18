@@ -277,3 +277,28 @@ func TestIndentDedentComment(t *testing.T) {
 		t.Errorf("décommenter le bloc : %q", b2.String())
 	}
 }
+
+func TestReplaceAll(t *testing.T) {
+	b := New("Foo foo\nbar\nxfOOx")
+	b.SetCursor(Pos{1, 2}, false)
+	if n := b.ReplaceAll("foo", "été"); n != 3 {
+		t.Fatalf("%d remplacements", n)
+	}
+	if got := b.String(); got != "été été\nbar\nxétéx" {
+		t.Errorf("%q", got)
+	}
+	if b.Cursor() != (Pos{1, 2}) {
+		t.Errorf("curseur : %v", b.Cursor())
+	}
+	if n := b.ReplaceAll("absent", "x"); n != 0 || !b.Dirty() {
+		t.Errorf("rien à remplacer : %d", n)
+	}
+	// Une seule étape d'annulation.
+	if !b.Undo() || b.String() != "Foo foo\nbar\nxfOOx" {
+		t.Errorf("annuler : %q", b.String())
+	}
+	// Le remplacement peut contenir le texte cherché sans boucler.
+	if n := b.ReplaceAll("o", "oo"); n != 6 || b.Line(0) != "Foooo foooo" {
+		t.Errorf("%d : %q", n, b.Line(0))
+	}
+}
