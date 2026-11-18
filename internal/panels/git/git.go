@@ -104,7 +104,7 @@ func (m *Model) Hints() []panel.Hint {
 	if m.typing {
 		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("commiter")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	}
-	return []panel.Hint{{Key: "s", Desc: i18n.T("indexer")}, {Key: "u", Desc: i18n.T("désindexer")}, {Key: "A", Desc: i18n.T("tout indexer")},
+	return []panel.Hint{{Key: "b", Desc: i18n.T("branche")}, {Key: "s", Desc: i18n.T("indexer")}, {Key: "u", Desc: i18n.T("désindexer")}, {Key: "A", Desc: i18n.T("tout indexer")},
 		{Key: "c", Desc: "commit"}, {Key: "o", Desc: i18n.T("ouvrir")}, {Key: "PgUp/PgDn Maj+↑↓ molette", Desc: i18n.T("défiler")}}
 }
 
@@ -162,6 +162,10 @@ func (m *Model) act(done string, fn func(ctx context.Context, root string) error
 
 func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case panel.RepoChangedMsg:
+		return m, m.load()
+	case panel.BranchPickerMsg: // depuis la palette : c'est le cadre qui ouvre la liste
+		return m, func() tea.Msg { return msg }
 	case stateMsg:
 		m.loaded, m.err = true, msg.err
 		if msg.status != nil {
@@ -236,6 +240,8 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 	switch s {
 	case "r":
 		return m.load()
+	case "b":
+		return func() tea.Msg { return panel.BranchPickerMsg{} }
 	case "up", "k":
 		m.move(-1)
 	case "down", "j":

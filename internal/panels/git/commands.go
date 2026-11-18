@@ -9,6 +9,7 @@ import (
 // Commands expose les actions du module à la palette (Ctrl+P).
 func (m *Model) Commands() []panel.Command {
 	return []panel.Command{
+		{Title: i18n.T("Changer de branche (git switch)"), Key: "b", Msg: panel.BranchPickerMsg{}},
 		{Title: i18n.T("Indexer le fichier sélectionné"), Key: "s"},
 		{Title: i18n.T("Désindexer le fichier sélectionné"), Key: "u"},
 		{Title: i18n.T("Tout indexer"), Key: "A"},

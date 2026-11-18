@@ -195,6 +195,11 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 			return m, tea.Tick(autoDelay, func(time.Time) tea.Msg { return autoMsg{gen} })
 		}
 
+	case panel.RepoChangedMsg: // autre branche : le code a changé
+		m.autoGen++
+		gen := m.autoGen
+		return m, tea.Tick(autoDelay, func(time.Time) tea.Msg { return autoMsg{gen} })
+
 	case autoMsg:
 		if msg.gen == m.autoGen {
 			m.quiet = true

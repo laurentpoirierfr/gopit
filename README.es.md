@@ -63,7 +63,7 @@ está disponible). Se puede cambiar durante la ejecución (menú Ver, o
 | Pruebas — `go test -json` en directo, relanzamiento selectivo, apertura del error, relanzamiento automático al guardar (`w`), cobertura por paquete y por archivo (`v`) | ✅ |
 | Diagnósticos — `go vet`, staticcheck, gopls y gofmt, combinados, con extracto del código; se relanzan con cada guardado en el editor | ✅ |
 | Depuración — Delve (`dlv dap`): programa o pruebas de un paquete (objetivo `c`: `.`, `./cmd/herramienta -- args`, `test ./pkg -run TestX`), puntos de interrupción puestos en el editor (`F9`, conservados de una sesión a otra), paso a paso (`F5` a `F8`) con la línea actual en el editor, pila de llamadas (`u` / `d`), variables desplegables, salida del programa | ✅ |
-| Git — estado del repositorio, diff en color, commits recientes; indexar (`s`, `A`), desindexar (`u`), hacer commit (`c`), sin acciones destructivas ni push | ✅ |
+| Git — estado del repositorio, diff en color, commits recientes; indexar (`s`, `A`), desindexar (`u`), hacer commit (`c`), cambiar de rama o crear una (`b`, o clic en la rama de la barra de estado), sin acciones destructivas ni push | ✅ |
 | Terminal — comandos del shell en el directorio del proyecto (`go build`, `make`, `go run .`…), salida en directo, historial, relanzamiento (`r`), detención (`Ctrl+C`), apertura de las ubicaciones `archivo.go:línea` (`o`); sin programas interactivos | ✅ |
 | Docs — documentación de los paquetes del módulo y de la biblioteca estándar, mostrada con Glamour | ✅ |
 | Módulos — dependencias, actualizaciones (`go get` tras confirmación), `go mod why`, `govulncheck` | ✅ |

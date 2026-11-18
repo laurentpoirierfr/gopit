@@ -62,7 +62,7 @@ préférences ; `gopit -lang en` l'impose pour une session.
 | Tests — `go test -json` en direct, relance ciblée, ouverture de l'erreur, relance automatique à l'enregistrement (`w`), couverture par paquet et par fichier (`v`) | ✅ |
 | Diagnostics — `go vet`, staticcheck, gopls et gofmt, fusionnés, avec extrait du code ; relancés à chaque enregistrement dans l'éditeur | ✅ |
 | Débogage — Delve (`dlv dap`) : programme ou tests d'un paquet (cible `c` : `.`, `./cmd/outil -- args`, `test ./pkg -run TestX`), points d'arrêt posés dans l'éditeur (`F9`, gardés d'une session à l'autre), pas à pas (`F5` à `F8`) avec la ligne courante dans l'éditeur, pile d'appels (`u` / `d`), variables dépliables, sortie du programme | ✅ |
-| Git — état du dépôt, diff coloré, commits récents ; indexer (`s`, `A`), désindexer (`u`), commiter (`c`) — sans action destructive ni push | ✅ |
+| Git — état du dépôt, diff coloré, commits récents ; indexer (`s`, `A`), désindexer (`u`), commiter (`c`), changer de branche ou en créer une (`b`, ou clic sur la branche dans la barre d'état) — sans action destructive ni push | ✅ |
 | Terminal — commandes du shell dans le répertoire du projet (`go build`, `make`, `go run .`…), sortie en direct, historique, relance (`r`), arrêt (`Ctrl+C`), ouverture des `fichier.go:ligne` (`o`) ; pas de programme interactif | ✅ |
 | Docs — documentation des paquets du module et de la bibliothèque standard, rendue avec Glamour | ✅ |
 | Modules — dépendances, mises à jour (`go get` après confirmation), `go mod why`, `govulncheck` | ✅ |

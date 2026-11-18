@@ -194,6 +194,7 @@ func (m *Model) load(file string) (*doc, error) {
 				d.buf = textbuf.New(text)
 				d.buf.SetCursor(cur, false)
 				d.perm, d.mtime, d.hlVer = perm, st.ModTime().UnixNano(), -1
+				d.sentVer = -1 // nouveau tampon : à renvoyer à gopls
 			}
 		}
 		return d, nil
@@ -372,6 +373,9 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 		return m.onDefinition(msg)
 	case complMsg:
 		return m.onCompletion(msg)
+	case panel.RepoChangedMsg:
+		m.reloadClean()
+		return nil
 	case tea.PasteMsg:
 		m.compl = nil
 		m.paste(msg.Content)
@@ -1006,4 +1010,25 @@ func (m *Model) ShowLine(file string, line int) tea.Cmd {
 	d.buf.MoveCursor(textbuf.LineStart, 1, false)
 	m.editing, m.follow, m.center = false, true, true
 	return nil
+}
+
+// reloadClean relit les fichiers ouverts non modifiés qui ont changé sur le
+// disque (après un changement de branche) ; un fichier modifié dans
+// l'éditeur est laissé tel quel.
+func (m *Model) reloadClean() {
+	for _, d := range m.docs {
+		st, err := os.Stat(d.path)
+		if err != nil || d.buf.Dirty() || st.ModTime().UnixNano() == d.mtime {
+			continue
+		}
+		text, perm, err := readText(d.path)
+		if err != nil {
+			continue
+		}
+		cur := d.buf.Cursor()
+		d.buf = textbuf.New(text)
+		d.buf.SetCursor(cur, false)
+		d.perm, d.mtime, d.hlVer, d.lang = perm, st.ModTime().UnixNano(), -1, nil
+		d.sentVer = -1 // nouveau tampon : à renvoyer à gopls
+	}
 }

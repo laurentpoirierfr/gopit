@@ -61,7 +61,7 @@ that isn't available). You can change it while running (View menu, or
 | Tests — live `go test -json`, targeted reruns, open the failure, automatic rerun on save (`w`), coverage per package and per file (`v`) | ✅ |
 | Diagnostics — `go vet`, staticcheck, gopls and gofmt, merged, with a code excerpt; rerun on every save in the editor | ✅ |
 | Debug — Delve (`dlv dap`): a package's program or tests (target `c`: `.`, `./cmd/tool -- args`, `test ./pkg -run TestX`), breakpoints set in the editor (`F9`, kept between sessions), stepping (`F5` to `F8`) with the current line shown in the editor, call stack (`u` / `d`), expandable variables, program output | ✅ |
-| Git — repository status, colored diff, recent commits; stage (`s`, `A`), unstage (`u`), commit (`c`) — no destructive action, no push | ✅ |
+| Git — repository status, colored diff, recent commits; stage (`s`, `A`), unstage (`u`), commit (`c`), switch to or create a branch (`b`, or click the branch in the status bar) — no destructive action, no push | ✅ |
 | Terminal — shell commands in the project directory (`go build`, `make`, `go run .`…), live output, history, rerun (`r`), stop (`Ctrl+C`), open `file.go:line` locations (`o`); no interactive programs | ✅ |
 | Docs — documentation of the module's packages and of the standard library, rendered with Glamour | ✅ |
 | Modules — dependencies, updates (`go get` after confirmation), `go mod why`, `govulncheck` | ✅ |

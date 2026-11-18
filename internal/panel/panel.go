@@ -71,6 +71,13 @@ func Saved(path string) tea.Cmd {
 	return func() tea.Msg { return SavedMsg{Path: path} }
 }
 
+// BranchPickerMsg demande au cadre d'ouvrir la liste des branches git.
+type BranchPickerMsg struct{}
+
+// RepoChangedMsg est diffusé après un changement de branche : les fichiers
+// du projet ont pu changer sur le disque.
+type RepoChangedMsg struct{}
+
 // LangMsg est envoyé à tous les modules quand la langue de l'interface
 // change : ceux qui gardent du texte déjà traduit le recalculent.
 type LangMsg struct{}

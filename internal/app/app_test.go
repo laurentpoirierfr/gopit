@@ -8,11 +8,13 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/laurentpoirierfr/gopit/internal/config"
+	"github.com/laurentpoirierfr/gopit/internal/gitx"
 	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
@@ -401,14 +403,14 @@ func TestGitBranchInStatus(t *testing.T) {
 	m := newApp(t, nil)
 	refresh := func() {
 		t.Helper()
+		stale := m.refreshGit()
 		cmd := m.refreshGit()
-		if cmd == nil {
-			t.Fatal("lecture de l'état du dépôt attendue")
-		}
-		if m.refreshGit() != nil {
-			t.Error("une seule lecture à la fois")
-		}
 		m.Update(cmd())
+		before := m.git
+		m.Update(stale()) // réponse d'une lecture plus ancienne : ignorée
+		if m.git != before {
+			t.Error("lecture dépassée prise en compte")
+		}
 	}
 
 	// Pas de dépôt : rien n'est affiché.
@@ -447,5 +449,88 @@ func TestGitBranchInStatus(t *testing.T) {
 	}
 	if w := ansi.StringWidth(m.viewStatus()); w != width {
 		t.Errorf("largeur de la barre d'état : %d", w)
+	}
+}
+
+func TestSwitchBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git absent")
+	}
+	m := newApp(t, nil)
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = m.proj.Root
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v : %v\n%s", args, err, out)
+		}
+	}
+	a := filepath.Join(m.proj.Root, "a.go")
+	git("init", "-q", "-b", "principale")
+	git("add", ".")
+	git("commit", "-q", "-m", "init")
+	git("switch", "-q", "-c", "autre")
+	os.WriteFile(a, []byte("package exemple\n\nvar X = 2\n"), 0o600)
+	git("commit", "-q", "-am", "autre")
+	git("switch", "-q", "principale")
+	time.Sleep(10 * time.Millisecond) // date de modification distincte au prochain changement
+
+	openInEditor(t, m) // a.go ouvert, non modifié
+	press(m, "esc")
+	// run exécute une commande et repasse son message (sans les minuteries).
+	run := func(cmd tea.Cmd) {
+		t.Helper()
+		if cmd == nil {
+			t.Fatal("commande attendue")
+		}
+		m.Update(cmd())
+	}
+	branch := func() string {
+		t.Helper()
+		m.Update(m.refreshGit()())
+		return m.git.Branch
+	}
+
+	// Liste des branches : la courante cochée.
+	run(m.openBranches())
+	if !m.pal.open || len(m.pal.items) != 2 || !strings.HasPrefix(m.pal.items[0].title, "✓ principale") {
+		t.Fatalf("liste : %+v", m.pal.items)
+	}
+	typeText(m, "autre")
+	cmd := press(m, "enter")
+	run(cmd)
+	if b := branch(); b != "autre" {
+		t.Fatalf("branche : %q", b)
+	}
+	if !strings.Contains(ansi.Strip(m.panels[panelIndex(t, m, "Éditeur")].View(80, 10)), "var X = 2") {
+		t.Error("fichier ouvert non relu après le changement de branche")
+	}
+
+	// Nom inconnu : proposition de création.
+	run(m.openBranches())
+	typeText(m, "essai/nouvelle")
+	if n := len(m.pal.matches); n != 1 || !strings.Contains(m.pal.items[m.pal.matches[0]].title, "essai/nouvelle") {
+		t.Fatalf("création proposée : %d %+v", n, m.pal.items)
+	}
+	run(press(m, "enter"))
+	if b := branch(); b != "essai/nouvelle" {
+		t.Errorf("branche créée : %q", b)
+	}
+
+	// Clic sur la branche dans la barre d'état.
+	m.viewStatus()
+	if m.gitSpan[1] <= m.gitSpan[0] {
+		t.Fatal("place de la branche inconnue")
+	}
+	if _, cmd := m.Update(tea.MouseClickMsg{X: m.gitSpan[0], Y: m.h - m.footerH(), Button: tea.MouseLeft}); cmd == nil {
+		t.Error("clic sur la branche : liste attendue")
+	}
+
+	// Refus de git (modification qui serait écrasée) : message d'erreur.
+	os.WriteFile(a, []byte("package exemple\n\nvar X = 3\n"), 0o600)
+	m.Update(m.switchBranch(gitx.Branch{Name: "principale"}, false)())
+	if !m.flashErr || !strings.Contains(m.flash, "impossible") {
+		t.Errorf("refus attendu : %q", m.flash)
 	}
 }

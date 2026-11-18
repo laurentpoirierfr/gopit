@@ -4,6 +4,7 @@ package app
 // filtrées au fil de la saisie.
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -27,10 +28,14 @@ type paletteItem struct {
 type palette struct {
 	open    bool
 	query   string
-	items   []paletteItem
+	base    []paletteItem                    // éléments proposés
+	extra   func(query string) []paletteItem // éléments ajoutés selon la saisie (créer une branche…)
+	items   []paletteItem                    // base + extra
 	matches []int
 	cursor  int
 	offset  int
+	prompt  string // invite (« › » par défaut)
+	footer  string // aide en bas (format avec le nombre d'éléments)
 }
 
 const paletteRows = 12
@@ -67,13 +72,14 @@ func (m *Model) openPalette() {
 				}
 				return editor.Open(m.proj.Root, p, 0)
 			}},
+		paletteItem{title: i18n.T("Changer de branche git…"), run: func(m *Model) tea.Cmd { return m.openBranches() }},
 		paletteItem{title: i18n.T("Quitter gopit"), key: "Ctrl+Q", run: func(m *Model) tea.Cmd { return m.quit() }},
 	)
 	for _, it := range m.langItems() {
 		items = append(items, paletteItem{title: i18n.T("Langue : ") + it.label, run: it.run})
 	}
 	m.menu.open = -1
-	m.pal = palette{open: true, items: items}
+	m.pal = palette{open: true, base: items}
 	m.filterPalette()
 }
 
@@ -104,9 +110,13 @@ func keyMsg(key string) tea.KeyPressMsg {
 // filterPalette garde les commandes qui contiennent tous les mots saisis.
 func (m *Model) filterPalette() {
 	p := &m.pal
+	p.items = p.base
+	if p.extra != nil {
+		p.items = append(p.base[:len(p.base):len(p.base)], p.extra(p.query)...)
+	}
 	words := strings.Fields(strings.ToLower(p.query))
 	p.matches = p.matches[:0]
-	for i, it := range p.items {
+	for i, it := range p.base {
 		text := strings.ToLower(it.module + " " + it.title)
 		ok := true
 		for _, w := range words {
@@ -118,6 +128,9 @@ func (m *Model) filterPalette() {
 		if ok {
 			p.matches = append(p.matches, i)
 		}
+	}
+	for i := len(p.base); i < len(p.items); i++ { // toujours proposés, en dernier
+		p.matches = append(p.matches, i)
 	}
 	p.cursor, p.offset = 0, 0
 }
@@ -165,7 +178,7 @@ func (m *Model) viewPalette() string {
 	line := func(s string) string { return fill(bg, ansi.Truncate(s, inner, "…"), inner) }
 
 	lines := []string{
-		line(bg.Foreground(t.P.Accent).Bold(true).Render("› ") + bg.Foreground(t.P.Text).Render(p.query) +
+		line(bg.Foreground(t.P.Accent).Bold(true).Render(cmp.Or(p.prompt, "› ")) + bg.Foreground(t.P.Text).Render(p.query) +
 			bg.Foreground(t.P.Accent).Render("▌")),
 		line(bg.Foreground(t.P.Surface1).Render(strings.Repeat("─", inner))),
 	}
@@ -192,8 +205,8 @@ func (m *Model) viewPalette() string {
 	if len(p.matches) == 0 {
 		lines = append(lines, line(bg.Foreground(t.P.Overlay0).Render(i18n.T(" Aucune commande"))))
 	}
-	lines = append(lines, line(""), line(bg.Foreground(t.P.Overlay0).Render(
-		fmt.Sprintf(i18n.T(" %d commande(s) · ↑↓ choisir · Entrée exécuter · Échap fermer"), len(p.matches)))))
+	footer := cmp.Or(p.footer, i18n.T(" %d commande(s) · ↑↓ choisir · Entrée exécuter · Échap fermer"))
+	lines = append(lines, line(""), line(bg.Foreground(t.P.Overlay0).Render(fmt.Sprintf(footer, len(p.matches)))))
 
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(t.P.Accent).
 		BorderBackground(t.P.Mantle).Background(t.P.Mantle).Padding(0, 1).Render(strings.Join(lines, "\n"))

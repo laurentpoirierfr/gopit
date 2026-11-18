@@ -592,4 +592,16 @@ var es = map[string]string{
 	"■ Session terminée — F5 pour relancer %s":                         "■ Sesión terminada — F5 para volver a depurar %s",
 	"Cible : ": "Objetivo: ",
 	"   ex. « . », « ./cmd/outil -- arg », « test ./pkg -run TestX »": "   p. ej. «.», «./cmd/herramienta -- arg», «test ./pkg -run TestX»",
+
+	// Branches git
+	"Branches : ":               "Ramas: ",
+	"Branche : ":                "Rama: ",
+	"actuelle":                  "actual",
+	"distante":                  "remota",
+	"+ Créer la branche « %s »": "+ Crear la rama «%s»",
+	" %d branche(s) · tape un nom pour filtrer ou créer · Entrée changer · Échap fermer": " %d rama(s) · escribe un nombre para filtrar o crear · Intro cambiar · Esc cerrar",
+	"Changement de branche impossible : ":                                                "No se puede cambiar de rama: ",
+	"Changer de branche git…":                                                            "Cambiar de rama git…",
+	"Changer de branche (git switch)":                                                    "Cambiar de rama (git switch)",
+	"branche":                                                                            "rama",
 }

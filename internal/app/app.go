@@ -47,8 +47,12 @@ const (
 
 type clearFlashMsg int
 
-// gitMsg apporte l'état du dépôt pour la barre d'état (nil : pas de dépôt).
-type gitMsg struct{ s *gitx.Status }
+// gitMsg apporte l'état du dépôt pour la barre d'état (nil : pas de dépôt) ;
+// gen numérote les lectures, pour ignorer une réponse dépassée.
+type gitMsg struct {
+	s   *gitx.Status
+	gen int
+}
 
 // gitTickMsg relance la lecture de l'état du dépôt.
 type gitTickMsg struct{}
@@ -79,7 +83,9 @@ type Model struct {
 	dragging  bool           // glissement de la souris commencé dans le module
 	cfg       *config.Config // préférences, enregistrées en quittant
 	git       *gitx.Status   // branche courante (nil : pas de dépôt)
-	gitBusy   bool           // lecture de l'état du dépôt en cours
+	gitGen    int            // numéro de la dernière lecture de l'état du dépôt
+	gitTick   bool           // prochaine lecture programmée
+	gitSpan   [2]int         // colonnes de la branche dans la barre d'état (clic)
 }
 
 // New crée le cockpit pour le projet p.
@@ -154,11 +160,32 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.setFlash(msg.Text, msg.Error)
 
 	case gitMsg:
-		m.git, m.gitBusy = msg.s, false
+		if msg.gen != m.gitGen {
+			return m, nil // lecture dépassée par une plus récente
+		}
+		m.git = msg.s
+		if m.gitTick {
+			return m, nil
+		}
+		m.gitTick = true // une seule relecture périodique à la fois
 		return m, tea.Tick(gitEvery, func(time.Time) tea.Msg { return gitTickMsg{} })
 
 	case gitTickMsg:
+		m.gitTick = false
 		return m, m.refreshGit()
+
+	case panel.BranchPickerMsg:
+		return m, m.openBranches()
+
+	case branchesMsg:
+		if msg.err != nil {
+			return m, m.setFlash(i18n.T("Branches : ")+msg.err.Error(), true)
+		}
+		m.showBranches(msg.list)
+		return m, nil
+
+	case switchedMsg:
+		return m, m.onSwitched(msg)
 
 	case panel.SavedMsg: // fichier enregistré : l'état du dépôt a pu changer
 		return m, tea.Batch(m.broadcast(msg), m.refreshGit())
@@ -368,6 +395,9 @@ func (m *Model) handleClick(x, y int, shift bool) tea.Cmd {
 	if cmd, ok := m.menuClick(x, y); ok {
 		return cmd
 	}
+	if y == m.h-m.footerH() && x >= m.gitSpan[0] && x < m.gitSpan[1] { // branche de la barre d'état
+		return m.openBranches()
+	}
 	if y < topH || y >= m.h-m.footerH() {
 		return nil
 	}
@@ -461,19 +491,17 @@ func (m *Model) unsaved() []string {
 	return out
 }
 
-// refreshGit lit la branche courante en arrière-plan (une lecture à la fois).
+// refreshGit lit la branche courante en arrière-plan ; seule la réponse à
+// la dernière lecture compte.
 func (m *Model) refreshGit() tea.Cmd {
-	if m.gitBusy {
-		return nil
-	}
-	m.gitBusy = true
-	root := m.proj.Root
+	m.gitGen++
+	gen, root := m.gitGen, m.proj.Root
 	return func() tea.Msg {
 		s, err := gitx.GetBranch(context.Background(), root)
 		if err != nil {
-			return gitMsg{}
+			return gitMsg{gen: gen}
 		}
-		return gitMsg{s}
+		return gitMsg{s: s, gen: gen}
 	}
 }
 
@@ -654,7 +682,14 @@ func (m *Model) viewStatus() string {
 		left += t.StatusBar.Render(" " + homeRel(m.proj.Root))
 	}
 	base := t.StatusInfo.UnsetPadding()
-	right := base.Render(" ") + m.gitInfo() + base.Render(fmt.Sprintf(i18n.T("%d dép. directes"), m.proj.Requires)+" ")
+	git := m.gitInfo()
+	right := base.Render(" ") + git + base.Render(fmt.Sprintf(i18n.T("%d dép. directes"), m.proj.Requires)+" ")
+	// Place de la branche, pour l'ouvrir d'un clic.
+	if x := m.w - lipgloss.Width(right) + 1; git != "" {
+		m.gitSpan = [2]int{x, x + lipgloss.Width(git) - 3} // sans « · »
+	} else {
+		m.gitSpan = [2]int{}
+	}
 	if lipgloss.Width(left)+lipgloss.Width(right) > m.w {
 		left = ansi.Truncate(left, max(0, m.w-lipgloss.Width(right)), "…")
 	}

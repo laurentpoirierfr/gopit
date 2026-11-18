@@ -143,3 +143,67 @@ func TestWorkflow(t *testing.T) {
 		t.Errorf("hors dépôt : %v", err)
 	}
 }
+
+func TestBranchesAndSwitch(t *testing.T) {
+	ctx := context.Background()
+	origin := repo(t)
+	run := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v : %v %s", args, err, out)
+		}
+	}
+	os.WriteFile(filepath.Join(origin, "a.txt"), []byte("un\n"), 0o600)
+	run(origin, "add", "a.txt")
+	run(origin, "commit", "-q", "-m", "un")
+	run(origin, "branch", "distante")
+
+	// Clone : main locale, origin/distante sans branche locale.
+	dir := filepath.Join(t.TempDir(), "clone")
+	run(filepath.Dir(dir), "clone", "-q", origin, dir)
+	run(dir, "config", "user.name", "Test")
+	run(dir, "config", "user.email", "test@example.com")
+	run(dir, "branch", "locale")
+
+	bs, err := Branches(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := []string{}
+	for _, b := range bs {
+		names = append(names, b.Name)
+	}
+	if len(bs) != 3 || !bs[0].Current || bs[0].Name != "main" || bs[1].Name != "locale" ||
+		bs[2].Name != "origin/distante" || !bs[2].Remote {
+		t.Fatalf("branches : %v %+v", names, bs)
+	}
+
+	// Locale, nouvelle, puis distante (branche locale qui la suit).
+	if err := Switch(ctx, dir, bs[1], false); err != nil {
+		t.Fatal(err)
+	}
+	if err := Switch(ctx, dir, Branch{Name: "nouvelle"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := Switch(ctx, dir, bs[2], false); err != nil {
+		t.Fatal(err)
+	}
+	st, err := GetBranch(ctx, dir)
+	if err != nil || st.Branch != "distante" || st.Upstream != "origin/distante" {
+		t.Errorf("après la branche distante : %+v %v", st, err)
+	}
+
+	// Modification qui serait écrasée : git refuse, rien n'est perdu.
+	run(dir, "switch", "-q", "main")
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("deux\n"), 0o600)
+	run(dir, "commit", "-q", "-am", "deux")
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("en cours\n"), 0o600)
+	if err := Switch(ctx, dir, Branch{Name: "locale"}, false); err == nil {
+		t.Error("changement de branche refusé attendu")
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, "a.txt")); string(data) != "en cours\n" {
+		t.Errorf("modification perdue : %q", data)
+	}
+}

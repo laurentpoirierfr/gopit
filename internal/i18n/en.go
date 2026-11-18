@@ -592,4 +592,16 @@ var en = map[string]string{
 	"■ Session terminée — F5 pour relancer %s":                         "■ Session ended — F5 to debug %s again",
 	"Cible : ": "Target: ",
 	"   ex. « . », « ./cmd/outil -- arg », « test ./pkg -run TestX »": "   e.g. \".\", \"./cmd/tool -- arg\", \"test ./pkg -run TestX\"",
+
+	// Branches git
+	"Branches : ":               "Branches: ",
+	"Branche : ":                "Branch: ",
+	"actuelle":                  "current",
+	"distante":                  "remote",
+	"+ Créer la branche « %s »": "+ Create branch \"%s\"",
+	" %d branche(s) · tape un nom pour filtrer ou créer · Entrée changer · Échap fermer": " %d branch(es) · type a name to filter or create · Enter switch · Esc close",
+	"Changement de branche impossible : ":                                                "Cannot switch branch: ",
+	"Changer de branche git…":                                                            "Switch git branch…",
+	"Changer de branche (git switch)":                                                    "Switch branch (git switch)",
+	"branche":                                                                            "branch",
 }

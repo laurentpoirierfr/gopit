@@ -234,3 +234,71 @@ func CommitStaged(ctx context.Context, dir, message string) (string, error) {
 	out, err := Run(ctx, dir, "rev-parse", "--short", "HEAD")
 	return strings.TrimSpace(string(out)), err
 }
+
+// Branch est une branche du dépôt.
+type Branch struct {
+	Name    string // « main », ou « origin/feature » pour une branche distante
+	Remote  bool
+	Current bool
+}
+
+// Branches liste les branches locales (la courante en premier), puis les
+// branches distantes qui n'ont pas de branche locale du même nom.
+func Branches(ctx context.Context, dir string) ([]Branch, error) {
+	out, err := Run(ctx, dir, "for-each-ref", "--format=%(HEAD)%00%(refname)%00%(refname:short)",
+		"--sort=-committerdate", "refs/heads", "refs/remotes")
+	if err != nil {
+		return nil, err
+	}
+	return ParseBranches(out), nil
+}
+
+// ParseBranches lit la sortie de Branches (git for-each-ref).
+func ParseBranches(out []byte) []Branch {
+	var local, remote []Branch
+	have := map[string]bool{}
+	for _, l := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		f := strings.Split(l, "\x00")
+		if len(f) != 3 {
+			continue
+		}
+		head, ref, short := f[0], f[1], f[2]
+		switch {
+		case strings.HasPrefix(ref, "refs/heads/"):
+			b := Branch{Name: short, Current: head == "*"}
+			if b.Current {
+				local = append([]Branch{b}, local...)
+			} else {
+				local = append(local, b)
+			}
+			have[short] = true
+		case strings.HasPrefix(ref, "refs/remotes/") && !strings.HasSuffix(ref, "/HEAD"):
+			remote = append(remote, Branch{Name: short, Remote: true})
+		}
+	}
+	out2 := local
+	for _, b := range remote {
+		if _, name, ok := strings.Cut(b.Name, "/"); ok && !have[name] {
+			out2 = append(out2, b)
+		}
+	}
+	return out2
+}
+
+// Switch passe sur une branche (git switch) : une branche distante
+// « origin/x » donne la branche locale x qui la suit ; create crée une
+// nouvelle branche depuis HEAD. git refuse si des modifications non
+// enregistrées entreraient en conflit : rien n'est jamais perdu.
+func Switch(ctx context.Context, dir string, b Branch, create bool) error {
+	switch {
+	case create:
+		_, err := Run(ctx, dir, "switch", "-c", b.Name)
+		return err
+	case b.Remote:
+		_, name, _ := strings.Cut(b.Name, "/")
+		_, err := Run(ctx, dir, "switch", "--track", "-c", name, b.Name)
+		return err
+	}
+	_, err := Run(ctx, dir, "switch", b.Name)
+	return err
+}

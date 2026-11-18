@@ -75,7 +75,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case factMsg:
 		m.facts[msg.key] = fact{val: msg.val, err: msg.err, done: true}
-	case panel.LangMsg: // le résumé contient du texte traduit
+	case panel.LangMsg, panel.RepoChangedMsg: // texte traduit, ou autre branche
 		return m, m.load()
 	case tea.KeyPressMsg:
 		if msg.String() == "r" {
