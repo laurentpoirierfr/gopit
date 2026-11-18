@@ -482,7 +482,7 @@ func (m *Model) viewDetail(w, h int) string {
 // render convertit la documentation en texte coloré, avec un cache par
 // paquet, symbole, largeur et thème.
 func (m *Model) render(d *godoc.Doc, sym string, w int) []string {
-	key := fmt.Sprintf("%s|%s|%d|%v", d.Pkg.ImportPath, sym, w, m.th.Dark)
+	key := fmt.Sprintf("%s|%s|%d|%v|%s", d.Pkg.ImportPath, sym, w, m.th.Dark, i18n.Current()) // titres traduits
 	if out, ok := m.rendered[key]; ok {
 		return out
 	}

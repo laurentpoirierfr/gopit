@@ -1,5 +1,7 @@
 # gopit
 
+**Français** · [English](README.en.md) · [Español](README.es.md)
+
 Le cockpit du développeur Go dans le terminal.
 
 gopit rassemble dans une interface clavier (et souris) ce que les éditeurs
@@ -27,6 +29,7 @@ jusqu'au premier `go.mod`.
 |---|---|
 | `↑` `↓` ou `1`…`8` | choisir un module |
 | `Ctrl+P` | palette de commandes : toutes les actions de tous les modules |
+| `F10` ou `Alt` + lettre soulignée | barre de menus |
 | `Ctrl+O` | ouvrir un fichier du projet dans l'éditeur intégré |
 | `Tab` / `Échap` | passer de la navigation au module et inversement |
 | `e` | ouvrir l'éditeur externe sur le projet |

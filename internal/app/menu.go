@@ -30,7 +30,44 @@ type menuItem struct {
 type menu struct {
 	title  string
 	hotkey string // Alt+lettre (vide : aucun)
+	accel  int    // place (en runes) de la lettre soulignée dans title (-1 : aucune)
 	items  []menuItem
+}
+
+// accelMenu crée un menu dont le titre traduit marque sa lettre de raccourci
+// par « & » (« &Fichier », « A&yuda ») : Alt+cette lettre ouvre le menu,
+// et elle est soulignée dans la barre. Chaque langue choisit ses lettres.
+func accelMenu(marked string, items []menuItem) menu {
+	mn := menu{title: marked, accel: -1, items: items}
+	r := []rune(marked)
+	for i := 0; i < len(r)-1; i++ {
+		if r[i] == '&' {
+			mn.title = string(r[:i]) + string(r[i+1:])
+			mn.accel = i
+			mn.hotkey = "alt+" + foldLetter(r[i+1])
+			break
+		}
+	}
+	return mn
+}
+
+// foldLetter met une lettre en minuscule sans accent (« É » → « e ») :
+// c'est la touche que l'on presse avec Alt.
+func foldLetter(r rune) string {
+	s := strings.ToLower(string(r))
+	return strings.NewReplacer("é", "e", "è", "e", "ê", "e", "ë", "e", "à", "a", "á", "a", "â", "a",
+		"í", "i", "î", "i", "ó", "o", "ô", "o", "ú", "u", "ù", "u", "û", "u", "ü", "u", "ñ", "n", "ç", "c").Replace(s)
+}
+
+// hotkeyLetters renvoie les lettres des menus (« F, E, A, M, D ») pour l'aide.
+func hotkeyLetters(menus []menu) string {
+	var ls []string
+	for _, mn := range menus {
+		if k, ok := strings.CutPrefix(mn.hotkey, "alt+"); ok {
+			ls = append(ls, strings.ToUpper(k))
+		}
+	}
+	return strings.Join(ls, ", ")
 }
 
 // menuState est l'état de la barre de menus.
@@ -86,7 +123,7 @@ func (m *Model) menus() []menu {
 	}
 
 	return []menu{
-		{title: i18n.T("Fichier"), hotkey: "alt+f", items: []menuItem{
+		accelMenu(i18n.T("&Fichier"), []menuItem{
 			{label: i18n.T("Ouvrir un fichier…"), key: "Ctrl+O", run: func(m *Model) tea.Cmd { return m.openPicker() }},
 			{label: i18n.T("Fermer le fichier"), key: "Ctrl+W", disabled: !canEdit,
 				run: func(m *Model) tea.Cmd { return m.toPanel(panel.EditMsg{Action: panel.ActClose}) }},
@@ -104,9 +141,9 @@ func (m *Model) menus() []menu {
 			}},
 			{sep: true},
 			{label: i18n.T("Quitter"), key: "Ctrl+Q", run: func(m *Model) tea.Cmd { return m.quit() }},
-		}},
-		{title: i18n.T("Édition"), hotkey: "alt+e", items: edit},
-		{title: i18n.T("Affichage"), hotkey: "alt+a", items: append([]menuItem{
+		}),
+		accelMenu(i18n.T("&Édition"), edit),
+		accelMenu(i18n.T("&Affichage"), append([]menuItem{
 			{label: i18n.T("Barre latérale des modules"), checked: yes(m.sidebar), run: func(m *Model) tea.Cmd {
 				m.sidebar = !m.sidebar
 				if !m.sidebar {
@@ -121,13 +158,13 @@ func (m *Model) menus() []menu {
 			{sep: true},
 			{label: i18n.T("Palette de commandes"), key: "Ctrl+P", run: func(m *Model) tea.Cmd { m.openPalette(); return nil }},
 			{sep: true},
-		}, m.langItems()...)},
-		{title: i18n.T("Modules"), hotkey: "alt+m", items: modules},
-		{title: i18n.T(cur.Title()), items: actions},
-		{title: i18n.T("Aide"), hotkey: "alt+h", items: []menuItem{
+		}, m.langItems()...)),
+		accelMenu(i18n.T("&Modules"), modules),
+		{title: i18n.T(cur.Title()), accel: -1, items: actions},
+		accelMenu(i18n.T("Ai&de"), []menuItem{
 			{label: i18n.T("Raccourcis clavier"), key: "F1", run: func(m *Model) tea.Cmd { m.modal = modalHelp; return nil }},
 			{label: i18n.T("À propos de gopit"), run: func(m *Model) tea.Cmd { m.modal = modalAbout; return nil }},
-		}},
+		}),
 	}
 }
 
@@ -138,7 +175,7 @@ func (m *Model) langItems() []menuItem {
 		items[i] = menuItem{label: l.Name(), checked: yes(i18n.Current() == l), run: func(m *Model) tea.Cmd {
 			i18n.Set(l)
 			m.langSet = true
-			return m.setFlash(i18n.T("Langue de l'interface : ")+l.Name(), false)
+			return tea.Batch(m.setFlash(i18n.T("Langue de l'interface : ")+l.Name(), false), m.broadcast(panel.LangMsg{}))
 		}}
 	}
 	return items
@@ -274,7 +311,14 @@ func (m *Model) viewMenuBar() string {
 		case i == len(menus)-2: // menu du module affiché
 			st = st.Foreground(t.P.Accent)
 		}
-		b.WriteString(st.Render(mn.title))
+		if mn.accel < 0 {
+			b.WriteString(st.Render(mn.title))
+			continue
+		}
+		r := []rune(mn.title)
+		plain := st.UnsetPadding()
+		b.WriteString(plain.Render(" "+string(r[:mn.accel])) + plain.Underline(true).Render(string(r[mn.accel])) +
+			plain.Render(string(r[mn.accel+1:])+" "))
 	}
 	right := t.TopInfo.Render(fmt.Sprintf("go %s · gopit %s ", m.proj.GoVersion, version.Version))
 	return fill(bar, b.String(), m.w-lipgloss.Width(right)) + right
@@ -341,7 +385,7 @@ func (m *Model) viewModal() string {
 		lines = []string{
 			title.Render(i18n.T("Raccourcis clavier")), "",
 			title.Render(i18n.T("Général")),
-			row("F10 / Alt+…", i18n.T("barre de menus (Alt+F, E, A, M, H)")),
+			row("F10 / Alt+…", fmt.Sprintf(i18n.T("barre de menus (Alt+%s)"), hotkeyLetters(m.menus()))),
 			row("Ctrl+P", i18n.T("palette de commandes")),
 			row(fmt.Sprintf("1…%d", len(m.panels)), i18n.T("changer de module")),
 			row("F1", i18n.T("cette aide")),

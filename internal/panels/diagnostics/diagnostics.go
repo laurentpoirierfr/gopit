@@ -426,7 +426,7 @@ func (m *Model) viewList(w, h int) string {
 			continue
 		}
 		loc := t.Dim.Render(fmt.Sprintf("%5d:%-3d", r.d.Line, r.d.Col))
-		line := ansi.Truncate(loc+" "+m.sevIcon(r.d.Severity)+" "+t.Text.Render(r.d.Message), w, "…")
+		line := ansi.Truncate(loc+" "+m.sevIcon(r.d.Severity)+" "+t.Text.Render(i18n.T(r.d.Message)), w, "…")
 		if i == m.cursor {
 			line = lipgloss.NewStyle().Background(t.P.Surface0).Width(w).Render(line)
 		}
@@ -446,7 +446,7 @@ func (m *Model) viewDetail(w, h int) string {
 	lines := []string{
 		m.sevIcon(d.Severity) + " " + t.Value.Render(d.Severity.String()),
 		"",
-		wrap.Render(t.Text.Render(d.Message)),
+		wrap.Render(t.Text.Render(i18n.T(d.Message))),
 		"",
 		t.Label.Render(fmt.Sprintf("%-13s", i18n.T("Emplacement"))) + t.Text.Render(fmt.Sprintf("%s:%d:%d", m.rel(d.File), d.Line, d.Col)),
 	}

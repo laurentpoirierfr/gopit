@@ -326,8 +326,9 @@ func ParseGofmt(stdout []byte, root string) []Diagnostic {
 	var out []Diagnostic
 	for line := range strings.SplitSeq(string(stdout), "\n") {
 		if line = strings.TrimSpace(line); line != "" {
+			// Message traduit à l'affichage (la langue peut changer).
 			out = append(out, Diagnostic{File: abs(root, line), Line: 1, Col: 1,
-				Message: i18n.T("fichier mal formaté (gofmt -w pour corriger)"), Code: "gofmt",
+				Message: i18n.N("fichier mal formaté (gofmt -w pour corriger)"), Code: "gofmt",
 				Tools: []string{ToolGofmt}, Severity: Info})
 		}
 	}

@@ -57,6 +57,10 @@ func Flash(text string, isErr bool) tea.Cmd {
 	return func() tea.Msg { return FlashMsg{Text: text, Error: isErr} }
 }
 
+// LangMsg est envoyé à tous les modules quand la langue de l'interface
+// change : ceux qui gardent du texte déjà traduit le recalculent.
+type LangMsg struct{}
+
 // Command est une action d'un module, proposée dans la palette (Ctrl+P).
 // L'exécuter revient à afficher le module et à lui envoyer la touche Key
 // (au format de tea.KeyPressMsg.String : « a », « enter », « f5 »…), ou le

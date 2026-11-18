@@ -315,3 +315,58 @@ func TestRenderFits(t *testing.T) {
 		}
 	}
 }
+
+func TestAccelMenu(t *testing.T) {
+	mn := accelMenu("&Édition", nil)
+	if mn.title != "Édition" || mn.hotkey != "alt+e" || mn.accel != 0 {
+		t.Errorf("%+v", mn)
+	}
+	if mn := accelMenu("A&yuda", nil); mn.title != "Ayuda" || mn.hotkey != "alt+y" || mn.accel != 1 {
+		t.Errorf("%+v", mn)
+	}
+	if mn := accelMenu("Sans", nil); mn.hotkey != "" || mn.accel != -1 {
+		t.Errorf("%+v", mn)
+	}
+}
+
+// TestMenuHotkeysPerLanguage vérifie que, dans chaque langue, les lettres
+// des menus sont toutes différentes et ouvrent le bon menu.
+func TestMenuHotkeysPerLanguage(t *testing.T) {
+	m := newApp(t, nil)
+	for _, l := range i18n.Langs {
+		i18n.Set(l)
+		seen := map[string]string{}
+		for i, mn := range m.menus() {
+			if mn.hotkey == "" {
+				continue
+			}
+			if other, dup := seen[mn.hotkey]; dup {
+				t.Errorf("%s : %s pour « %s » et « %s »", l, mn.hotkey, other, mn.title)
+			}
+			seen[mn.hotkey] = mn.title
+			if r := []rune(mn.title); mn.accel >= len(r) || foldLetter(r[mn.accel]) != strings.TrimPrefix(mn.hotkey, "alt+") {
+				t.Errorf("%s : lettre soulignée de « %s » ≠ %s", l, mn.title, mn.hotkey)
+			}
+			m.Update(key(mn.hotkey))
+			if m.menu.open != i {
+				t.Errorf("%s : %s ouvre le menu %d, attendu %d (%s)", l, mn.hotkey, m.menu.open, i, mn.title)
+			}
+			press(m, "esc")
+		}
+		if len(seen) != 5 {
+			t.Errorf("%s : %d menus avec raccourci", l, len(seen))
+		}
+	}
+}
+
+func TestLanguageChangeRefreshesModules(t *testing.T) {
+	m := newApp(t, nil)
+	press(m, "ctrl+p")
+	typeText(m, "español")
+	if cmd := press(m, "enter"); cmd == nil {
+		t.Fatal("changer de langue prévient les modules (commande attendue)")
+	}
+	if i18n.Current() != i18n.ES || !strings.Contains(ansi.Strip(m.render()), "Ayuda") {
+		t.Error("interface en espagnol attendue")
+	}
+}
