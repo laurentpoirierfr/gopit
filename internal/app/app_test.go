@@ -376,3 +376,19 @@ func TestLanguageChangeRefreshesModules(t *testing.T) {
 		t.Error("interface en espagnol attendue")
 	}
 }
+
+// TestIcons vérifie que chaque module a une icône, distincte des autres.
+func TestIcons(t *testing.T) {
+	m := newApp(t, nil)
+	seen := map[string]string{}
+	for _, p := range m.panels {
+		icon := p.Icon()
+		if strings.TrimSpace(icon) == "" {
+			t.Errorf("%s : pas d'icône", p.Title())
+		}
+		if other, dup := seen[icon]; dup {
+			t.Errorf("%s et %s : même icône", other, p.Title())
+		}
+		seen[icon] = p.Title()
+	}
+}

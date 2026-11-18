@@ -102,7 +102,7 @@ func New(th *theme.Theme, p *project.Project) *Model {
 }
 
 func (m *Model) Title() string { return i18n.N("Terminal") }
-func (m *Model) Icon() string  { return "" }
+func (m *Model) Icon() string  { return "\uf120" } // terminal (Font Awesome, comme les autres modules)
 func (m *Model) Init() tea.Cmd { return nil }
 
 // Capturing : en saisie, toutes les touches vont à la ligne de commande.
