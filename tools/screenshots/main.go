@@ -103,7 +103,7 @@ func run(out, fontDir, fontName string, size float64, cols, rows int, only strin
 			continue
 		}
 		fmt.Printf("… %s\n", s.name)
-		d.settle(3200 * time.Millisecond) // les messages du module précédent s'effacent
+		d.pump(3200 * time.Millisecond) // les messages du module précédent s'effacent
 		if err := s.run(d, shot); err != nil {
 			fmt.Fprintf(os.Stderr, "  %s : %v\n", s.name, err)
 		}
@@ -160,13 +160,30 @@ func (d *driver) waitFor(what string, timeout time.Duration, cond func(string) b
 	return nil
 }
 
-// settle traite les messages jusqu'à un moment de calme.
+// settle traite les messages jusqu'à un moment de calme, sans attendre plus
+// de 3 secondes (une animation envoie des messages en continu).
 func (d *driver) settle(quiet time.Duration) {
+	deadline := time.After(3 * time.Second)
 	for {
 		select {
 		case msg := <-d.msgs:
 			d.send(msg)
 		case <-time.After(quiet):
+			return
+		case <-deadline:
+			return
+		}
+	}
+}
+
+// pump fait tourner l'application pendant une durée fixe.
+func (d *driver) pump(dur time.Duration) {
+	deadline := time.After(dur)
+	for {
+		select {
+		case msg := <-d.msgs:
+			d.send(msg)
+		case <-deadline:
 			return
 		}
 	}
