@@ -629,4 +629,10 @@ var es = map[string]string{
 	"◆ navigation": "◆ navegación",
 	" — i ou Entrée : shell · ↑↓ ligne · o : ouvrir fichier:ligne": " — i o Intro: shell · ↑↓ línea · o: abrir archivo:línea",
 	" · %d lignes plus haut": " · %d líneas más arriba",
+
+	// Images
+	"autre fichier":           "otro archivo",
+	"Image illisible : ":      "Imagen ilegible: ",
+	"Préparation de l'image…": "Preparando la imagen…",
+	"IMAGE":                   "IMAGEN",
 }

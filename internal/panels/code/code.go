@@ -19,6 +19,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/laurentpoirierfr/imgview/pkg/imgrender"
+
 	"github.com/laurentpoirierfr/gopit/internal/gopls"
 	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/lsp"
@@ -46,6 +48,8 @@ type doc struct {
 	hlVer int // version du tampon colorée (-1 : à calculer)
 	hl    [][]class
 	lang  *language // coloration choisie (syntax.go), à la première demande
+
+	image *imageView // image (image.go) : onglet en lecture seule ; nil : texte
 
 	lspOpen     bool // signalé à gopls (lsp.go)
 	sentVer     int  // version du tampon envoyée à gopls
@@ -100,6 +104,12 @@ type Model struct {
 
 	dbg *panel.DebugState // points d'arrêt et ligne d'arrêt (partagés avec Débogage)
 
+	// Images (image.go).
+	hd           bool   // haute définition (protocole Kitty)
+	cellW, cellH int    // taille d'une cellule en pixels (0 : inconnue)
+	hdNextID     uint32 // numéro de la prochaine image envoyée au terminal
+	textW        int    // largeur de la zone de texte au dernier rendu
+
 	watchFS bool        // surveiller le disque (fswatch.go)
 	watcher *dirWatcher // nil : pas encore démarrée
 
@@ -125,7 +135,8 @@ type span struct{ x, w, close int }
 
 func New(th *theme.Theme, p *project.Project) *Model {
 	m := &Model{th: th, proj: p, textH: 20, tree: newTree(), define: gopls.Define, diags: map[string][]lsp.Diagnostic{},
-		dbg: panel.NewDebugState(), watchFS: os.Getenv("GOPIT_WATCH") != "off"}
+		dbg: panel.NewDebugState(), watchFS: os.Getenv("GOPIT_WATCH") != "off", hd: hdSupported()}
+	m.cellW, m.cellH = cellSize()
 	if lspEnabled() {
 		m.start = lsp.Start
 	}
@@ -202,6 +213,15 @@ func (m *Model) load(file string) (*doc, error) {
 		}
 		return d, nil
 	}
+	if isImage(path) {
+		if _, err := os.Stat(path); err != nil {
+			return nil, err
+		}
+		d := m.newImageDoc(path)
+		m.docs = append(m.docs, d)
+		m.cur = len(m.docs) - 1
+		return d, nil
+	}
 	text, perm, err := readText(path)
 	if err != nil {
 		return nil, err
@@ -231,7 +251,7 @@ func (m *Model) OpenFile(file string, line int) tea.Cmd {
 		}
 		m.center = true
 	}
-	m.editing, m.follow = true, true
+	m.editing, m.follow = d.image == nil, true // une image ne se modifie pas
 	return nil
 }
 
@@ -247,6 +267,7 @@ func (m *Model) closeDoc() tea.Cmd {
 	}
 	m.closeArmed = false
 	m.lspClosed(d)
+	freed := closeImage(d)
 	m.docs = append(m.docs[:m.cur], m.docs[m.cur+1:]...)
 	m.cur = min(m.cur, len(m.docs)-1)
 	if len(m.docs) == 0 {
@@ -257,7 +278,7 @@ func (m *Model) closeDoc() tea.Cmd {
 	} else {
 		m.tree.reveal = m.doc().path
 	}
-	return nil
+	return freed
 }
 
 // formatDoc passe le fichier Go courant à gofmt (une étape d'annulation).
@@ -367,7 +388,7 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	} else {
 		m.dbg.Current = ""
 	}
-	return m, tea.Batch(cmd, m.lspSync(), m.watchSync())
+	return m, tea.Batch(cmd, m.lspSync(), m.watchSync(), m.imageSync())
 }
 
 func (m *Model) update(msg tea.Msg) tea.Cmd {
@@ -381,6 +402,8 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 		return m.onDefinition(msg)
 	case complMsg:
 		return m.onCompletion(msg)
+	case imageMsg:
+		return m.onImage(msg)
 	case panel.RepoChangedMsg:
 		m.reloadClean()
 		return nil
@@ -388,6 +411,9 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 		return m.onFS(msg)
 	case tea.PasteMsg:
 		m.compl = nil
+		if d := m.doc(); d != nil && d.image != nil {
+			return nil // une image ne se modifie pas
+		}
 		m.paste(msg.Content)
 		return nil
 	case tea.MouseWheelMsg:
@@ -521,6 +547,17 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	}
+	if d.image != nil { // image : en lecture seule
+		switch s {
+		case "w":
+			return m.action(panel.ActClose)
+		case "o":
+			return m.action(panel.ActOpen)
+		case "t":
+			m.focusTree()
+		}
+		return nil
+	}
 	if mv, extend, page, ok := moveFor(s); ok {
 		n := 1
 		if page {
@@ -623,6 +660,9 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 	d := m.doc()
 	if d == nil {
 		return nil
+	}
+	if d.image != nil && a != panel.ActClose {
+		return nil // image : rien à modifier, chercher ou enregistrer
 	}
 	b := d.buf
 	m.follow = true
@@ -974,6 +1014,9 @@ func (m *Model) Hints() []panel.Hint {
 	case m.tree.focus && m.tree.visible:
 		return []panel.Hint{{Key: "↑↓", Desc: i18n.T("naviguer")}, {Key: "←→", Desc: i18n.T("replier / déplier")}, {Key: "Entrée", Desc: i18n.T("ouvrir")},
 			{Key: "n", Desc: i18n.T("nouveau fichier")}, {Key: "Ctrl+E / Échap", Desc: i18n.T("texte")}, {Key: "Ctrl+B", Desc: i18n.T("masquer l'arbre")}, {Key: "r", Desc: i18n.T("relire")}}
+	case m.doc() != nil && m.doc().image != nil:
+		return []panel.Hint{{Key: "w / Ctrl+W", Desc: i18n.T("fermer")}, {Key: "o / Ctrl+O", Desc: i18n.T("ouvrir")},
+			{Key: "t", Desc: i18n.T("arbre")}, {Key: "Ctrl+PgUp/PgDn", Desc: i18n.T("autre fichier")}}
 	case m.doc() == nil:
 		return []panel.Hint{{Key: "Entrée / Ctrl+O", Desc: i18n.T("ouvrir un fichier")}, {Key: "Ctrl+N", Desc: i18n.T("nouveau fichier")}, {Key: "Ctrl+B", Desc: i18n.T("arbre")}}
 	case m.editing:
@@ -1029,6 +1072,11 @@ func (m *Model) reloadClean() {
 	for _, d := range m.docs {
 		st, err := os.Stat(d.path)
 		if err != nil || d.buf.Dirty() || st.ModTime().UnixNano() == d.mtime {
+			continue
+		}
+		if d.image != nil { // image réécrite : nouveau rendu
+			d.mtime = st.ModTime().UnixNano()
+			d.image.info, d.image.key = imgrender.ReadInfo(d.path), ""
 			continue
 		}
 		text, perm, err := readText(d.path)

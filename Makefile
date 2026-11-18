@@ -20,7 +20,7 @@ PODMAN := $(shell $(DOCKER) version 2>&1 | grep -qi podman && echo 1)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build run install uninstall test cover vet fmt fmt-check check tidy clean release-snapshot release-notes act
+.PHONY: help build run install uninstall test cover vet fmt fmt-check check tidy clean release-snapshot release-notes screenshots act
 
 help: ## Affiche la liste des cibles
 	@sed -n -E 's/^([a-zA-Z0-9_-]+):[^#]*## ?(.*)$$/  \1  \2/p' $(MAKEFILE_LIST)
@@ -63,6 +63,9 @@ clean: ## Supprime bin/, dist/ et la couverture
 
 release-snapshot: ## Essai local de GoReleaser dans dist/, sans rien publier
 	go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
+
+screenshots: ## Captures d'écran des modules dans assets/screenshots (police Nerd Font, gopls, Delve)
+	go run -ldflags "$(LDFLAGS)" ./tools/screenshots $(ARGS)
 
 release-notes: ## Notes de version d'un tag, tirées de CHANGELOG.md (TAG=v0.3.0)
 	@test -n "$(TAG)" || { echo "TAG manquant : make release-notes TAG=v0.3.0" >&2; exit 1; }

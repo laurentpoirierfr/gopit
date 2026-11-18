@@ -11,6 +11,16 @@ montre ce qui sera publié).
 
 ## [Non publié]
 
+### Ajouté
+
+- Images dans l'éditeur (PNG, JPEG, GIF, BMP, TIFF, WebP) : onglet en lecture
+  seule, en haute définition dans Kitty et Ghostty, sinon en caractères
+  colorés (chafa s'il est installé) ; rendu par
+  [imgview](https://github.com/laurentpoirierfr/imgview).
+- `make screenshots` : captures d'écran de tous les modules, produites en
+  pilotant gopit sur son propre dépôt (`assets/screenshots/`).
+- Benchmarks de l'éditeur (frappe, recherche, remplacement, coloration).
+
 ## [0.3.0] - 2026-11-18
 
 ### Ajouté

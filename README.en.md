@@ -60,7 +60,7 @@ that isn't available). You can change it while running (View menu, or
 | Module | Status |
 |---|---|
 | Home — module summary (Go version, packages, files, git) | ✅ |
-| Editor — project tree, several open files, syntax highlighting (Go, go.mod / go.sum, and with chroma Markdown, YAML, Makefile, Dockerfile, JSON, SQL, shell scripts…), automatic indentation, gofmt on save, errors underlined as you type and completion (gopls), find and replace, mouse selection, undo/redo, go to definition and symbol documentation (gopls) | ✅ |
+| Editor — project tree, several open files, syntax highlighting (Go, go.mod / go.sum, and with chroma Markdown, YAML, Makefile, Dockerfile, JSON, SQL, shell scripts…), automatic indentation, gofmt on save, errors underlined as you type and completion (gopls), find and replace, mouse selection, undo/redo, images (PNG, JPEG, GIF, WebP… in high definition in Kitty and Ghostty), go to definition and symbol documentation (gopls) | ✅ |
 | Tests — live `go test -json`, targeted reruns, open the failure, automatic rerun on save (`w`), coverage per package and per file (`v`) | ✅ |
 | Diagnostics — `go vet`, staticcheck, gopls and gofmt, merged, with a code excerpt; rerun on every save in the editor | ✅ |
 | Debug — Delve (`dlv dap`): a package's program or tests (automatic target: the program or tests of the file shown, otherwise the module's program, chosen from a list if there are several; `c` to set it: `./cmd/tool -- args`, `test ./pkg -run TestX`), breakpoints set in the editor (`F9`, kept between sessions), stepping (`F5` to `F8`) with the current line shown in the editor, call stack (`u` / `d`), expandable variables, program output (`s`: full screen with scrolling; outside the module, each line written shows in the status bar); the program gets no keyboard input (a full-screen application can't be debugged this way) | ✅ |
@@ -104,6 +104,13 @@ marked with a `●` in the margin, and the message for the cursor's line is
 shown in the status bar. Definitions and documentation take unsaved text
 into account. `GOPIT_GOPLS=off` disables the connection; without it, go to
 definition uses `gopls definition`, which reads from disk (save first).
+
+An image (PNG, JPEG, GIF, BMP, TIFF, WebP) opens in a read-only tab, with
+its format, dimensions and size in the status bar: in high definition in
+Kitty and Ghostty (Kitty graphics protocol), otherwise as colored characters
+(with [chafa](https://hpjansson.org/chafa/) if installed). Rendering comes
+from [imgview](https://github.com/laurentpoirierfr/imgview);
+`IMGVIEW_NO_KITTY=1` turns high definition off.
 
 In the tree: `↑` `↓` to move, `→` / `←` to expand or collapse a folder,
 `Enter` to open. The tree follows the disk: a file or folder created,

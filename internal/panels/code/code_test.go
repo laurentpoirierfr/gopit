@@ -2,6 +2,9 @@ package code
 
 import (
 	"context"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -105,6 +108,7 @@ func newModel(t *testing.T) (*Model, string) {
 	m := New(theme.New(), &project.Project{Root: dir})
 	m.start = nil     // pas de vrai gopls : voir TestLSP
 	m.watchFS = false // pas de surveillance du disque : voir TestWatchDisk
+	m.hd = false      // rendu des images en texte, quel que soit le terminal : voir TestImageHD
 	return m, dir
 }
 
@@ -842,4 +846,102 @@ func TestWatchDisk(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	os.WriteFile(a, []byte("package a\n\nvar Ailleurs = 1\n"), 0o600)
 	pump(nil, func() bool { return strings.Contains(m.doc().buf.String(), "Ailleurs") })
+}
+
+// writePNG crée une image w×h moitié rouge, moitié bleue.
+func writePNG(t *testing.T, path string, w, h int) {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := range h {
+		for x := range w {
+			c := color.RGBA{220, 30, 30, 255}
+			if x >= w/2 {
+				c = color.RGBA{30, 30, 220, 255}
+			}
+			img.Set(x, y, c)
+		}
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, img); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestImageInEditor(t *testing.T) {
+	m, dir := newModel(t)
+	writePNG(t, filepath.Join(dir, "logo.png"), 40, 20)
+	if cmd := m.OpenFile("logo.png", 0); cmd != nil {
+		t.Fatalf("ouverture : %v", cmd())
+	}
+	if m.editing || m.Capturing() || m.doc().image == nil {
+		t.Fatal("une image s'ouvre en lecture seule")
+	}
+	m.View(80, 20) // taille de la zone : le rendu peut être préparé
+	_, cmd := m.Update(tea.WindowSizeMsg{})
+	for _, msg := range collect(cmd) {
+		if im, ok := msg.(imageMsg); ok {
+			m.Update(im)
+		}
+	}
+	out := m.View(80, 20)
+	// Rendu en texte : demi-blocs de gopit, ou caractères de chafa s'il est installé.
+	if img := m.doc().image; img.key == "" || img.err != "" || strings.TrimSpace(ansi.Strip(img.text)) == "" ||
+		!strings.Contains(ansi.Strip(out), "PNG · 40×20") {
+		t.Errorf("image en texte, informations dans la barre d'état :\n%s", ansi.Strip(out))
+	}
+
+	// Lecture seule : ni frappe, ni collage, ni édition.
+	for _, k := range []string{"enter", "x", "i"} {
+		m.Update(key(k))
+	}
+	m.Update(tea.PasteMsg{Content: "collé"})
+	m.Update(panel.EditMsg{Action: panel.ActPaste})
+	if m.doc().buf.Dirty() || m.editing || len(m.Unsaved()) != 0 {
+		t.Error("une image ne se modifie pas")
+	}
+
+	// Réécrite sur le disque : nouveau rendu.
+	time.Sleep(10 * time.Millisecond)
+	writePNG(t, filepath.Join(dir, "logo.png"), 60, 20)
+	m.reloadClean()
+	if m.doc().image.info.W != 60 || m.doc().image.key != "" {
+		t.Errorf("image relue : %+v", m.doc().image.info)
+	}
+
+	// w : fermer.
+	m.Update(key("w"))
+	if len(m.docs) != 0 {
+		t.Error("w ferme l'image")
+	}
+}
+
+func TestImageHD(t *testing.T) {
+	if !hdSupportedBuild {
+		t.Skip("pas d'images HD sur cette plateforme")
+	}
+	m, dir := newModel(t)
+	m.hd, m.cellW, m.cellH = true, 10, 20
+	writePNG(t, filepath.Join(dir, "logo.png"), 200, 100)
+	m.OpenFile("logo.png", 0)
+	m.View(80, 20)
+	_, cmd := m.Update(tea.WindowSizeMsg{})
+	var raw tea.Cmd
+	for _, msg := range collect(cmd) {
+		if im, ok := msg.(imageMsg); ok {
+			_, raw = m.Update(im)
+		}
+	}
+	if raw == nil || m.doc().image.id == 0 {
+		t.Fatal("image envoyée au terminal attendue")
+	}
+	if out := m.View(80, 20); !strings.ContainsRune(out, '\U0010EEEE') || !strings.Contains(ansi.Strip(out), "HD") {
+		t.Error("caractères de remplacement Kitty attendus")
+	}
+	if c := m.action(panel.ActClose); c == nil {
+		t.Error("fermer libère l'image dans le terminal")
+	}
 }

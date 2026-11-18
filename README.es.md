@@ -62,7 +62,7 @@ está disponible). Se puede cambiar durante la ejecución (menú Ver, o
 | Módulo | Estado |
 |---|---|
 | Inicio — resumen del módulo (versión de Go, paquetes, archivos, git) | ✅ |
-| Editor — árbol del proyecto, varios archivos abiertos, coloreado de sintaxis (Go, go.mod / go.sum y, con chroma, Markdown, YAML, Makefile, Dockerfile, JSON, SQL, scripts de shell…), indentación automática, gofmt al guardar, errores subrayados mientras escribes y autocompletado (gopls), buscar y reemplazar, selección con el ratón, deshacer/rehacer, ir a la definición y documentación de los símbolos (gopls) | ✅ |
+| Editor — árbol del proyecto, varios archivos abiertos, coloreado de sintaxis (Go, go.mod / go.sum y, con chroma, Markdown, YAML, Makefile, Dockerfile, JSON, SQL, scripts de shell…), indentación automática, gofmt al guardar, errores subrayados mientras escribes y autocompletado (gopls), buscar y reemplazar, selección con el ratón, deshacer/rehacer, imágenes (PNG, JPEG, GIF, WebP… en alta definición en Kitty y Ghostty), ir a la definición y documentación de los símbolos (gopls) | ✅ |
 | Pruebas — `go test -json` en directo, relanzamiento selectivo, apertura del error, relanzamiento automático al guardar (`w`), cobertura por paquete y por archivo (`v`) | ✅ |
 | Diagnósticos — `go vet`, staticcheck, gopls y gofmt, combinados, con extracto del código; se relanzan con cada guardado en el editor | ✅ |
 | Depuración — Delve (`dlv dap`): programa o pruebas de un paquete (objetivo automático: el programa o las pruebas del archivo mostrado, si no el programa del módulo, a elegir si hay varios; `c` para imponerlo: `./cmd/herramienta -- args`, `test ./pkg -run TestX`), puntos de interrupción puestos en el editor (`F9`, conservados de una sesión a otra), paso a paso (`F5` a `F8`) con la línea actual en el editor, pila de llamadas (`u` / `d`), variables desplegables, salida del programa (`s`: pantalla completa con desplazamiento; fuera del módulo, cada línea escrita aparece en la barra de estado); el programa no recibe el teclado (una aplicación a pantalla completa no se depura así) | ✅ |
@@ -108,6 +108,14 @@ del cursor aparece en la barra de estado. La definición y la documentación
 tienen en cuenta el texto sin guardar. `GOPIT_GOPLS=off` desactiva la
 conexión; sin ella, la definición usa `gopls definition`, que lee el disco
 (hay que guardar antes).
+
+Una imagen (PNG, JPEG, GIF, BMP, TIFF, WebP) se abre en una pestaña de solo
+lectura, con su formato, sus dimensiones y su tamaño en la barra de estado:
+en alta definición en Kitty y Ghostty (protocolo gráfico de Kitty), si no en
+caracteres de color (con [chafa](https://hpjansson.org/chafa/) si está
+instalado). El renderizado viene de
+[imgview](https://github.com/laurentpoirierfr/imgview);
+`IMGVIEW_NO_KITTY=1` desactiva la alta definición.
 
 En el árbol: `↑` `↓` para moverse, `→` / `←` para desplegar o plegar una
 carpeta, `Intro` para abrir. El árbol sigue al disco: un archivo o carpeta creado,

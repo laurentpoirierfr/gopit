@@ -169,6 +169,9 @@ func (m *Model) View(width, height int) string {
 		body = m.viewPicker(width, m.textH)
 	case d == nil:
 		body = m.viewWelcome()
+	case d.image != nil:
+		m.textW = width
+		body = m.viewImage(d, width, m.textH)
 	default:
 		body = m.viewText(d, width, m.textH)
 		if m.info != "" { // documentation du symbole, en bas du texte
@@ -273,6 +276,18 @@ func (m *Model) viewStatus(w int) string {
 		return ""
 	}
 	mode := lipgloss.NewStyle().Bold(true).Foreground(t.P.Base).Padding(0, 1)
+	if d.image != nil { // image : format, dimensions et taille
+		left := mode.Background(t.P.Peach).Render(i18n.T("IMAGE")) + " " + t.Text.Render(d.rel)
+		right := t.Dim.Render(imageStatus(d.image.info))
+		if m.hd {
+			right += t.Dim.Render(" · HD")
+		}
+		gap := w - lipgloss.Width(left) - lipgloss.Width(right)
+		if gap < 1 {
+			return ansi.Truncate(left, w, "…")
+		}
+		return left + strings.Repeat(" ", gap) + right
+	}
 	left := mode.Background(t.P.Blue).Render(i18n.T("LECTURE"))
 	if m.editing {
 		left = mode.Background(t.P.Green).Render(i18n.T("ÉDITION"))
