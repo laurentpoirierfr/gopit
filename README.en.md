@@ -30,7 +30,7 @@ to the first `go.mod`.
 | `↑` `↓` or `1`…`8` | choose a module |
 | `Ctrl+P` | command palette: every action of every module |
 | `F10` or `Alt` + underlined letter | menu bar |
-| `Ctrl+O` | open a project file in the built-in editor |
+| `Ctrl+O` / `Ctrl+N` | open / create a project file in the built-in editor |
 | `Tab` / `Esc` | switch between navigation and the module |
 | `e` | open the external editor on the project |
 | `q` / `Ctrl+Q` | quit (asks for confirmation if files are unsaved); `Ctrl+C` quits too, except in the editor where it copies |
@@ -72,6 +72,7 @@ cockpit keys stay active) and **edit** (`Enter` or a click; `Esc` to leave).
 |---|---|
 | `Ctrl+S` | save (formatted with gofmt for a Go file) |
 | `Ctrl+O` | open a file (search by name) |
+| `Ctrl+N` | new file (path relative to the project, subdirectories created as needed; a Go file starts with its `package` line); also `n` in the tree |
 | `Ctrl+W` or `Ctrl+F4` | close the file (also: `w` in read mode, the tab's `×`) |
 | `Ctrl+B` | show / hide the tree |
 | `Ctrl+E` | switch between the text and the tree |

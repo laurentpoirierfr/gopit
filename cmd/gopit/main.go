@@ -27,6 +27,7 @@ func main() {
 	}
 	lang := flag.String("lang", "", i18n.T("langue de l'interface : fr, en ou es"))
 	showVersion := flag.Bool("version", false, i18n.T("affiche la version et quitte"))
+
 	flag.Usage = func() {
 		fmt.Fprint(os.Stderr, i18n.T("Usage : gopit [options] [répertoire]\n\n"))
 		fmt.Fprint(os.Stderr, i18n.T("Ouvre le cockpit sur le module Go qui contient le répertoire\n(par défaut le répertoire courant).\n\nOptions :\n"))

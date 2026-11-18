@@ -30,7 +30,7 @@ jusqu'au premier `go.mod`.
 | `↑` `↓` ou `1`…`8` | choisir un module |
 | `Ctrl+P` | palette de commandes : toutes les actions de tous les modules |
 | `F10` ou `Alt` + lettre soulignée | barre de menus |
-| `Ctrl+O` | ouvrir un fichier du projet dans l'éditeur intégré |
+| `Ctrl+O` / `Ctrl+N` | ouvrir / créer un fichier du projet dans l'éditeur intégré |
 | `Tab` / `Échap` | passer de la navigation au module et inversement |
 | `e` | ouvrir l'éditeur externe sur le projet |
 | `q` / `Ctrl+Q` | quitter (confirmation s'il reste des fichiers non enregistrés) ; `Ctrl+C` quitte aussi, sauf dans l'éditeur où il copie |
@@ -74,6 +74,7 @@ ou un clic ; `Échap` pour en sortir).
 |---|---|
 | `Ctrl+S` | enregistrer (formaté avec gofmt pour un fichier Go) |
 | `Ctrl+O` | ouvrir un fichier (recherche par nom) |
+| `Ctrl+N` | nouveau fichier (chemin relatif au projet, sous-répertoires créés au besoin ; un fichier Go commence par sa ligne `package`) ; aussi `n` dans l'arborescence |
 | `Ctrl+W` ou `Ctrl+F4` | fermer le fichier (aussi : `w` en lecture, la croix `×` de l'onglet) |
 | `Ctrl+B` | afficher / masquer l'arborescence |
 | `Ctrl+E` | passer du texte à l'arborescence et inversement |

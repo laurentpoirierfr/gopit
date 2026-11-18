@@ -124,7 +124,8 @@ func (m *Model) menus() []menu {
 
 	return []menu{
 		accelMenu(i18n.T("&Fichier"), []menuItem{
-			{label: i18n.T("Ouvrir un fichier…"), key: "Ctrl+O", run: func(m *Model) tea.Cmd { return m.openPicker() }},
+			{label: i18n.T("Nouveau fichier…"), key: "Ctrl+N", run: func(m *Model) tea.Cmd { return m.editorAction(panel.ActNew) }},
+			{label: i18n.T("Ouvrir un fichier…"), key: "Ctrl+O", run: func(m *Model) tea.Cmd { return m.editorAction(panel.ActOpen) }},
 			{label: i18n.T("Fermer le fichier"), key: "Ctrl+W", disabled: !canEdit,
 				run: func(m *Model) tea.Cmd { return m.toPanel(panel.EditMsg{Action: panel.ActClose}) }},
 			{label: i18n.T("Ouvrir le projet dans l'éditeur externe"), key: "e",
@@ -391,6 +392,7 @@ func (m *Model) viewModal() string {
 			row("F1", i18n.T("cette aide")),
 			row("e", i18n.T("éditeur externe")),
 			row("Ctrl+O", i18n.T("ouvrir un fichier dans l'éditeur intégré")),
+			row("Ctrl+N", i18n.T("créer un fichier dans l'éditeur intégré")),
 			row("q / Ctrl+Q", i18n.T("quitter (Ctrl+C hors de l'éditeur)")),
 			"",
 			title.Render(i18n.T("Module ") + i18n.T(m.panels[m.cur].Title())),

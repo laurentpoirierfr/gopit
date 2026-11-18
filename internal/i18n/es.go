@@ -516,4 +516,17 @@ var es = map[string]string{
 	"Complétion indisponible : gopls n'est pas connecté": "Autocompletado no disponible: gopls no está conectado",
 	"Aucune proposition": "Ninguna sugerencia",
 	"Compléter (gopls)":  "Completar (gopls)",
+
+	// Nouveau fichier
+	"Nouveau fichier…":                        "Nuevo archivo…",
+	"nouveau fichier":                         "nuevo archivo",
+	"Nouveau fichier":                         "Nuevo archivo",
+	"Nom de fichier attendu":                  "Se esperaba un nombre de archivo",
+	"Le fichier doit être dans le projet":     "El archivo debe estar dentro del proyecto",
+	"C'est un répertoire : ":                  "Es un directorio: ",
+	"Existe déjà, ouvert : ":                  "Ya existe, abierto: ",
+	"Création : ":                             "No se puede crear: ",
+	"Créé : ":                                 "Creado: ",
+	"Nouveau fichier : ":                      "Nuevo archivo: ",
+	"créer un fichier dans l'éditeur intégré": "crear un archivo en el editor integrado",
 }

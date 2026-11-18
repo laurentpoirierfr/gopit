@@ -630,3 +630,91 @@ func TestCompletionList(t *testing.T) {
 		t.Error("réponse périmée affichée")
 	}
 }
+
+func TestNewFile(t *testing.T) {
+	m, dir := newModel(t)
+	os.MkdirAll(filepath.Join(dir, "pkg"), 0o755)
+	os.WriteFile(filepath.Join(dir, "pkg", "x.go"), []byte("// Doc.\npackage truc\n"), 0o600)
+	os.WriteFile(filepath.Join(dir, "pkg", "x_test.go"), []byte("package truc_test\n"), 0o600)
+	create := func(path string) tea.Cmd {
+		t.Helper()
+		m.Update(panel.EditMsg{Action: panel.ActNew})
+		if m.prompt != promptNew {
+			t.Fatalf("saisie du chemin attendue : %d", m.prompt)
+		}
+		for range m.input {
+			m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+		}
+		for _, r := range path {
+			m.Update(key(string(r)))
+		}
+		_, cmd := m.Update(key("enter"))
+		return cmd
+	}
+	flash := func(cmd tea.Cmd) panel.FlashMsg {
+		t.Helper()
+		if cmd == nil {
+			t.Fatal("message attendu")
+		}
+		f, ok := cmd().(panel.FlashMsg)
+		if !ok {
+			t.Fatalf("message : %#v", cmd())
+		}
+		return f
+	}
+
+	// Paquet repris des fichiers du répertoire (pas celui du test externe).
+	if f := flash(create("pkg/y.go")); f.Error {
+		t.Fatalf("création : %s", f.Text)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "pkg", "y.go"))
+	if string(data) != "package truc\n" || m.doc().rel != "pkg/y.go" || !m.editing {
+		t.Errorf("fichier %q, ouvert %s, édition %v", data, m.doc().rel, m.editing)
+	}
+	if c := m.doc().buf.Cursor(); c.Line != 1 {
+		t.Errorf("curseur en fin de fichier : %v", c)
+	}
+
+	// Saisie préremplie avec le répertoire du fichier affiché.
+	m.Update(panel.EditMsg{Action: panel.ActNew})
+	if m.input != "pkg/" {
+		t.Errorf("saisie préremplie : %q", m.input)
+	}
+	m.Update(key("esc"))
+
+	// Nouveaux sous-répertoires ; paquet tiré du nom du répertoire.
+	create("cmd/mon-outil/main_test.go")
+	if data, _ := os.ReadFile(filepath.Join(dir, "cmd", "mon-outil", "main_test.go")); string(data) != "package monoutil\n" {
+		t.Errorf("paquet déduit : %q", data)
+	}
+	// Fichier existant : ouvert, jamais écrasé.
+	os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("garder\n"), 0o600)
+	if f := flash(create("notes.txt")); f.Error || m.doc().rel != "notes.txt" {
+		t.Errorf("existant : %+v, %s", f, m.doc().rel)
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, "notes.txt")); string(data) != "garder\n" {
+		t.Errorf("fichier existant modifié : %q", data)
+	}
+	// Hors du projet, ou sans nom : refusé.
+	for _, p := range []string{"../dehors.go", "pkg/"} {
+		if f := flash(create(p)); !f.Error {
+			t.Errorf("%q accepté : %s", p, f.Text)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(dir), "dehors.go")); err == nil {
+		t.Error("fichier créé hors du projet")
+	}
+
+	// « n » dans l'arbre : dans le dossier sélectionné.
+	m.focusTree()
+	m.tree.flatten(m.proj.Root)
+	for i, r := range m.tree.rows {
+		if r.dir && r.name == "cmd" {
+			m.tree.cursor = i
+		}
+	}
+	m.Update(key("n"))
+	if m.prompt != promptNew || m.input != "cmd/" {
+		t.Errorf("« n » dans l'arbre : invite %d, saisie %q", m.prompt, m.input)
+	}
+}

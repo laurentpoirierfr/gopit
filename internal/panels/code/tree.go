@@ -196,6 +196,9 @@ func (m *Model) treeKey(s string) (handled bool, open string) {
 		return true, r.path
 	case "r", "f5":
 		t.refresh()
+	case "n":
+		m.startNewFile()
+		return true, ""
 	case "esc", "tab", "ctrl+e":
 		if m.doc() != nil {
 			t.focus = false

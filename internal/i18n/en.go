@@ -516,4 +516,17 @@ var en = map[string]string{
 	"Complétion indisponible : gopls n'est pas connecté": "Completion unavailable: gopls is not connected",
 	"Aucune proposition": "No suggestions",
 	"Compléter (gopls)":  "Complete (gopls)",
+
+	// Nouveau fichier
+	"Nouveau fichier…":                        "New file…",
+	"nouveau fichier":                         "new file",
+	"Nouveau fichier":                         "New file",
+	"Nom de fichier attendu":                  "File name expected",
+	"Le fichier doit être dans le projet":     "The file must be inside the project",
+	"C'est un répertoire : ":                  "This is a directory: ",
+	"Existe déjà, ouvert : ":                  "Already exists, opened: ",
+	"Création : ":                             "Cannot create: ",
+	"Créé : ":                                 "Created: ",
+	"Nouveau fichier : ":                      "New file: ",
+	"créer un fichier dans l'éditeur intégré": "create a file in the built-in editor",
 }

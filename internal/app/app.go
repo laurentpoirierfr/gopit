@@ -229,7 +229,9 @@ func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
 		m.modal = modalHelp
 		return nil
 	case "ctrl+o":
-		return m.openPicker()
+		return m.editorAction(panel.ActOpen)
+	case "ctrl+n":
+		return m.editorAction(panel.ActNew)
 	}
 	for i, mn := range m.menus() {
 		if mn.hotkey != "" && s == mn.hotkey {
@@ -351,12 +353,13 @@ func (m *Model) openFile(file string, line int) tea.Cmd {
 	return editor.Open(m.proj.Root, file, line)
 }
 
-// openPicker affiche l'éditeur intégré et sa liste de fichiers à ouvrir.
-func (m *Model) openPicker() tea.Cmd {
+// editorAction affiche l'éditeur intégré et lui envoie une action (ouvrir
+// un fichier, en créer un).
+func (m *Model) editorAction(a panel.EditAction) tea.Cmd {
 	for i, p := range m.panels {
 		if _, ok := p.(panel.Opener); ok {
 			m.cur, m.focus = i, focusContent
-			return m.toPanel(panel.EditMsg{Action: panel.ActOpen})
+			return m.toPanel(panel.EditMsg{Action: a})
 		}
 	}
 	return nil

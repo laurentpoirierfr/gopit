@@ -59,6 +59,7 @@ const (
 	promptReplace // texte à remplacer (replace.go)
 	promptWith    // texte de remplacement
 	promptConfirm // revue des occurrences
+	promptNew     // chemin d'un nouveau fichier (newfile.go)
 )
 
 // picker est la liste de choix d'un fichier à ouvrir.
@@ -404,7 +405,7 @@ func (m *Model) keyWithCompletion(k tea.KeyPressMsg) tea.Cmd {
 
 // keyActions associe les raccourcis aux actions, en lecture comme en édition.
 var keyActions = map[string]panel.EditAction{
-	"ctrl+s": panel.ActSave, "ctrl+o": panel.ActOpen, "ctrl+w": panel.ActClose, "ctrl+f4": panel.ActClose,
+	"ctrl+s": panel.ActSave, "ctrl+o": panel.ActOpen, "ctrl+n": panel.ActNew, "ctrl+w": panel.ActClose, "ctrl+f4": panel.ActClose,
 	"ctrl+z": panel.ActUndo, "ctrl+y": panel.ActRedo, "ctrl+shift+z": panel.ActRedo,
 	"ctrl+x": panel.ActCut, "ctrl+c": panel.ActCopy, "ctrl+insert": panel.ActCopy, "alt+c": panel.ActCopy,
 	"ctrl+v": panel.ActPaste, "shift+insert": panel.ActPaste,
@@ -588,6 +589,10 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 		}
 		return nil
 	}
+	if a == panel.ActNew {
+		m.startNewFile()
+		return nil
+	}
 	if a == panel.ActOpen {
 		all := listFiles(m.proj.Root)
 		m.picker = &picker{all: all, matches: all}
@@ -729,6 +734,18 @@ func (m *Model) searchAsYouType() {
 }
 
 func (m *Model) promptKey(k tea.KeyPressMsg) tea.Cmd {
+	if m.prompt == promptNew {
+		switch k.String() {
+		case "esc":
+			m.prompt = promptNone
+		case "enter":
+			m.prompt = promptNone
+			return m.createFile(m.input)
+		default:
+			editInput(&m.input, k)
+		}
+		return nil
+	}
 	d := m.doc()
 	if d == nil {
 		m.prompt = promptNone
@@ -928,16 +945,16 @@ func (m *Model) Hints() []panel.Hint {
 		return []panel.Hint{{Key: "↑↓", Desc: i18n.T("choisir")}, {Key: "Entrée / Tab", Desc: i18n.T("insérer")}, {Key: "Échap", Desc: i18n.T("fermer")}}
 	case m.prompt == promptGoto:
 		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("aller")}, {Key: "Échap", Desc: i18n.T("annuler")}}
-	case m.prompt == promptReplace || m.prompt == promptWith:
+	case m.prompt == promptReplace || m.prompt == promptWith || m.prompt == promptNew:
 		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("valider")}, {Key: "Échap", Desc: i18n.T("annuler")}}
 	case m.prompt == promptConfirm:
 		return []panel.Hint{{Key: "Entrée", Desc: i18n.T("remplacer")}, {Key: "Espace / F3", Desc: i18n.T("passer")},
 			{Key: "a", Desc: i18n.T("tout remplacer")}, {Key: "Échap", Desc: i18n.T("terminer")}}
 	case m.tree.focus && m.tree.visible:
 		return []panel.Hint{{Key: "↑↓", Desc: i18n.T("naviguer")}, {Key: "←→", Desc: i18n.T("replier / déplier")}, {Key: "Entrée", Desc: i18n.T("ouvrir")},
-			{Key: "Ctrl+E / Échap", Desc: i18n.T("texte")}, {Key: "Ctrl+B", Desc: i18n.T("masquer l'arbre")}, {Key: "r", Desc: i18n.T("relire")}}
+			{Key: "n", Desc: i18n.T("nouveau fichier")}, {Key: "Ctrl+E / Échap", Desc: i18n.T("texte")}, {Key: "Ctrl+B", Desc: i18n.T("masquer l'arbre")}, {Key: "r", Desc: i18n.T("relire")}}
 	case m.doc() == nil:
-		return []panel.Hint{{Key: "Entrée / Ctrl+O", Desc: i18n.T("ouvrir un fichier")}, {Key: "Ctrl+B", Desc: i18n.T("arbre")}}
+		return []panel.Hint{{Key: "Entrée / Ctrl+O", Desc: i18n.T("ouvrir un fichier")}, {Key: "Ctrl+N", Desc: i18n.T("nouveau fichier")}, {Key: "Ctrl+B", Desc: i18n.T("arbre")}}
 	case m.editing:
 		return []panel.Hint{{Key: "Ctrl+S", Desc: i18n.T("enregistrer")}, {Key: "Ctrl+W", Desc: i18n.T("fermer")}, {Key: "Ctrl+O", Desc: i18n.T("ouvrir")},
 			{Key: "Ctrl+Espace", Desc: i18n.T("compléter")}, {Key: "Ctrl+F", Desc: i18n.T("chercher")}, {Key: "F12", Desc: i18n.T("définition")}, {Key: "Ctrl+E", Desc: i18n.T("arbre")}, {Key: "Échap", Desc: i18n.T("lecture")}}

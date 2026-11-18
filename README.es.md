@@ -31,7 +31,7 @@ hasta el primer `go.mod`.
 | `↑` `↓` o `1`…`8` | elegir un módulo |
 | `Ctrl+P` | paleta de comandos: todas las acciones de todos los módulos |
 | `F10` o `Alt` + letra subrayada | barra de menús |
-| `Ctrl+O` | abrir un archivo del proyecto en el editor integrado |
+| `Ctrl+O` / `Ctrl+N` | abrir / crear un archivo del proyecto en el editor integrado |
 | `Tab` / `Esc` | pasar de la navegación al módulo y viceversa |
 | `e` | abrir el editor externo en el proyecto |
 | `q` / `Ctrl+Q` | salir (pide confirmación si quedan archivos sin guardar); `Ctrl+C` también sale, salvo en el editor, donde copia |
@@ -75,6 +75,7 @@ o un clic; `Esc` para salir).
 |---|---|
 | `Ctrl+S` | guardar (formateado con gofmt si es un archivo Go) |
 | `Ctrl+O` | abrir un archivo (búsqueda por nombre) |
+| `Ctrl+N` | nuevo archivo (ruta relativa al proyecto, subdirectorios creados si hace falta; un archivo Go empieza por su línea `package`); también `n` en el árbol |
 | `Ctrl+W` o `Ctrl+F4` | cerrar el archivo (también: `w` en lectura, la `×` de la pestaña) |
 | `Ctrl+B` | mostrar / ocultar el árbol |
 | `Ctrl+E` | pasar del texto al árbol y viceversa |

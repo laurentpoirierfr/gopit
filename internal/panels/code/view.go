@@ -231,6 +231,8 @@ func (m *Model) viewStatus(w int) string {
 	case promptGoto:
 		return t.Label.Render(fmt.Sprintf(i18n.T("Aller à la ligne (1-%d) : "), d.buf.LineCount())) +
 			t.Value.Render(m.input) + t.Text.Reverse(true).Render(" ")
+	case promptNew:
+		return t.Label.Render(i18n.T("Nouveau fichier : ")) + t.Value.Render(m.input) + t.Text.Reverse(true).Render(" ")
 	case promptReplace:
 		s := t.Label.Render(i18n.T("Remplacer : ")) + t.Value.Render(m.input) + t.Text.Reverse(true).Render(" ")
 		if m.notFound {

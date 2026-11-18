@@ -18,6 +18,7 @@ func (m *Model) Commands() []panel.Command {
 	}
 	return []panel.Command{
 		c(i18n.T("Ouvrir un fichier du projet"), "Ctrl+O", panel.ActOpen),
+		c(i18n.T("Nouveau fichier"), "Ctrl+N", panel.ActNew),
 		c(i18n.T("Enregistrer (avec gofmt)"), "Ctrl+S", panel.ActSave),
 		c(i18n.T("Fermer le fichier"), "Ctrl+W", panel.ActClose),
 		c(i18n.T("Afficher / masquer l'arbre des fichiers"), "Ctrl+B", actTree),

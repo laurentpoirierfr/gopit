@@ -121,6 +121,7 @@ const (
 	ActComment   EditAction = "comment"
 	ActFormat    EditAction = "format"
 	ActOpen      EditAction = "open"
+	ActNew       EditAction = "new"
 	ActSave      EditAction = "save"
 	ActClose     EditAction = "close"
 	// Avec gopls : aller à la définition, revenir, documentation du symbole.
