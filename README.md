@@ -55,7 +55,7 @@ préférences ; `gopit -lang en` l'impose pour une session.
 | Module | État |
 |---|---|
 | Accueil — résumé du module (version Go, paquets, fichiers, git) | ✅ |
-| Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration Go, indentation automatique, gofmt à l'enregistrement, erreurs soulignées pendant la frappe et complétion (gopls), recherche et remplacement, sélection à la souris, annuler/rétablir, aller à la définition et documentation des symboles (gopls) | ✅ |
+| Éditeur — arborescence du projet, plusieurs fichiers ouverts, coloration syntaxique (Go, go.mod / go.sum, et avec chroma Markdown, YAML, Makefile, Dockerfile, JSON, SQL, scripts shell…), indentation automatique, gofmt à l'enregistrement, erreurs soulignées pendant la frappe et complétion (gopls), recherche et remplacement, sélection à la souris, annuler/rétablir, aller à la définition et documentation des symboles (gopls) | ✅ |
 | Tests — `go test -json` en direct, relance ciblée, ouverture de l'erreur, relance automatique à l'enregistrement (`w`), couverture par paquet et par fichier (`v`) | ✅ |
 | Diagnostics — `go vet`, staticcheck, gopls et gofmt, fusionnés, avec extrait du code ; relancés à chaque enregistrement dans l'éditeur | ✅ |
 | Git — état du dépôt, diff coloré, commits récents ; indexer (`s`, `A`), désindexer (`u`), commiter (`c`) — sans action destructive ni push | ✅ |

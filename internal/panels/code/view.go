@@ -59,13 +59,27 @@ func runeAtCol(line []rune, x int) int {
 
 // classes renvoie la coloration du fichier, recalculée à chaque modification.
 func (d *doc) classes() [][]class {
-	if !isGo(d) {
+	lang := d.language()
+	if lang.color == nil {
 		return nil
 	}
 	if v := d.buf.Version(); v != d.hlVer || d.hl == nil {
-		d.hl, d.hlVer = highlightGo(d.buf.String()), v
+		d.hl, d.hlVer = lang.color(d.buf.String()), v
 	}
 	return d.hl
+}
+
+// language renvoie la coloration du fichier (choisie une fois pour toutes).
+func (d *doc) language() language {
+	if d.lang == nil {
+		first := ""
+		if d.buf.LineCount() > 0 {
+			first = d.buf.Line(0)
+		}
+		l := detectLanguage(d.path, first)
+		d.lang = &l
+	}
+	return *d.lang
 }
 
 // cellStyle est l'apparence d'un caractère.
@@ -107,6 +121,12 @@ func (m *Model) style(cache map[cellStyle]lipgloss.Style, cs cellStyle) lipgloss
 		st = st.Foreground(p.Blue)
 	case clBuiltin:
 		st = st.Foreground(p.Yellow)
+	case clHeading:
+		st = st.Foreground(p.Accent).Bold(true)
+	case clAdded:
+		st = st.Foreground(p.Green)
+	case clRemoved:
+		st = st.Foreground(p.Red)
 	default:
 		st = st.Foreground(p.Text)
 	}
@@ -263,9 +283,9 @@ func (m *Model) viewStatus(w int) string {
 	if sel := d.buf.SelectedText(); sel != "" {
 		right = fmt.Sprintf(i18n.T("%d sélectionnés · "), len([]rune(sel))) + right
 	}
-	lang := i18n.T("Texte")
-	if isGo(d) {
-		lang = "Go"
+	lang := d.language().name
+	if lang == "" {
+		lang = i18n.T("Texte")
 	}
 	right = t.Dim.Render(right + " · " + lang)
 	if ds := m.lineDiags(d, c.Line); len(ds) > 0 { // problème sur la ligne du curseur

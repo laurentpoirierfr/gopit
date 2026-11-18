@@ -16,6 +16,9 @@ const (
 	clComment
 	clFunc
 	clBuiltin
+	clHeading // titre Markdown
+	clAdded   // ligne ajoutée (diff)
+	clRemoved // ligne retirée (diff)
 )
 
 // builtins regroupe les identificateurs prédéclarés de Go (types, constantes

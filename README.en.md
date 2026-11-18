@@ -54,7 +54,7 @@ that isn't available). You can change it while running (View menu, or
 | Module | Status |
 |---|---|
 | Home — module summary (Go version, packages, files, git) | ✅ |
-| Editor — project tree, several open files, Go highlighting, automatic indentation, gofmt on save, errors underlined as you type and completion (gopls), find and replace, mouse selection, undo/redo, go to definition and symbol documentation (gopls) | ✅ |
+| Editor — project tree, several open files, syntax highlighting (Go, go.mod / go.sum, and with chroma Markdown, YAML, Makefile, Dockerfile, JSON, SQL, shell scripts…), automatic indentation, gofmt on save, errors underlined as you type and completion (gopls), find and replace, mouse selection, undo/redo, go to definition and symbol documentation (gopls) | ✅ |
 | Tests — live `go test -json`, targeted reruns, open the failure, automatic rerun on save (`w`), coverage per package and per file (`v`) | ✅ |
 | Diagnostics — `go vet`, staticcheck, gopls and gofmt, merged, with a code excerpt; rerun on every save in the editor | ✅ |
 | Git — repository status, colored diff, recent commits; stage (`s`, `A`), unstage (`u`), commit (`c`) — no destructive action, no push | ✅ |

@@ -44,6 +44,7 @@ type doc struct {
 
 	hlVer int // version du tampon colorée (-1 : à calculer)
 	hl    [][]class
+	lang  *language // coloration choisie (syntax.go), à la première demande
 
 	lspOpen     bool // signalé à gopls (lsp.go)
 	sentVer     int  // version du tampon envoyée à gopls

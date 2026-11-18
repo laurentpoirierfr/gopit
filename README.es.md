@@ -56,7 +56,7 @@ está disponible). Se puede cambiar durante la ejecución (menú Ver, o
 | Módulo | Estado |
 |---|---|
 | Inicio — resumen del módulo (versión de Go, paquetes, archivos, git) | ✅ |
-| Editor — árbol del proyecto, varios archivos abiertos, coloreado de Go, indentación automática, gofmt al guardar, errores subrayados mientras escribes y autocompletado (gopls), buscar y reemplazar, selección con el ratón, deshacer/rehacer, ir a la definición y documentación de los símbolos (gopls) | ✅ |
+| Editor — árbol del proyecto, varios archivos abiertos, coloreado de sintaxis (Go, go.mod / go.sum y, con chroma, Markdown, YAML, Makefile, Dockerfile, JSON, SQL, scripts de shell…), indentación automática, gofmt al guardar, errores subrayados mientras escribes y autocompletado (gopls), buscar y reemplazar, selección con el ratón, deshacer/rehacer, ir a la definición y documentación de los símbolos (gopls) | ✅ |
 | Pruebas — `go test -json` en directo, relanzamiento selectivo, apertura del error, relanzamiento automático al guardar (`w`), cobertura por paquete y por archivo (`v`) | ✅ |
 | Diagnósticos — `go vet`, staticcheck, gopls y gofmt, combinados, con extracto del código; se relanzan con cada guardado en el editor | ✅ |
 | Git — estado del repositorio, diff en color, commits recientes; indexar (`s`, `A`), desindexar (`u`), hacer commit (`c`), sin acciones destructivas ni push | ✅ |
