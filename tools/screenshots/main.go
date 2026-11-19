@@ -389,12 +389,14 @@ var scenarios = []scenario{
 			return err
 		}
 		d.key("home") // sélection sur le fichier modifié
-		if err := d.waitFor("diff du fichier", time.Minute, contains("diff --git a/CHANGELOG.md", "en cours de rédaction")); err != nil {
+		mailRe := regexp.MustCompile(`<[^>\s]+@[^>\s]+>`)
+		if err := d.waitFor("diff du fichier", time.Minute, func(s string) bool {
+			return contains("diff --git a/CHANGELOG.md", "en cours de rédaction")(s) && !mailRe.MatchString(s)
+		}); err != nil {
 			return err
 		}
-		if strings.Contains(d.text(), "@") && strings.Contains(d.text(), "<") && strings.Contains(d.text(), ">") &&
-			regexp.MustCompile(`<[^>\s]+@[^>\s]+>`).MatchString(d.text()) {
-			return fmt.Errorf("une adresse e-mail est visible : capture abandonnée")
+		if mail := mailRe.FindString(d.text()); mail != "" {
+			return fmt.Errorf("une adresse e-mail est visible (%d caractères) : capture abandonnée", len(mail))
 		}
 		return shot("06-git")
 	}},
