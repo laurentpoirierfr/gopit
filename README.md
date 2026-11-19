@@ -104,7 +104,15 @@ ou un clic ; `Échap` pour en sortir).
 | `Ctrl+E` | passer du texte à l'arborescence et inversement |
 | `Ctrl+PgDn` / `Ctrl+PgUp` | fichier suivant / précédent |
 | `Ctrl+Z` / `Ctrl+Y` | annuler / rétablir |
-| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | couper / copier (la ligne sans sélection) / coller |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | couper / copier / coller ; sans sélection, la ligne entière, recollée au-dessus de la ligne du curseur et réindentée |
+| `Alt+↑` / `Alt+↓` | déplacer la ligne (ou les lignes sélectionnées) |
+| `Maj+Alt+↓` / `Maj+Alt+↑` | dupliquer la ligne (ou les lignes sélectionnées) |
+| `Ctrl+Maj+K` | supprimer la ligne |
+| `Ctrl+L` | sélectionner la ligne (encore : la suivante) ; double clic : le mot, triple clic : la ligne |
+| `Ctrl+Entrée` / `Ctrl+Maj+Entrée` | nouvelle ligne en dessous / au-dessus, où que soit le curseur |
+| `Ctrl+Retour arrière` / `Ctrl+Suppr` | effacer le mot avant / après le curseur (aussi `Alt+…`) |
+| `(` `[` `{` `"` `` ` `` | fermés automatiquement (désactivable depuis la palette) ; sur une sélection, l'entourent ; `Entrée` entre `{}` ouvre un bloc |
+| `Ctrl+M` | aller à la parenthèse correspondante (surlignée avec celle du curseur) |
 | `Ctrl+F`, `F3`, `Maj+F3` | rechercher, occurrence suivante, précédente |
 | `Ctrl+H` ou `Ctrl+R` | remplacer : texte cherché, remplacement, puis chaque occurrence (`Entrée` remplace, `Espace` passe, `a` remplace tout, `Échap` termine) |
 | `Ctrl+G` | aller à la ligne |

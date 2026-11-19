@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -90,6 +91,7 @@ type cellStyle struct {
 	line   bool         // ligne du curseur
 	diag   lsp.Severity // diagnostic de gopls (0 : aucun)
 	stop   bool         // ligne où le programme débogué est arrêté
+	match  bool         // parenthèse du curseur ou sa correspondante
 }
 
 // sevColor renvoie la couleur d'une gravité de diagnostic.
@@ -138,6 +140,9 @@ func (m *Model) style(cache map[cellStyle]lipgloss.Style, cs cellStyle) lipgloss
 		st = st.Background(p.Surface1)
 	case cs.line:
 		st = st.Background(p.Surface0)
+	}
+	if cs.match {
+		st = st.Background(p.Surface1).Bold(true)
 	}
 	if cs.diag != 0 {
 		st = st.UnderlineStyle(lipgloss.UnderlineCurly).UnderlineColor(m.sevColor(cs.diag))
@@ -391,6 +396,7 @@ func (m *Model) viewText(d *doc, w, h int) string {
 
 	cls := d.classes()
 	ss, se, hasSel := b.Selection()
+	marks := m.bracketMarks(d)
 	cache := map[cellStyle]lipgloss.Style{}
 	gutter := t.Dim
 	gutterCur := t.Title
@@ -441,7 +447,7 @@ func (m *Model) viewText(d *doc, w, h int) string {
 		case worst != 0:
 			num = gst.Render(fmt.Sprintf("%*d", digits+1, l+1)) + lipgloss.NewStyle().Foreground(m.sevColor(worst)).Render("●")
 		}
-		lines = append(lines, num+m.renderLine(text, lcls, dcols, from, to, eol, cur, l == c.Line && m.editing, stopped, d.left, textW, cache))
+		lines = append(lines, num+m.renderLine(text, lcls, dcols, marks[l], from, to, eol, cur, l == c.Line && m.editing, stopped, d.left, textW, cache))
 	}
 	return scroll.Render(lines, m.gutterW+textW, h, n, d.top, lipgloss.NewStyle().Foreground(t.P.Surface1),
 		lipgloss.NewStyle().Foreground(t.P.Accent))
@@ -449,7 +455,7 @@ func (m *Model) viewText(d *doc, w, h int) string {
 
 // renderLine dessine une ligne de texte entre les colonnes d'affichage left
 // et left+w.
-func (m *Model) renderLine(line []rune, cls []class, dcols []lsp.Severity, from, to int, eol bool, cursor int, curLine, stop bool,
+func (m *Model) renderLine(line []rune, cls []class, dcols []lsp.Severity, marks []int, from, to int, eol bool, cursor int, curLine, stop bool,
 	left, w int, cache map[cellStyle]lipgloss.Style) string {
 	var out strings.Builder
 	var run strings.Builder
@@ -475,6 +481,7 @@ func (m *Model) renderLine(line []rune, cls []class, dcols []lsp.Severity, from,
 		if i < len(dcols) {
 			cs.diag = dcols[i]
 		}
+		cs.match = slices.Contains(marks, i)
 		// Partie visible du caractère.
 		vs, ve := max(col, left), min(next, left+w)
 		if vs < ve {

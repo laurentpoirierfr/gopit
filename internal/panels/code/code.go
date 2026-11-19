@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -82,10 +83,17 @@ type Model struct {
 	th   *theme.Theme
 	proj *project.Project
 
-	docs    []*doc
-	cur     int
-	editing bool
-	clip    string // presse-papiers interne
+	docs      []*doc
+	cur       int
+	editing   bool
+	clip      string // presse-papiers interne
+	clipLines bool   // … copié sans sélection : des lignes entières
+
+	autoPair bool // fermeture automatique des parenthèses et guillemets
+
+	lastClick  time.Time // double et triple clic
+	clickAt    textbuf.Pos
+	clickCount int
 
 	follow bool // garder le curseur visible au prochain rendu
 	center bool // … et le placer au tiers de la hauteur
@@ -141,6 +149,7 @@ func New(th *theme.Theme, p *project.Project) *Model {
 	if lspEnabled() {
 		m.start = lsp.Start
 	}
+	m.autoPair = true
 	m.tree.focus = true // aucun fichier ouvert au départ
 	return m
 }
@@ -344,6 +353,9 @@ func (m *Model) State() map[string]string {
 	if !m.tree.visible {
 		st["tree"] = "0"
 	}
+	if !m.autoPair {
+		st["pairs"] = "0"
+	}
 	var dirs []string
 	for d, open := range m.tree.expanded {
 		if open {
@@ -368,6 +380,7 @@ func (m *Model) Restore(st map[string]string) {
 		}
 	}
 	m.tree.visible = st["tree"] != "0"
+	m.autoPair = st["pairs"] != "0"
 	for d := range strings.SplitSeq(st["expanded"], "\n") {
 		if d != "" {
 			m.tree.expanded[d] = true
@@ -461,6 +474,11 @@ var keyActions = map[string]panel.EditAction{
 	"alt+shift+f": panel.ActFormat, "alt+F": panel.ActFormat,
 	"f12": panel.ActDefinition, "ctrl+]": panel.ActDefinition, "ctrl+t": panel.ActBack, "ctrl+k": panel.ActDoc,
 	"ctrl+space": actComplete, "ctrl+@": actComplete, "f9": actBreakpoint,
+	"alt+up": actMoveUp, "alt+down": actMoveDown,
+	"alt+shift+up": actDupUp, "alt+shift+down": actDupDown,
+	"ctrl+shift+k": actDeleteLine, "ctrl+l": actSelectLine,
+	"ctrl+enter": actLineBelow, "ctrl+shift+enter": actLineAbove,
+	"ctrl+m": actMatch, "ctrl+shift+\\": actMatch, "ctrl+|": actMatch,
 }
 
 // moves associe les touches de déplacement (sans Maj) aux mouvements.
@@ -616,14 +634,22 @@ func (m *Model) key(k tea.KeyPressMsg) tea.Cmd {
 	case "shift+tab":
 		b.Dedent()
 	case "backspace", "shift+backspace":
-		b.Backspace()
+		if m.autoPair && m.inEmptyPair(b) {
+			b.DeletePair()
+		} else {
+			b.Backspace()
+		}
+	case "ctrl+backspace", "alt+backspace":
+		b.DeleteWordLeft()
 	case "delete":
 		b.Delete()
+	case "ctrl+delete", "alt+delete":
+		b.DeleteWordRight()
 	default:
 		if k.Text == "" || k.Mod.Contains(tea.ModCtrl) || k.Mod.Contains(tea.ModAlt) || k.Mod.Contains(tea.ModSuper) {
 			return nil
 		}
-		b.Insert(k.Text)
+		m.typeText(b, k.Text)
 	}
 	m.follow = true
 	return nil
@@ -694,15 +720,21 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 			return panel.Flash(i18n.T("Rien à rétablir"), false)
 		}
 	case panel.ActCut:
-		m.clip = b.CutLine()
+		_, _, sel := b.Selection()
+		m.clip, m.clipLines = b.CutLine(), !sel
+		if m.clipLines { // dernière ligne : « \ntexte » → « texte\n »
+			m.clip = strings.TrimPrefix(m.clip, "\n")
+			if !strings.HasSuffix(m.clip, "\n") {
+				m.clip += "\n"
+			}
+		}
 		return tea.SetClipboard(m.clip)
 	case panel.ActCopy:
-		m.clip = b.CopyText()
+		_, _, sel := b.Selection()
+		m.clip, m.clipLines = b.CopyText(), !sel
 		return tea.SetClipboard(m.clip)
 	case panel.ActPaste:
-		if m.clip != "" {
-			b.Insert(m.clip)
-		}
+		m.pasteText(b, m.clip)
 	case panel.ActSelectAll:
 		b.SelectAll()
 	case panel.ActComment:
@@ -725,6 +757,31 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 			s, _, _ := b.Selection()
 			m.origin = s
 		}
+	case actMoveUp, actMoveDown:
+		b.MoveLines(map[bool]int{true: -1, false: 1}[a == actMoveUp])
+	case actDupUp, actDupDown:
+		b.DuplicateLines(map[bool]int{true: 0, false: 1}[a == actDupUp])
+	case actDeleteLine:
+		b.DeleteLines()
+	case actSelectLine:
+		m.editing = true
+		b.SelectLine()
+	case actLineBelow:
+		m.editing = true
+		b.InsertLineBelow()
+	case actLineAbove:
+		m.editing = true
+		b.InsertLineAbove()
+	case actMatch:
+		if p, ok := m.matchingBracket(d); ok {
+			b.SetCursor(p, false)
+		}
+	case actAutoPair:
+		m.autoPair = !m.autoPair
+		if m.autoPair {
+			return panel.Flash(i18n.T("Fermeture automatique des parenthèses activée"), false)
+		}
+		return panel.Flash(i18n.T("Fermeture automatique des parenthèses désactivée"), false)
 	case panel.ActFindNext:
 		return m.findNext(true)
 	case panel.ActGoto:
@@ -758,7 +815,7 @@ func (m *Model) paste(text string) {
 		m.input += firstLine(text)
 		m.searchAsYouType()
 	case m.doc() != nil && m.editing:
-		m.doc().buf.Insert(text)
+		m.pasteText(m.doc().buf, text)
 		m.follow = true
 	}
 }
@@ -991,9 +1048,32 @@ func (m *Model) click(c panel.ClickMsg) {
 	line := min(d.top+row, d.buf.LineCount()-1)
 	x := max(0, c.X-m.gutterW) + d.left
 	col := runeAtCol([]rune(d.buf.Line(line)), x)
-	d.buf.SetCursor(textbuf.Pos{Line: line, Col: col}, c.Drag || c.Shift)
+	p := textbuf.Pos{Line: line, Col: col}
 	m.editing, m.follow = true, true
+	if c.Drag || c.Shift {
+		d.buf.SetCursor(p, true)
+		return
+	}
+	// Double clic : le mot ; triple clic : la ligne.
+	now := time.Now()
+	if now.Sub(m.lastClick) < 400*time.Millisecond && p.Line == m.clickAt.Line && abs(p.Col-m.clickAt.Col) <= 1 {
+		m.clickCount++
+	} else {
+		m.clickCount = 1
+	}
+	m.lastClick, m.clickAt = now, p
+	switch m.clickCount {
+	case 1:
+		d.buf.SetCursor(p, false)
+	case 2:
+		d.buf.SelectWord(p)
+	default:
+		d.buf.SetCursor(p, false)
+		d.buf.SelectLine()
+	}
 }
+
+func abs(n int) int { return max(n, -n) }
 
 // ─── Hints, commandes ────────────────────────────────────────────────────────
 

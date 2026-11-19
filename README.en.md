@@ -102,7 +102,15 @@ cockpit keys stay active) and **edit** (`Enter` or a click; `Esc` to leave).
 | `Ctrl+E` | switch between the text and the tree |
 | `Ctrl+PgDn` / `Ctrl+PgUp` | next / previous file |
 | `Ctrl+Z` / `Ctrl+Y` | undo / redo |
-| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | cut / copy (the line when nothing is selected) / paste |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | cut / copy / paste; with no selection, the whole line, pasted back above the cursor line and reindented |
+| `Alt+↑` / `Alt+↓` | move the line (or the selected lines) |
+| `Shift+Alt+↓` / `Shift+Alt+↑` | duplicate the line (or the selected lines) |
+| `Ctrl+Shift+K` | delete the line |
+| `Ctrl+L` | select the line (again: the next one); double click: the word, triple click: the line |
+| `Ctrl+Enter` / `Ctrl+Shift+Enter` | new line below / above, wherever the cursor is |
+| `Ctrl+Backspace` / `Ctrl+Delete` | delete the word before / after the cursor (also `Alt+…`) |
+| `(` `[` `{` `"` `` ` `` | closed automatically (can be turned off from the palette); around a selection, wrap it; `Enter` between `{}` opens a block |
+| `Ctrl+M` | go to the matching bracket (highlighted along with the one at the cursor) |
 | `Ctrl+F`, `F3`, `Shift+F3` | find, next match, previous match |
 | `Ctrl+H` or `Ctrl+R` | replace: search text, replacement, then each match (`Enter` replaces, `Space` skips, `a` replaces all, `Esc` stops) |
 | `Ctrl+G` | go to line |

@@ -32,5 +32,14 @@ func (m *Model) Commands() []panel.Command {
 		c(i18n.T("Revenir à la position précédente"), "Ctrl+T", panel.ActBack),
 		c(i18n.T("Documentation du symbole (gopls)"), "Ctrl+K", panel.ActDoc),
 		c(i18n.T("Compléter (gopls)"), "Ctrl+Espace", actComplete),
+		c(i18n.T("Déplacer la ligne vers le haut"), "Alt+↑", actMoveUp),
+		c(i18n.T("Déplacer la ligne vers le bas"), "Alt+↓", actMoveDown),
+		c(i18n.T("Dupliquer la ligne"), "Maj+Alt+↓", actDupDown),
+		c(i18n.T("Supprimer la ligne"), "Ctrl+Maj+K", actDeleteLine),
+		c(i18n.T("Sélectionner la ligne"), "Ctrl+L", actSelectLine),
+		c(i18n.T("Nouvelle ligne en dessous"), "Ctrl+Entrée", actLineBelow),
+		c(i18n.T("Nouvelle ligne au-dessus"), "Ctrl+Maj+Entrée", actLineAbove),
+		c(i18n.T("Aller à la parenthèse correspondante"), "Ctrl+M", actMatch),
+		c(i18n.T("Fermeture automatique des parenthèses (activer / désactiver)"), "", actAutoPair),
 	}
 }

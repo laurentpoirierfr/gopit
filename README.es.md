@@ -105,7 +105,15 @@ o un clic; `Esc` para salir).
 | `Ctrl+E` | pasar del texto al árbol y viceversa |
 | `Ctrl+PgDn` / `Ctrl+PgUp` | archivo siguiente / anterior |
 | `Ctrl+Z` / `Ctrl+Y` | deshacer / rehacer |
-| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | cortar / copiar (la línea si no hay selección) / pegar |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | cortar / copiar / pegar; sin selección, la línea entera, pegada encima de la línea del cursor y reindentada |
+| `Alt+↑` / `Alt+↓` | mover la línea (o las líneas seleccionadas) |
+| `Mayús+Alt+↓` / `Mayús+Alt+↑` | duplicar la línea (o las líneas seleccionadas) |
+| `Ctrl+Mayús+K` | eliminar la línea |
+| `Ctrl+L` | seleccionar la línea (otra vez: la siguiente); doble clic: la palabra, triple clic: la línea |
+| `Ctrl+Intro` / `Ctrl+Mayús+Intro` | nueva línea debajo / encima, esté donde esté el cursor |
+| `Ctrl+Retroceso` / `Ctrl+Supr` | borrar la palabra antes / después del cursor (también `Alt+…`) |
+| `(` `[` `{` `"` `` ` `` | se cierran automáticamente (desactivable desde la paleta); sobre una selección, la rodean; `Intro` entre `{}` abre un bloque |
+| `Ctrl+M` | ir al paréntesis correspondiente (resaltado junto con el del cursor) |
 | `Ctrl+F`, `F3`, `Mayús+F3` | buscar, coincidencia siguiente, anterior |
 | `Ctrl+H` o `Ctrl+R` | reemplazar: texto buscado, reemplazo y luego cada coincidencia (`Intro` reemplaza, `Espacio` omite, `a` reemplaza todo, `Esc` termina) |
 | `Ctrl+G` | ir a la línea |

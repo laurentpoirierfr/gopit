@@ -393,10 +393,21 @@ func (b *Buffer) Newline() {
 	indent := string(l[:indentWidth(l)])
 	before := strings.TrimRight(string(l[:min(b.cursor.Col, len(l))]), " \t")
 	if strings.HasSuffix(before, "{") || strings.HasSuffix(before, "(") || strings.HasSuffix(before, "[") {
+		// Entre une paire vide (« {|} ») : le fermant passe sur sa propre
+		// ligne, le curseur sur la ligne indentée entre les deux.
+		if _, _, sel := b.Selection(); !sel && b.cursor.Col < len(l) && before == string(l[:b.cursor.Col]) &&
+			pairClose[before[len(before)-1]] == l[b.cursor.Col] {
+			b.Insert("\n" + indent + "\t" + "\n" + indent)
+			b.cursor = Pos{b.cursor.Line - 1, len([]rune(indent)) + 1}
+			b.goal = b.cursor.Col
+			return
+		}
 		indent += "\t"
 	}
 	b.Insert("\n" + indent)
 }
+
+var pairClose = map[byte]rune{'{': '}', '(': ')', '[': ']'}
 
 // Backspace efface la sélection ou le caractère avant le curseur.
 func (b *Buffer) Backspace() {

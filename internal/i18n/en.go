@@ -638,4 +638,17 @@ var en = map[string]string{
 
 	// À propos
 	"Auteur : ": "Author: ",
+
+	// Éditeur : lignes, paires
+	"Fermeture automatique des parenthèses activée":                "Auto-closing brackets on",
+	"Fermeture automatique des parenthèses désactivée":             "Auto-closing brackets off",
+	"Déplacer la ligne vers le haut":                               "Move line up",
+	"Déplacer la ligne vers le bas":                                "Move line down",
+	"Dupliquer la ligne":                                           "Duplicate line",
+	"Supprimer la ligne":                                           "Delete line",
+	"Sélectionner la ligne":                                        "Select line",
+	"Nouvelle ligne en dessous":                                    "New line below",
+	"Nouvelle ligne au-dessus":                                     "New line above",
+	"Aller à la parenthèse correspondante":                         "Go to matching bracket",
+	"Fermeture automatique des parenthèses (activer / désactiver)": "Auto-close brackets (toggle)",
 }

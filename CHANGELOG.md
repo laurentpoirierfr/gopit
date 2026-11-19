@@ -20,6 +20,13 @@ montre ce qui sera publié).
 - `make screenshots` : captures d'écran de tous les modules, produites en
   pilotant gopit sur son propre dépôt (`assets/screenshots/`).
 - Benchmarks de l'éditeur (frappe, recherche, remplacement, coloration).
+- Éditeur : opérations sur les lignes (déplacer `Alt+↑/↓`, dupliquer
+  `Maj+Alt+↑/↓`, supprimer `Ctrl+Maj+K`, sélectionner `Ctrl+L`, nouvelle
+  ligne `Ctrl+Entrée`), copier-coller de lignes entières (recollées
+  au-dessus de la ligne du curseur, réindentées), double et triple clic,
+  effacement par mot (`Ctrl+Retour arrière`, `Ctrl+Suppr`), fermeture
+  automatique des parenthèses et guillemets (désactivable), parenthèse
+  correspondante surlignée et `Ctrl+M` pour y aller.
 - Fenêtre « À propos » en carte de profil : l'avatar GitHub de l'auteur dans
   un cercle (haute définition dans Kitty et Ghostty, sinon en demi-blocs).
 

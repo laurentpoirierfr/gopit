@@ -638,4 +638,17 @@ var es = map[string]string{
 
 	// À propos
 	"Auteur : ": "Autor: ",
+
+	// Éditeur : lignes, paires
+	"Fermeture automatique des parenthèses activée":                "Cierre automático de paréntesis activado",
+	"Fermeture automatique des parenthèses désactivée":             "Cierre automático de paréntesis desactivado",
+	"Déplacer la ligne vers le haut":                               "Mover la línea hacia arriba",
+	"Déplacer la ligne vers le bas":                                "Mover la línea hacia abajo",
+	"Dupliquer la ligne":                                           "Duplicar la línea",
+	"Supprimer la ligne":                                           "Eliminar la línea",
+	"Sélectionner la ligne":                                        "Seleccionar la línea",
+	"Nouvelle ligne en dessous":                                    "Nueva línea debajo",
+	"Nouvelle ligne au-dessus":                                     "Nueva línea encima",
+	"Aller à la parenthèse correspondante":                         "Ir al paréntesis correspondiente",
+	"Fermeture automatique des parenthèses (activer / désactiver)": "Cierre automático de paréntesis (activar / desactivar)",
 }
