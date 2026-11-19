@@ -26,7 +26,7 @@ gopit sur son propre dépôt (captures produites par `make screenshots`) :
 | ![Débogage : point d'arrêt atteint dans l'éditeur](assets/screenshots/05-debogage-editeur.png)<br>Débogage : point d'arrêt atteint dans l'éditeur | ![Débogage : pile d'appels et variables](assets/screenshots/05-debogage.png)<br>Débogage : pile d'appels et variables |
 | ![Git : état, diff et commits](assets/screenshots/06-git.png)<br>Git : état, diff et commits | ![Terminal : un vrai shell](assets/screenshots/07-terminal.png)<br>Terminal : un vrai shell |
 | ![Docs : documentation d'un paquet](assets/screenshots/08-docs.png)<br>Docs : documentation d'un paquet | ![Modules : dépendances](assets/screenshots/09-modules.png)<br>Modules : dépendances |
-| ![Benchmarks : mesures et comparaison](assets/screenshots/10-benchmarks.png)<br>Benchmarks : mesures et comparaison |  |
+| ![Benchmarks : mesures et comparaison](assets/screenshots/10-benchmarks.png)<br>Benchmarks : mesures et comparaison | ![À propos](assets/screenshots/11-a-propos.png)<br>À propos (menu Aide) |
 
 Pour les refaire : `make screenshots` (police Nerd Font, gopls et Delve nécessaires).
 

@@ -635,4 +635,7 @@ var es = map[string]string{
 	"Image illisible : ":      "Imagen ilegible: ",
 	"Préparation de l'image…": "Preparando la imagen…",
 	"IMAGE":                   "IMAGEN",
+
+	// À propos
+	"Auteur : ": "Autor: ",
 }

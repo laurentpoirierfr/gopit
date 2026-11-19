@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -920,8 +921,8 @@ func TestImageInEditor(t *testing.T) {
 }
 
 func TestImageHD(t *testing.T) {
-	if !hdSupportedBuild {
-		t.Skip("pas d'images HD sur cette plateforme")
+	if runtime.GOOS == "windows" {
+		t.Skip("pas d'images HD sous Windows")
 	}
 	m, dir := newModel(t)
 	m.hd, m.cellW, m.cellH = true, 10, 20

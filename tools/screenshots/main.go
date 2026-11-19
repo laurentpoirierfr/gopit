@@ -63,6 +63,7 @@ func run(out, fontDir, fontName string, size float64, cols, rows int, only strin
 	for k, v := range map[string]string{
 		"XDG_CONFIG_HOME": filepath.Join(tmp, "config"), "XDG_CACHE_HOME": filepath.Join(tmp, "cache"),
 		"GOPIT_WATCH": "off", "SHELL": "/bin/sh", "PS1": "$ ", "LANG": "fr_FR.UTF-8",
+		"IMGVIEW_NO_KITTY": "1", // images en demi-blocs : le rendu PNG ne connaît pas le protocole Kitty
 	} {
 		os.Setenv(k, v)
 	}
@@ -203,6 +204,10 @@ func (d *driver) key(s string) {
 		case strings.HasPrefix(name, "ctrl+") && len(name) > 5:
 			k.Mod |= tea.ModCtrl
 			name = name[5:]
+			continue
+		case strings.HasPrefix(name, "alt+") && len(name) > 4:
+			k.Mod |= tea.ModAlt
+			name = name[4:]
 			continue
 		case strings.HasPrefix(name, "shift+") && len(name) > 6:
 			k.Mod |= tea.ModShift
@@ -392,5 +397,17 @@ var scenarios = []scenario{
 			return err
 		}
 		return shot("10-benchmarks")
+	}},
+	{"a", "À propos", func(d *driver, shot func(string) error) error {
+		d.key("1")
+		d.key("alt+d") // menu Aide
+		d.key("down")
+		d.key("enter")
+		if err := d.waitFor("fenêtre À propos", 10*time.Second, contains("Auteur")); err != nil {
+			return err
+		}
+		err := shot("11-a-propos")
+		d.key("esc")
+		return err
 	}},
 }

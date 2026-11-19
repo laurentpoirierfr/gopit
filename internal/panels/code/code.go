@@ -26,6 +26,7 @@ import (
 	"github.com/laurentpoirierfr/gopit/internal/lsp"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/project"
+	"github.com/laurentpoirierfr/gopit/internal/termimg"
 	"github.com/laurentpoirierfr/gopit/internal/textbuf"
 	"github.com/laurentpoirierfr/gopit/internal/theme"
 )
@@ -135,8 +136,8 @@ type span struct{ x, w, close int }
 
 func New(th *theme.Theme, p *project.Project) *Model {
 	m := &Model{th: th, proj: p, textH: 20, tree: newTree(), define: gopls.Define, diags: map[string][]lsp.Diagnostic{},
-		dbg: panel.NewDebugState(), watchFS: os.Getenv("GOPIT_WATCH") != "off", hd: hdSupported()}
-	m.cellW, m.cellH = cellSize()
+		dbg: panel.NewDebugState(), watchFS: os.Getenv("GOPIT_WATCH") != "off", hd: termimg.Supported()}
+	m.cellW, m.cellH = termimg.CellSize()
 	if lspEnabled() {
 		m.start = lsp.Start
 	}

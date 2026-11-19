@@ -27,7 +27,7 @@ gopit sobre su propio repositorio (capturas producidas con `make screenshots`, i
 | ![Depuración: punto de interrupción alcanzado en el editor](assets/screenshots/05-debogage-editeur.png)<br>Depuración: punto de interrupción alcanzado en el editor | ![Depuración: pila de llamadas y variables](assets/screenshots/05-debogage.png)<br>Depuración: pila de llamadas y variables |
 | ![Git: estado, diff y commits](assets/screenshots/06-git.png)<br>Git: estado, diff y commits | ![Terminal: un shell real](assets/screenshots/07-terminal.png)<br>Terminal: un shell real |
 | ![Docs: documentación de un paquete](assets/screenshots/08-docs.png)<br>Docs: documentación de un paquete | ![Módulos: dependencias](assets/screenshots/09-modules.png)<br>Módulos: dependencias |
-| ![Benchmarks: mediciones y comparación](assets/screenshots/10-benchmarks.png)<br>Benchmarks: mediciones y comparación |  |
+| ![Benchmarks: mediciones y comparación](assets/screenshots/10-benchmarks.png)<br>Benchmarks: mediciones y comparación | ![Acerca de](assets/screenshots/11-a-propos.png)<br>Acerca de (menú Ayuda) |
 
 Para regenerarlas: `make screenshots` (requiere una Nerd Font, gopls y Delve).
 

@@ -16,6 +16,7 @@ import (
 	"github.com/laurentpoirierfr/imgview/pkg/imgrender"
 
 	"github.com/laurentpoirierfr/gopit/internal/i18n"
+	"github.com/laurentpoirierfr/gopit/internal/termimg"
 	"github.com/laurentpoirierfr/gopit/internal/textbuf"
 )
 
@@ -69,7 +70,7 @@ func (m *Model) imageSync() tea.Cmd {
 	return func() tea.Msg {
 		msg := imageMsg{path: path, key: key}
 		if hd && info.OK {
-			msg.cols, msg.rows = hdFit(info.W, info.H, w, h, cw, ch)
+			msg.cols, msg.rows = termimg.Fit(info.W, info.H, w, h, cw, ch)
 			pw, ph := cw, ch
 			if pw <= 0 || ph <= 0 {
 				pw, ph = 10, 20 // taille habituelle d'une cellule
@@ -109,11 +110,11 @@ func (m *Model) onImage(msg imageMsg) tea.Cmd {
 	}
 	var raw strings.Builder
 	if img.id != 0 {
-		raw.WriteString(hdDelete(img.id)) // l'ancienne taille n'est plus utile
+		raw.WriteString(termimg.Delete(img.id)) // l'ancienne taille n'est plus utile
 	}
 	m.hdNextID++
 	img.id, img.cols, img.rows = m.hdNextID, msg.cols, msg.rows
-	raw.WriteString(hdTransmit(img.id, msg.png, img.cols, img.rows))
+	raw.WriteString(termimg.Transmit(img.id, msg.png, img.cols, img.rows))
 	return tea.Raw(raw.String())
 }
 
@@ -122,7 +123,7 @@ func closeImage(d *doc) tea.Cmd {
 	if d.image == nil || d.image.id == 0 {
 		return nil
 	}
-	return tea.Raw(hdDelete(d.image.id))
+	return tea.Raw(termimg.Delete(d.image.id))
 }
 
 // viewImage dessine l'image centrée dans une zone de w×h cellules.
@@ -136,7 +137,7 @@ func (m *Model) viewImage(d *doc, w, h int) string {
 	case img.key == "":
 		lines = []string{t.Dim.Render(i18n.T("Préparation de l'image…"))}
 	case img.id != 0:
-		lines = strings.Split(hdPlaceholder(img.id, img.cols, img.rows), "\n")
+		lines = strings.Split(termimg.Placeholder(img.id, img.cols, img.rows), "\n")
 	default:
 		lines = strings.Split(strings.TrimRight(img.text, "\n"), "\n")
 	}

@@ -20,6 +20,8 @@ montre ce qui sera publié).
 - `make screenshots` : captures d'écran de tous les modules, produites en
   pilotant gopit sur son propre dépôt (`assets/screenshots/`).
 - Benchmarks de l'éditeur (frappe, recherche, remplacement, coloration).
+- Fenêtre « À propos » en carte de profil : l'avatar GitHub de l'auteur dans
+  un cercle (haute définition dans Kitty et Ghostty, sinon en demi-blocs).
 
 ### Modifié
 

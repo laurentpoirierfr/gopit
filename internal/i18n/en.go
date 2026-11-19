@@ -635,4 +635,7 @@ var en = map[string]string{
 	"Image illisible : ":      "Unreadable image: ",
 	"Préparation de l'image…": "Preparing the image…",
 	"IMAGE":                   "IMAGE",
+
+	// À propos
+	"Auteur : ": "Author: ",
 }

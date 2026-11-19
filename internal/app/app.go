@@ -72,20 +72,23 @@ type Model struct {
 	flashErr bool
 	flashID  int
 
-	pal       palette        // palette de commandes (palette.go)
-	menu      menuState      // barre de menus (menu.go)
-	modal     modalKind      // fenêtre d'aide ouverte
-	sidebar   bool           // barre latérale des modules
-	hideHints bool           // ligne des raccourcis masquée
-	external  bool           // ouvrir les fichiers dans l'éditeur externe
-	quitArmed bool           // fichiers non enregistrés : quitter une 2e fois
-	langSet   bool           // langue choisie dans les menus : à enregistrer
-	dragging  bool           // glissement de la souris commencé dans le module
-	cfg       *config.Config // préférences, enregistrées en quittant
-	git       *gitx.Status   // branche courante (nil : pas de dépôt)
-	gitGen    int            // numéro de la dernière lecture de l'état du dépôt
-	gitTick   bool           // prochaine lecture programmée
-	gitSpan   [2]int         // colonnes de la branche dans la barre d'état (clic)
+	pal        palette        // palette de commandes (palette.go)
+	menu       menuState      // barre de menus (menu.go)
+	modal      modalKind      // fenêtre d'aide ouverte
+	sidebar    bool           // barre latérale des modules
+	hideHints  bool           // ligne des raccourcis masquée
+	external   bool           // ouvrir les fichiers dans l'éditeur externe
+	quitArmed  bool           // fichiers non enregistrés : quitter une 2e fois
+	langSet    bool           // langue choisie dans les menus : à enregistrer
+	dragging   bool           // glissement de la souris commencé dans le module
+	cfg        *config.Config // préférences, enregistrées en quittant
+	git        *gitx.Status   // branche courante (nil : pas de dépôt)
+	gitGen     int            // numéro de la dernière lecture de l'état du dépôt
+	gitTick    bool           // prochaine lecture programmée
+	gitSpan    [2]int         // colonnes de la branche dans la barre d'état (clic)
+	avatarSent bool           // avatar envoyé au terminal (haute définition, avatar.go)
+	avatarC    int            // place de l'avatar en haute définition, en cellules
+	avatarR    int
 }
 
 // New crée le cockpit pour le projet p.

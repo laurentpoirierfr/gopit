@@ -26,7 +26,7 @@ gopit on its own repository (screenshots produced by `make screenshots`, interfa
 | ![Debug: breakpoint hit in the editor](assets/screenshots/05-debogage-editeur.png)<br>Debug: breakpoint hit in the editor | ![Debug: call stack and variables](assets/screenshots/05-debogage.png)<br>Debug: call stack and variables |
 | ![Git: status, diff and commits](assets/screenshots/06-git.png)<br>Git: status, diff and commits | ![Terminal: a real shell](assets/screenshots/07-terminal.png)<br>Terminal: a real shell |
 | ![Docs: package documentation](assets/screenshots/08-docs.png)<br>Docs: package documentation | ![Modules: dependencies](assets/screenshots/09-modules.png)<br>Modules: dependencies |
-| ![Benchmarks: measurements and comparison](assets/screenshots/10-benchmarks.png)<br>Benchmarks: measurements and comparison |  |
+| ![Benchmarks: measurements and comparison](assets/screenshots/10-benchmarks.png)<br>Benchmarks: measurements and comparison | ![About](assets/screenshots/11-a-propos.png)<br>About (Help menu) |
 
 To regenerate them: `make screenshots` (needs a Nerd Font, gopls and Delve).
 

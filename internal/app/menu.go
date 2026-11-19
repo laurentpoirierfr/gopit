@@ -164,7 +164,7 @@ func (m *Model) menus() []menu {
 		{title: i18n.T(cur.Title()), accel: -1, items: actions},
 		accelMenu(i18n.T("Ai&de"), []menuItem{
 			{label: i18n.T("Raccourcis clavier"), key: "F1", run: func(m *Model) tea.Cmd { m.modal = modalHelp; return nil }},
-			{label: i18n.T("À propos de gopit"), run: func(m *Model) tea.Cmd { m.modal = modalAbout; return nil }},
+			{label: i18n.T("À propos de gopit"), run: func(m *Model) tea.Cmd { m.modal = modalAbout; return m.avatarCmd() }},
 		}),
 	}
 }
@@ -404,12 +404,33 @@ func (m *Model) viewModal() string {
 			lines = append(lines, row(h.Key, h.Desc))
 		}
 	case modalAbout:
-		lines = []string{
+		// Carte de profil : l'avatar rond à gauche, le texte à droite.
+		info := []string{
 			title.Render(brandText + " " + version.Version), "",
 			text.Render(i18n.T("Le cockpit du développeur Go dans le terminal.")),
 			text.Render("Bubble Tea v2 · Lip Gloss v2 · Glamour v2"), "",
+			text.Render(i18n.T("Auteur : ") + authorName),
+			bg.Foreground(t.P.Blue).Underline(true).Render(authorURL), "",
 			text.Render(i18n.T("Projet : ") + m.proj.Module),
 			text.Render("Go " + m.proj.GoVersion),
+		}
+		avatar := m.viewAvatar(t.P.Mantle)
+		if avatar == "" {
+			lines = info
+			break
+		}
+		av := strings.Split(avatar, "\n")
+		blank, gap := bg.Render(strings.Repeat(" ", avatarCols)), bg.Render("    ")
+		off := max(0, (len(av)-len(info))/2) // texte centré en hauteur
+		for i := range max(len(av), len(info)+off) {
+			left, right := blank, ""
+			if i < len(av) {
+				left = av[i]
+			}
+			if j := i - off; j >= 0 && j < len(info) {
+				right = info[j]
+			}
+			lines = append(lines, left+gap+right)
 		}
 	}
 	lines = append(lines, "", bg.Foreground(t.P.Overlay0).Render(i18n.T("Échap pour fermer")))
