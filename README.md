@@ -105,7 +105,7 @@ ou un clic ; `Échap` pour en sortir).
 
 | Touche | Action |
 |---|---|
-| `Ctrl+S` | enregistrer (formaté avec gofmt pour un fichier Go) |
+| `Ctrl+S` | enregistrer ; pour un fichier Go, imports organisés par gopls (manquants ajoutés, inutilisés retirés, comme goimports ; désactivable depuis la palette) puis gofmt, en une seule étape d'annulation |
 | `Ctrl+O` | ouvrir un fichier (recherche par nom) |
 | `Ctrl+N` | nouveau fichier (chemin relatif au projet, sous-répertoires créés au besoin ; un fichier Go commence par sa ligne `package`) ; aussi `n` dans l'arborescence |
 | `Ctrl+W` ou `Ctrl+F4` | fermer le fichier (aussi : `w` en lecture, la croix `×` de l'onglet) |
@@ -128,6 +128,7 @@ ou un clic ; `Échap` pour en sortir).
 | `Tab` / `Maj+Tab` | indenter / désindenter (bloc sélectionné) |
 | `Ctrl+/` | commenter / décommenter |
 | `Alt+Maj+F` | formater sans enregistrer |
+| `Alt+Maj+O` | organiser les imports sans enregistrer |
 | `Ctrl+Espace` | complétion (gopls), aussi après un `.` : `↑` `↓` pour choisir, `Entrée` ou `Tab` pour insérer, `Échap` pour fermer |
 | `F12` ou `Ctrl+]` | aller à la définition du symbole sous le curseur (aussi `d` en lecture) |
 | `Ctrl+T` | revenir à la position d'avant le saut |

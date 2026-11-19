@@ -107,7 +107,7 @@ o un clic; `Esc` para salir).
 
 | Tecla | Acción |
 |---|---|
-| `Ctrl+S` | guardar (formateado con gofmt si es un archivo Go) |
+| `Ctrl+S` | guardar; en un archivo Go, imports organizados por gopls (se añaden los que faltan y se quitan los que sobran, como goimports; desactivable desde la paleta) y luego gofmt, en un solo paso de deshacer |
 | `Ctrl+O` | abrir un archivo (búsqueda por nombre) |
 | `Ctrl+N` | nuevo archivo (ruta relativa al proyecto, subdirectorios creados si hace falta; un archivo Go empieza por su línea `package`); también `n` en el árbol |
 | `Ctrl+W` o `Ctrl+F4` | cerrar el archivo (también: `w` en lectura, la `×` de la pestaña) |
@@ -130,6 +130,7 @@ o un clic; `Esc` para salir).
 | `Tab` / `Mayús+Tab` | indentar / desindentar (bloque seleccionado) |
 | `Ctrl+/` | comentar / descomentar |
 | `Alt+Mayús+F` | formatear sin guardar |
+| `Alt+Mayús+O` | organizar los imports sin guardar |
 | `Ctrl+Espacio` | autocompletado (gopls), también tras un `.`: `↑` `↓` para elegir, `Intro` o `Tab` para insertar, `Esc` para cerrar |
 | `F12` o `Ctrl+]` | ir a la definición del símbolo bajo el cursor (también `d` en lectura) |
 | `Ctrl+T` | volver a la posición anterior al salto |

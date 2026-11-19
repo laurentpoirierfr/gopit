@@ -27,6 +27,11 @@ montre ce qui sera publié).
   effacement par mot (`Ctrl+Retour arrière`, `Ctrl+Suppr`), fermeture
   automatique des parenthèses et guillemets (désactivable), parenthèse
   correspondante surlignée et `Ctrl+M` pour y aller.
+- Éditeur : imports organisés par gopls à l'enregistrement (manquants
+  ajoutés, inutilisés retirés, triés, comme goimports), avec gofmt en une
+  seule étape d'annulation, le curseur suivant son texte ; désactivable
+  depuis la palette, et `Alt+Maj+O` pour les organiser sans enregistrer.
+  Sans gopls (ou s'il tarde plus de 3 s), l'enregistrement se fait sans.
 - Diagnostics : correction proposée par gopls (corrections rapides, analyses
   staticcheck comprises) ou par gofmt, en aperçu avant/après, appliquée dans
   l'éditeur avec `f` (sans enregistrer, annulable) ; explication de la règle

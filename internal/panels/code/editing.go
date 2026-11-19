@@ -25,6 +25,8 @@ const (
 	actLineAbove  panel.EditAction = "line-above"
 	actMatch      panel.EditAction = "match-bracket"
 	actAutoPair   panel.EditAction = "auto-pair"
+	actOrganize   panel.EditAction = "organize-imports"
+	actImports    panel.EditAction = "imports-on-save"
 )
 
 // pairs associe chaque ouvrant à son fermant.

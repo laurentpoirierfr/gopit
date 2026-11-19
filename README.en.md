@@ -103,7 +103,7 @@ cockpit keys stay active) and **edit** (`Enter` or a click; `Esc` to leave).
 
 | Key | Action |
 |---|---|
-| `Ctrl+S` | save (formatted with gofmt for a Go file) |
+| `Ctrl+S` | save; for a Go file, imports organized by gopls (missing ones added, unused ones removed, like goimports; can be turned off from the palette) then gofmt, in a single undo step |
 | `Ctrl+O` | open a file (search by name) |
 | `Ctrl+N` | new file (path relative to the project, subdirectories created as needed; a Go file starts with its `package` line); also `n` in the tree |
 | `Ctrl+W` or `Ctrl+F4` | close the file (also: `w` in read mode, the tab's `×`) |
@@ -126,6 +126,7 @@ cockpit keys stay active) and **edit** (`Enter` or a click; `Esc` to leave).
 | `Tab` / `Shift+Tab` | indent / unindent (selected block) |
 | `Ctrl+/` | comment / uncomment |
 | `Alt+Shift+F` | format without saving |
+| `Alt+Shift+O` | organize imports without saving |
 | `Ctrl+Space` | completion (gopls), also after a `.`: `↑` `↓` to choose, `Enter` or `Tab` to insert, `Esc` to close |
 | `F12` or `Ctrl+]` | go to the definition of the symbol under the cursor (also `d` in read mode) |
 | `Ctrl+T` | go back to the position before the jump |

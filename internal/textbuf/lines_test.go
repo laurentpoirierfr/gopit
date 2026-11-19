@@ -167,3 +167,24 @@ func TestMatchBracket(t *testing.T) {
 		t.Errorf("après une fermante : %v %v", p, ok)
 	}
 }
+
+func TestMapPos(t *testing.T) {
+	old := "package a\n\nfunc f() {\n\tx := strings.Repeat(\"a\", 2)\n}\n"
+	added := "package a\n\nimport \"strings\"\n\nfunc f() {\n\tx := strings.Repeat(\"a\", 2)\n}\n"
+	if p := MapPos(old, added, Pos{3, 5}); p != (Pos{5, 5}) {
+		t.Errorf("après les imports ajoutés : %v", p)
+	}
+	if p := MapPos(old, added, Pos{0, 3}); p != (Pos{0, 3}) {
+		t.Errorf("avant : %v", p)
+	}
+	b, _ := buf(old)
+	b.SetCursor(Pos{3, 5}, false)
+	b.SetTextAt(added, MapPos(old, added, b.Cursor()))
+	if b.String() != added || b.Cursor() != (Pos{5, 5}) {
+		t.Fatalf("SetTextAt : %v", b.Cursor())
+	}
+	b.Undo()
+	if b.String() != old {
+		t.Error("une seule annulation")
+	}
+}

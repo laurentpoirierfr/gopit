@@ -90,6 +90,7 @@ type Model struct {
 	clipLines bool   // … copié sans sélection : des lignes entières
 
 	autoPair bool // fermeture automatique des parenthèses et guillemets
+	imports  bool // imports organisés par gopls à l'enregistrement (imports.go)
 
 	lastClick  time.Time // double et triple clic
 	clickAt    textbuf.Pos
@@ -149,7 +150,7 @@ func New(th *theme.Theme, p *project.Project) *Model {
 	if lspEnabled() {
 		m.start = lsp.Start
 	}
-	m.autoPair = true
+	m.autoPair, m.imports = true, true
 	m.tree.focus = true // aucun fichier ouvert au départ
 	return m
 }
@@ -303,16 +304,40 @@ func formatDoc(d *doc) error {
 
 func isGo(d *doc) bool { return strings.HasSuffix(d.path, ".go") }
 
-// save enregistre le fichier courant ; un fichier Go est d'abord formaté
-// (s'il ne se compile pas, il est enregistré tel quel avec un avertissement).
+// save enregistre le fichier courant ; un fichier Go a d'abord ses imports
+// organisés par gopls (imports.go), puis il est formaté.
 func (m *Model) save() tea.Cmd {
 	d := m.doc()
 	if d == nil {
 		return nil
 	}
+	if cmd := m.organize(d, true); cmd != nil {
+		return cmd // l'enregistrement suit la réponse de gopls
+	}
+	return m.write(d, "")
+}
+
+// write enregistre d ; un fichier Go est d'abord formaté (s'il ne se compile
+// pas, il est enregistré tel quel avec un avertissement). organized, s'il
+// n'est pas vide, est le texte aux imports organisés : il remplace celui du
+// tampon, avec le formatage, en une seule étape d'annulation.
+func (m *Model) write(d *doc, organized string) tea.Cmd {
 	var fmtErr error
+	importsChanged := false
 	if isGo(d) {
-		fmtErr = formatDoc(d)
+		text, cur := d.buf.String(), d.buf.Cursor()
+		final := text
+		if organized != "" && organized != text {
+			cur = textbuf.MapPos(text, organized, cur)
+			final, importsChanged = organized, true
+		}
+		if src, err := format.Source([]byte(final)); err != nil {
+			fmtErr = err
+		} else {
+			cur = textbuf.MapPos(final, string(src), cur)
+			final = string(src)
+		}
+		d.buf.SetTextAt(final, cur)
 	}
 	perm := d.perm
 	if perm == 0 {
@@ -329,6 +354,9 @@ func (m *Model) save() tea.Cmd {
 	m.follow = true
 	if fmtErr != nil {
 		return tea.Batch(panel.Saved(d.path), panel.Flash(i18n.T("Enregistré sans gofmt : ")+firstLine(fmtErr.Error()), true))
+	}
+	if importsChanged {
+		return tea.Batch(panel.Saved(d.path), panel.Flash(i18n.T("Enregistré : ")+d.rel+i18n.T(" (imports organisés)"), false))
 	}
 	return tea.Batch(panel.Saved(d.path), panel.Flash(i18n.T("Enregistré : ")+d.rel, false))
 }
@@ -356,6 +384,9 @@ func (m *Model) State() map[string]string {
 	if !m.autoPair {
 		st["pairs"] = "0"
 	}
+	if !m.imports {
+		st["imports"] = "0"
+	}
 	var dirs []string
 	for d, open := range m.tree.expanded {
 		if open {
@@ -381,6 +412,7 @@ func (m *Model) Restore(st map[string]string) {
 	}
 	m.tree.visible = st["tree"] != "0"
 	m.autoPair = st["pairs"] != "0"
+	m.imports = st["imports"] != "0"
 	for d := range strings.SplitSeq(st["expanded"], "\n") {
 		if d != "" {
 			m.tree.expanded[d] = true
@@ -418,6 +450,8 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 		return m.onCompletion(msg)
 	case imageMsg:
 		return m.onImage(msg)
+	case organizedMsg:
+		return m.onOrganized(msg)
 	case panel.RepoChangedMsg:
 		m.reloadClean()
 		return nil
@@ -470,7 +504,7 @@ var keyActions = map[string]panel.EditAction{
 	"ctrl+a": panel.ActSelectAll, "ctrl+f": panel.ActFind, "f3": panel.ActFindNext,
 	"ctrl+h": panel.ActReplace, "ctrl+r": panel.ActReplace,
 	"ctrl+g": panel.ActGoto, "ctrl+/": panel.ActComment, "ctrl+_": panel.ActComment,
-	"alt+shift+f": panel.ActFormat, "alt+F": panel.ActFormat,
+	"alt+shift+f": panel.ActFormat, "alt+F": panel.ActFormat, "alt+shift+o": actOrganize, "alt+O": actOrganize,
 	"f12": panel.ActDefinition, "ctrl+]": panel.ActDefinition, "ctrl+t": panel.ActBack, "ctrl+k": panel.ActDoc,
 	"ctrl+space": actComplete, "ctrl+@": actComplete, "f9": actBreakpoint,
 	"alt+up": actMoveUp, "alt+down": actMoveDown,
@@ -775,6 +809,20 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 		if p, ok := m.matchingBracket(d); ok {
 			b.SetCursor(p, false)
 		}
+	case actOrganize:
+		if !isGo(d) {
+			return panel.Flash(i18n.T("Les imports ne concernent que les fichiers Go"), true)
+		}
+		if cmd := m.organize(d, false); cmd != nil {
+			return cmd
+		}
+		return panel.Flash(i18n.T("gopls n'est pas disponible"), true)
+	case actImports:
+		m.imports = !m.imports
+		if m.imports {
+			return panel.Flash(i18n.T("Imports organisés à l'enregistrement"), false)
+		}
+		return panel.Flash(i18n.T("Imports laissés tels quels à l'enregistrement"), false)
 	case actAutoPair:
 		m.autoPair = !m.autoPair
 		if m.autoPair {

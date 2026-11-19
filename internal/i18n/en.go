@@ -676,4 +676,16 @@ var en = map[string]string{
 	"… la suite en ligne (w)":               "… more online (w)",
 	"Pas de documentation pour cette règle": "No documentation for this rule",
 	"gofmt met le code dans la forme standard de Go : indentation par tabulations, espaces autour des opérateurs, alignement des commentaires et des champs. Tout le code Go est ainsi présenté de la même façon. L'éditeur de gopit formate les fichiers Go à l'enregistrement.": "gofmt puts code in Go's standard layout: tab indentation, spaces around operators, aligned comments and fields. All Go code thus looks the same. The gopit editor formats Go files when saving.",
+
+	// Éditeur : imports
+	" (imports organisés)":                                            " (imports organized)",
+	"Imports : ":                                                      "Imports: ",
+	"Imports déjà en ordre":                                           "Imports already in order",
+	"Imports organisés":                                               "Imports organized",
+	"Les imports ne concernent que les fichiers Go":                   "Imports only apply to Go files",
+	"gopls n'est pas disponible":                                      "gopls is not available",
+	"Imports organisés à l'enregistrement":                            "Imports organized on save",
+	"Imports laissés tels quels à l'enregistrement":                   "Imports left as is on save",
+	"Organiser les imports (gopls)":                                   "Organize imports (gopls)",
+	"Organiser les imports à l'enregistrement (activer / désactiver)": "Organize imports on save (toggle)",
 }

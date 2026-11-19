@@ -308,3 +308,33 @@ func (b *Buffer) BracketNear(p Pos) (Pos, bool) {
 
 // IsWordRune indique si r fait partie d'un identifiant.
 func IsWordRune(r rune) bool { return isWord(r) }
+
+// MapPos suit la position p de old dans new : les lignes communes au début
+// gardent leur numéro, celles de la fin le décalent du nombre de lignes
+// ajoutées ou retirées ; dans la partie modifiée, le numéro est gardé.
+func MapPos(old, new string, p Pos) Pos {
+	ol, nl := strings.Split(old, "\n"), strings.Split(new, "\n")
+	pre := 0
+	for pre < len(ol) && pre < len(nl) && ol[pre] == nl[pre] {
+		pre++
+	}
+	suf := 0
+	for suf < len(ol)-pre && suf < len(nl)-pre && ol[len(ol)-1-suf] == nl[len(nl)-1-suf] {
+		suf++
+	}
+	if p.Line >= len(ol)-suf {
+		p.Line += len(nl) - len(ol)
+	}
+	return p
+}
+
+// SetTextAt remplace tout le texte, en une seule étape d'annulation, et
+// place le curseur en cur (ramené dans le texte).
+func (b *Buffer) SetTextAt(text string, cur Pos) {
+	if text == b.String() {
+		return
+	}
+	b.SetText(text)
+	b.cursor = b.clamp(cur)
+	b.goal = b.cursor.Col
+}
