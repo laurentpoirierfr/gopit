@@ -385,8 +385,16 @@ var scenarios = []scenario{
 		defer restore()
 		d.key("6")
 		d.key("r") // relire l'état du dépôt
-		if err := d.waitFor("diff du fichier modifié", time.Minute, contains("Modifiés (1)", "CHANGELOG.md", "@@")); err != nil {
+		if err := d.waitFor("fichier modifié", time.Minute, contains("Modifiés (1)", "CHANGELOG.md")); err != nil {
 			return err
+		}
+		d.key("home") // sélection sur le fichier modifié
+		if err := d.waitFor("diff du fichier", time.Minute, contains("diff --git a/CHANGELOG.md", "en cours de rédaction")); err != nil {
+			return err
+		}
+		if strings.Contains(d.text(), "@") && strings.Contains(d.text(), "<") && strings.Contains(d.text(), ">") &&
+			regexp.MustCompile(`<[^>\s]+@[^>\s]+>`).MatchString(d.text()) {
+			return fmt.Errorf("une adresse e-mail est visible : capture abandonnée")
 		}
 		return shot("06-git")
 	}},
