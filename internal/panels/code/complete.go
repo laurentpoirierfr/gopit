@@ -36,6 +36,10 @@ type completion struct {
 	shown  []int // propositions retenues par le filtre (indices dans items)
 	sel    int   // dans shown
 	offset int
+
+	// actions, si non nil : liste des corrections rapides (quickfix.go),
+	// une par élément de items, sans filtrage par la frappe.
+	actions []lsp.CodeAction
 }
 
 type complMsg struct {
@@ -122,6 +126,9 @@ func (m *Model) refilter() bool {
 		return false
 	}
 	cur := d.buf.Cursor()
+	if c.actions != nil { // corrections : fermées dès que le curseur bouge
+		return cur == c.start
+	}
 	line := []rune(d.buf.Line(cur.Line))
 	if cur.Line != c.start.Line || cur.Col < c.start.Col || cur.Col > len(line) {
 		return false
@@ -188,6 +195,9 @@ func (m *Model) acceptCompletion() tea.Cmd {
 	m.compl = nil
 	if d == nil || len(c.shown) == 0 {
 		return nil
+	}
+	if c.actions != nil {
+		return m.applyAction(d, c.actions[c.shown[c.sel]])
 	}
 	it := c.items[c.shown[c.sel]]
 	cur := d.buf.Cursor()
@@ -271,10 +281,14 @@ func (m *Model) viewCompletion(w int) string {
 		}
 		line := label + detail
 		line += strings.Repeat(" ", max(0, inner-2-ansi.StringWidth(line)))
+		mark := m.kindMark(it.Kind)
+		if c.actions != nil {
+			mark = lipgloss.NewStyle().Foreground(t.P.Yellow).Bold(true).Render("»")
+		}
 		if n == c.sel {
-			rows = append(rows, m.kindMark(it.Kind)+" "+lipgloss.NewStyle().Background(t.P.Accent).Foreground(t.P.Base).Render(line))
+			rows = append(rows, mark+" "+lipgloss.NewStyle().Background(t.P.Accent).Foreground(t.P.Base).Render(line))
 		} else {
-			rows = append(rows, m.kindMark(it.Kind)+" "+t.Text.Render(label)+t.Dim.Render(strings.TrimPrefix(line, label)))
+			rows = append(rows, mark+" "+t.Text.Render(label)+t.Dim.Render(strings.TrimPrefix(line, label)))
 		}
 	}
 	if len(c.shown) > complRows {

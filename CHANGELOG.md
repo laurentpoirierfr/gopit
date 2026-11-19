@@ -27,6 +27,10 @@ montre ce qui sera publié).
   effacement par mot (`Ctrl+Retour arrière`, `Ctrl+Suppr`), fermeture
   automatique des parenthèses et guillemets (désactivable), parenthèse
   correspondante surlignée et `Ctrl+M` pour y aller.
+- Éditeur : corrections rapides de gopls pour la ligne du curseur
+  (`Ctrl+.` ou `Alt+Entrée`) dans une liste près du curseur, appliquées en
+  une étape d'annulation ; la liste (comme celle de la complétion) se
+  pilote aussi à la souris.
 - Éditeur : la complétion propose les paquets pas encore importés et
   ajoute l'import en insérant (une seule étape d'annulation).
 - Éditeur : imports organisés par gopls à l'enregistrement (manquants

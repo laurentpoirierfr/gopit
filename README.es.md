@@ -131,6 +131,7 @@ o un clic; `Esc` para salir).
 | `Ctrl+/` | comentar / descomentar |
 | `Alt+Mayús+F` | formatear sin guardar |
 | `Alt+Mayús+O` | organizar los imports sin guardar |
+| `Ctrl+.` o `Alt+Intro` | correcciones rápidas de gopls para la línea (añadir un import eligiendo el paquete, quitar una variable sin usar, simplificar…): `↑` `↓` y `Intro`, o un clic |
 | `Ctrl+Espacio` | autocompletado (gopls), también tras un `.`: `↑` `↓` para elegir, `Intro` o `Tab` para insertar, `Esc` para cerrar; también propone paquetes aún no importados (`strings.Rep` → `Repeat`, marcado `from "strings"`) y añade el import al insertar |
 | `F12` o `Ctrl+]` | ir a la definición del símbolo bajo el cursor (también `d` en lectura) |
 | `Ctrl+T` | volver a la posición anterior al salto |

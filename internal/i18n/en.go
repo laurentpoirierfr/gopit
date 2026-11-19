@@ -689,4 +689,7 @@ var en = map[string]string{
 	"Organiser les imports (gopls)":                                   "Organize imports (gopls)",
 	"Organiser les imports à l'enregistrement (activer / désactiver)": "Organize imports on save (toggle)",
 	"Import ajouté : ":                                                "Import added: ",
+	"Les corrections rapides ne concernent que les fichiers Go":       "Quick fixes only apply to Go files",
+	"Aucune correction rapide pour cette ligne":                       "No quick fix for this line",
+	"Corrections rapides de la ligne (gopls)":                         "Quick fixes for the line (gopls)",
 }

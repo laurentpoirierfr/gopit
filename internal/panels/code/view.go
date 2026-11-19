@@ -538,5 +538,6 @@ func (m *Model) overlayCompletion(d *doc, body string, width int) string {
 		y = row - bh
 	}
 	x, y = max(0, min(x, width-bw)), max(0, y)
+	m.complBox = [4]int{x, y, bw, bh}
 	return lipgloss.NewCompositor(lipgloss.NewLayer(body), lipgloss.NewLayer(box).X(x).Y(y).Z(1)).Render()
 }

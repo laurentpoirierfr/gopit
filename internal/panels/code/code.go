@@ -96,6 +96,8 @@ type Model struct {
 	clickAt    textbuf.Pos
 	clickCount int
 
+	complBox [4]int // liste de complétion affichée : x, y, largeur, hauteur (dans le texte)
+
 	follow bool // garder le curseur visible au prochain rendu
 	center bool // … et le placer au tiers de la hauteur
 
@@ -452,6 +454,8 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 		return m.onImage(msg)
 	case organizedMsg:
 		return m.onOrganized(msg)
+	case quickMsg:
+		return m.onQuickFix(msg)
 	case panel.RepoChangedMsg:
 		m.reloadClean()
 		return nil
@@ -467,6 +471,9 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 	case panel.WheelMsg:
 		m.wheel(msg.Delta < 0, msg.X < m.treeW)
 	case panel.ClickMsg:
+		if cmd, ok := m.complClick(msg); ok {
+			return cmd
+		}
 		m.compl = nil
 		m.click(msg)
 	case tea.KeyPressMsg:
@@ -511,6 +518,7 @@ var keyActions = map[string]panel.EditAction{
 	"alt+shift+up": actDupUp, "alt+shift+down": actDupDown,
 	"ctrl+shift+k": actDeleteLine, "ctrl+l": actSelectLine,
 	"ctrl+enter": actLineBelow, "ctrl+shift+enter": actLineAbove,
+	"ctrl+.": actQuickFix, "alt+enter": actQuickFix,
 	"ctrl+m": actMatch, "ctrl+shift+\\": actMatch, "ctrl+|": actMatch,
 }
 
@@ -809,6 +817,9 @@ func (m *Model) action(a panel.EditAction) tea.Cmd {
 		if p, ok := m.matchingBracket(d); ok {
 			b.SetCursor(p, false)
 		}
+	case actQuickFix:
+		m.compl = nil
+		return m.requestQuickFix()
 	case actOrganize:
 		if !isGo(d) {
 			return panel.Flash(i18n.T("Les imports ne concernent que les fichiers Go"), true)

@@ -42,6 +42,7 @@ func (m *Model) Commands() []panel.Command {
 		c(i18n.T("Aller à la parenthèse correspondante"), "Ctrl+M", actMatch),
 		c(i18n.T("Fermeture automatique des parenthèses (activer / désactiver)"), "", actAutoPair),
 		c(i18n.T("Organiser les imports (gopls)"), "Alt+Maj+O", actOrganize),
+		c(i18n.T("Corrections rapides de la ligne (gopls)"), "Ctrl+.", actQuickFix),
 		c(i18n.T("Organiser les imports à l'enregistrement (activer / désactiver)"), "", actImports),
 	}
 }

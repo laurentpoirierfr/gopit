@@ -127,6 +127,7 @@ cockpit keys stay active) and **edit** (`Enter` or a click; `Esc` to leave).
 | `Ctrl+/` | comment / uncomment |
 | `Alt+Shift+F` | format without saving |
 | `Alt+Shift+O` | organize imports without saving |
+| `Ctrl+.` or `Alt+Enter` | gopls quick fixes for the line (add an import choosing the package, remove an unused variable, simplify…): `↑` `↓` then `Enter`, or a click |
 | `Ctrl+Space` | completion (gopls), also after a `.`: `↑` `↓` to choose, `Enter` or `Tab` to insert, `Esc` to close; it also offers packages not yet imported (`strings.Rep` → `Repeat`, marked `from "strings"`) and adds the import when inserting |
 | `F12` or `Ctrl+]` | go to the definition of the symbol under the cursor (also `d` in read mode) |
 | `Ctrl+T` | go back to the position before the jump |
