@@ -12,6 +12,7 @@ import (
 	"go/format"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -61,6 +62,12 @@ func fixEnabled() bool {
 // après la vérification des types).
 var quiet = 2 * time.Second
 
+// analysisWait borne l'attente d'un problème que gopls n'a pas encore
+// signalé : sans cache (première utilisation), ses analyses staticcheck
+// étudient d'abord la bibliothèque standard, bien après ses premiers
+// diagnostics.
+var analysisWait = 20 * time.Second
+
 // fixer est la connexion à gopls dédiée aux corrections.
 type fixer struct {
 	root string
@@ -70,6 +77,7 @@ type fixer struct {
 	err     error
 	sent    map[string]string // texte envoyé, par fichier
 	version map[string]int
+	waited  map[string]string // texte pour lequel l'attente des analyses a été faite
 
 	dmu    sync.Mutex // diagnostics reçus
 	got    map[string][]lsp.Diagnostic
@@ -78,7 +86,7 @@ type fixer struct {
 }
 
 func newFixer(root string) *fixer {
-	return &fixer{root: root, sent: map[string]string{}, version: map[string]int{},
+	return &fixer{root: root, sent: map[string]string{}, version: map[string]int{}, waited: map[string]string{},
 		got: map[string][]lsp.Diagnostic{}, count: map[string]int{}, signal: make(chan struct{})}
 }
 
@@ -165,6 +173,9 @@ func (f *fixer) fixes(ctx context.Context, d diag.Diagnostic) (out []fix, rule s
 	if err != nil {
 		return nil, "", err
 	}
+	if !slices.ContainsFunc(diags, func(g lsp.Diagnostic) bool { return sameProblem(d, g) }) {
+		diags = f.awaitProblem(ctx, d, base)
+	}
 	for _, g := range diags {
 		if !sameProblem(d, g) {
 			continue
@@ -187,6 +198,32 @@ func (f *fixer) fixes(ctx context.Context, d diag.Diagnostic) (out []fix, rule s
 		}
 	}
 	return out, rule, nil
+}
+
+// awaitProblem attend que gopls signale le problème d (analyses encore en
+// cours), au plus analysisWait, une seule fois par texte du fichier ; il
+// renvoie ses derniers diagnostics du fichier.
+func (f *fixer) awaitProblem(ctx context.Context, d diag.Diagnostic, text string) []lsp.Diagnostic {
+	f.mu.Lock()
+	first := f.waited[d.File] != text
+	f.waited[d.File] = text
+	f.mu.Unlock()
+	timeout := time.After(analysisWait)
+	for {
+		f.dmu.Lock()
+		got, sig := f.got[d.File], f.signal
+		f.dmu.Unlock()
+		if !first || slices.ContainsFunc(got, func(g lsp.Diagnostic) bool { return sameProblem(d, g) }) {
+			return got
+		}
+		select {
+		case <-sig:
+		case <-timeout:
+			return got
+		case <-ctx.Done():
+			return got
+		}
+	}
 }
 
 // sameProblem indique si le diagnostic g de gopls est le problème d : même
