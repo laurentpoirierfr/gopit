@@ -266,8 +266,39 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	case tea.KeyPressMsg:
 		cmd := m.handleKey(msg.String())
 		return m, tea.Batch(cmd, m.ensureWhy())
+
+	case panel.ClickMsg:
+		return m, tea.Batch(m.click(msg), m.ensureWhy())
+
+	case panel.WheelMsg:
+		switch {
+		case panel.Has(msg.Zones, "detail"):
+			m.detailOff = max(0, m.detailOff+msg.Delta)
+		case panel.Has(msg.Zones, "list"):
+			m.move(msg.Delta)
+			return m, m.ensureWhy()
+		}
 	}
 	return m, nil
+}
+
+// click choisit le module cliqué ; un clic dans le bilan (indirectes,
+// mises à jour, vulnérabilités, filtre) fait comme la touche indiquée.
+func (m *Model) click(c panel.ClickMsg) tea.Cmd {
+	if c.Drag || m.confirm != nil {
+		return nil
+	}
+	for zone, key := range map[string]string{"indirect": "i", "updates": "u", "vulns": "v", "filter": "f"} {
+		if panel.Has(c.Zones, zone) {
+			return m.handleKey(key)
+		}
+	}
+	if i, ok := panel.Index(c.Zones, "row:"); ok && i >= 0 && i < len(m.rows) && m.rows[i].mod != nil {
+		if m.cursor != i {
+			m.cursor, m.detailOff = i, 0
+		}
+	}
+	return nil
 }
 
 func (m *Model) handleKey(s string) tea.Cmd {
@@ -564,7 +595,7 @@ func (m *Model) viewSummary(width int) []string {
 		}
 	}
 	parts := []string{
-		t.Value.Render(fmt.Sprint(direct)) + t.Dim.Render(i18n.T(" directes · ")) + t.Value.Render(fmt.Sprint(indirect)) + t.Dim.Render(i18n.T(" indirectes")),
+		t.Value.Render(fmt.Sprint(direct)) + t.Dim.Render(i18n.T(" directes · ")) + panel.Zone("indirect", t.Value.Render(fmt.Sprint(indirect))+t.Dim.Render(i18n.T(" indirectes"))),
 	}
 
 	switch {
@@ -573,7 +604,7 @@ func (m *Model) viewSummary(width int) []string {
 	case m.updChecked:
 		parts = append(parts, t.Warn.Render(fmt.Sprintf("↑ %d", upd))+t.Dim.Render(i18n.T(" mises à jour (directes)")))
 	default:
-		parts = append(parts, t.Dim.Render(i18n.T("mises à jour non vérifiées (u)")))
+		parts = append(parts, panel.Zone("updates", t.Dim.Render(i18n.T("mises à jour non vérifiées (u)"))))
 	}
 
 	switch {
@@ -606,10 +637,10 @@ func (m *Model) viewSummary(width int) []string {
 	case !gomod.VulnAvailable():
 		parts = append(parts, t.Dim.Render("govulncheck –"))
 	default:
-		parts = append(parts, t.Dim.Render(i18n.T("vulnérabilités non vérifiées (v)")))
+		parts = append(parts, panel.Zone("vulns", t.Dim.Render(i18n.T("vulnérabilités non vérifiées (v)"))))
 	}
 	if m.filter != 0 {
-		parts = append(parts, t.Dim.Render(i18n.T("filtre "))+t.Value.Render(i18n.T(filters[m.filter])))
+		parts = append(parts, panel.Zone("filter", t.Dim.Render(i18n.T("filtre "))+t.Value.Render(i18n.T(filters[m.filter]))))
 	}
 
 	lines := []string{ansi.Truncate(strings.Join(parts, t.Dim.Render("   │   ")), width, "…")}
@@ -676,9 +707,9 @@ func (m *Model) viewList(w, h int) string {
 		if i == m.cursor {
 			line = lipgloss.NewStyle().Background(t.P.Surface0).Width(w).Render(line)
 		}
-		lines = append(lines, line)
+		lines = append(lines, panel.Row(fmt.Sprint("row:", i), w, line))
 	}
-	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
+	return panel.Zone("list", lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n")))
 }
 
 func date(tm *time.Time) string {
@@ -814,5 +845,5 @@ func (m *Model) viewDetail(w, h int) string {
 	}
 	m.detailOff = min(m.detailOff, max(0, len(flat)-h))
 	flat = flat[m.detailOff:]
-	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(flat, "\n"))
+	return panel.Zone("detail", lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(flat, "\n")))
 }

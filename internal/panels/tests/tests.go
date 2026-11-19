@@ -455,8 +455,49 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m, m.handleKey(msg.String())
+
+	case panel.ClickMsg:
+		return m, m.click(msg)
+
+	case panel.WheelMsg:
+		switch {
+		case panel.Has(msg.Zones, "detail"): // la sortie se compte depuis la fin
+			m.detailOff = max(0, m.detailOff-msg.Delta)
+		case panel.Has(msg.Zones, "list"):
+			m.move(msg.Delta)
+		}
 	}
 	return m, nil
+}
+
+// click choisit la ligne cliquée : la flèche d'un paquet le déplie ou le
+// replie, un double clic lance les tests choisis (comme Entrée). Un clic sur
+// « cache » ou « couverture » les active ou désactive.
+func (m *Model) click(c panel.ClickMsg) tea.Cmd {
+	if c.Drag {
+		return nil
+	}
+	switch {
+	case panel.Has(c.Zones, "cache"):
+		return m.handleKey("c")
+	case panel.Has(c.Zones, "cover"):
+		return m.handleKey("v")
+	}
+	i, ok := panel.Index(c.Zones, "row:")
+	if !ok || i < 0 || i >= len(m.rows) {
+		return nil
+	}
+	if m.cursor != i {
+		m.cursor, m.detailOff = i, 0
+	}
+	if m.rows[i].test == nil && c.X < 3 { // icône et flèche du paquet
+		m.toggle(false, true)
+		return nil
+	}
+	if c.Double {
+		return m.handleKey("enter")
+	}
+	return nil
 }
 
 func (m *Model) handleKey(s string) tea.Cmd {
@@ -692,6 +733,7 @@ func (m *Model) viewSummary(width int) string {
 	if m.noCache {
 		cache = t.Dim.Render(i18n.T("cache ")) + t.Warn.Render("off")
 	}
+	cache = panel.Zone("cache", cache)
 	line := counts + t.Dim.Render("   │   ") + state + t.Dim.Render("   │   ") + cache
 	if m.cover || m.prof != nil {
 		cov := t.Dim.Render(i18n.T("couverture "))
@@ -704,7 +746,7 @@ func (m *Model) viewSummary(width int) string {
 		if !m.cover {
 			cov += t.Dim.Render(" (off)")
 		}
-		line += t.Dim.Render("   │   ") + cov
+		line += t.Dim.Render("   │   ") + panel.Zone("cover", cov)
 	}
 	if m.watcher != nil {
 		line += t.Dim.Render("   │   ") + t.OK.Render(i18n.T("◉ surveillance"))
@@ -773,9 +815,9 @@ func (m *Model) viewList(w, h int) string {
 		if i == m.cursor {
 			line = lipgloss.NewStyle().Background(t.P.Surface0).Width(w).Render(line)
 		}
-		lines = append(lines, line)
+		lines = append(lines, panel.Row(fmt.Sprint("row:", i), w, line))
 	}
-	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
+	return panel.Zone("list", lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n")))
 }
 
 func (m *Model) viewDetail(w, h int) string {
@@ -822,7 +864,7 @@ func (m *Model) viewDetail(w, h int) string {
 	end := len(lines) - m.detailOff
 	start := max(0, end-avail)
 	view := append(head, lines[start:end]...)
-	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(view, "\n"))
+	return panel.Zone("detail", lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(view, "\n")))
 }
 
 func (m *Model) colorize(l string) string {

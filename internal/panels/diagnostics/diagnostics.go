@@ -214,8 +214,44 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m, m.handleKey(msg.String())
+
+	case panel.ClickMsg:
+		return m, m.click(msg)
+
+	case panel.WheelMsg:
+		if panel.Has(msg.Zones, "list") {
+			m.move(msg.Delta)
+		}
 	}
 	return m, nil
+}
+
+// click choisit le diagnostic cliqué (le premier du fichier, sur un
+// en-tête) ; un double clic l'ouvre. Un clic sur le filtre le change.
+func (m *Model) click(c panel.ClickMsg) tea.Cmd {
+	if c.Drag {
+		return nil
+	}
+	if panel.Has(c.Zones, "sev") {
+		return m.handleKey("s")
+	}
+	if panel.Has(c.Zones, "tool") {
+		return m.handleKey("t")
+	}
+	i, ok := panel.Index(c.Zones, "row:")
+	if !ok || i < 0 || i >= len(m.rows) {
+		return nil
+	}
+	for i < len(m.rows) && m.rows[i].d == nil {
+		i++
+	}
+	if i < len(m.rows) {
+		m.cursor = i
+	}
+	if c.Double {
+		return m.handleKey("enter")
+	}
+	return nil
 }
 
 func (m *Model) handleKey(s string) tea.Cmd {
@@ -412,9 +448,9 @@ func (m *Model) viewSummary(width int) []string {
 	e, w, i := diag.Counts(m.all)
 	counts := t.Err.Render(fmt.Sprintf("✗ %d", e)) + "  " + t.Warn.Render(fmt.Sprintf("⚠ %d", w)) + "  " +
 		lipgloss.NewStyle().Foreground(t.P.Blue).Render(fmt.Sprintf("ℹ %d", i))
-	filter := t.Dim.Render(i18n.T("filtre ")) + t.Value.Render(i18n.T(sevFilters[m.sevFilter].label))
+	filter := panel.Zone("sev", t.Dim.Render(i18n.T("filtre "))+t.Value.Render(i18n.T(sevFilters[m.sevFilter].label)))
 	if m.toolFilter != "" {
-		filter += t.Dim.Render(" · ") + t.Value.Render(m.toolFilter)
+		filter += t.Dim.Render(" · ") + panel.Zone("tool", t.Value.Render(m.toolFilter))
 	}
 
 	lines := []string{
@@ -458,7 +494,8 @@ func (m *Model) viewList(w, h int) string {
 					n++
 				}
 			}
-			lines = append(lines, ansi.Truncate(t.Label.Bold(true).Render(m.rel(r.file))+t.Dim.Render(fmt.Sprintf("  (%d)", n)), w, "…"))
+			lines = append(lines, panel.Row(fmt.Sprint("row:", i), w,
+				ansi.Truncate(t.Label.Bold(true).Render(m.rel(r.file))+t.Dim.Render(fmt.Sprintf("  (%d)", n)), w, "…")))
 			continue
 		}
 		loc := t.Dim.Render(fmt.Sprintf("%5d:%-3d", r.d.Line, r.d.Col))
@@ -466,9 +503,9 @@ func (m *Model) viewList(w, h int) string {
 		if i == m.cursor {
 			line = lipgloss.NewStyle().Background(t.P.Surface0).Width(w).Render(line)
 		}
-		lines = append(lines, line)
+		lines = append(lines, panel.Row(fmt.Sprint("row:", i), w, line))
 	}
-	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
+	return panel.Zone("list", lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n")))
 }
 
 func (m *Model) viewDetail(w, h int) string {

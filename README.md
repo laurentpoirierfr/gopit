@@ -57,6 +57,15 @@ module (`go mod init`) ; le chemin proposé vient du dépôt git
 | `e` | ouvrir l'éditeur externe sur le projet |
 | `q` / `Ctrl+Q` | quitter (confirmation s'il reste des fichiers non enregistrés) ; `Ctrl+C` quitte aussi, sauf dans l'éditeur où il copie |
 
+**À la souris**, tout se fait aussi : un clic sur un module de la colonne
+de gauche l'affiche ; dans les listes (diagnostics, tests, paquets et
+symboles des docs, fichiers et commits Git, dépendances, benchmarks, pile
+d'appels et variables du débogueur, palette), un clic choisit la ligne et
+un double clic fait comme `Entrée` (ouvrir, lancer, déplier) ; la molette
+fait défiler la liste ou le volet sous la souris. Les éléments du bilan en
+haut des modules (filtre, cache, couverture, référence, branche…) changent
+d'un clic, et sur l'accueil, les lignes marquées `→` mènent au module.
+
 ## Préférences
 
 Les réglages (dernier module affiché, couverture, cache, filtres,
@@ -182,7 +191,10 @@ Ajouter un module : créer `internal/panels/<nom>` qui implémente
 `panel.Panel`, puis l'enregistrer dans `app.New`. Un module qui a une saisie
 de texte implémente aussi `panel.Capturer` pour recevoir toutes les touches,
 `panel.Commander` pour apparaître dans la palette (Ctrl+P) et
-`panel.Persister` pour garder ses réglages d'une session à l'autre.
+`panel.Persister` pour garder ses réglages d'une session à l'autre. Pour la
+souris, il entoure au rendu ce qui se clique avec `panel.Zone` (ou
+`panel.Row` pour une ligne de liste) et reçoit dans `panel.ClickMsg` et
+`panel.WheelMsg` les zones sous la souris, sans calculer sa mise en page.
 Les textes s'écrivent en français, entourés de `i18n.T("…")` au moment de
 les afficher, et se traduisent dans `internal/i18n/en.go` et `es.go` ;
 `go test ./internal/i18n` signale tout message sans traduction.

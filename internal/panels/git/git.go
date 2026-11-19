@@ -197,15 +197,45 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		cmd := m.handleKey(msg)
 		return m, tea.Batch(cmd, m.loadDetail(false))
 
-	case tea.MouseWheelMsg:
-		switch tea.Mouse(msg).Button {
-		case tea.MouseWheelUp:
-			m.scrollDetail(-3)
-		case tea.MouseWheelDown:
-			m.scrollDetail(3)
+	case panel.WheelMsg:
+		if panel.Has(msg.Zones, "list") {
+			m.move(msg.Delta)
+			return m, m.loadDetail(false)
 		}
+		m.scrollDetail(msg.Delta)
+
+	case panel.ClickMsg:
+		return m, tea.Batch(m.click(msg), m.loadDetail(false))
 	}
 	return m, nil
+}
+
+// click choisit le fichier ou le commit cliqué. Un clic sur la lettre d'état
+// d'un fichier l'indexe ou le désindexe ; un double clic ouvre le fichier
+// (comme Entrée) ; un clic sur la branche ouvre la liste des branches.
+func (m *Model) click(c panel.ClickMsg) tea.Cmd {
+	if c.Drag || m.typing {
+		return nil
+	}
+	if panel.Has(c.Zones, "branch") {
+		return m.handleKey(tea.KeyPressMsg{Code: 'b', Text: "b"})
+	}
+	i, ok := panel.Index(c.Zones, "row:")
+	if !ok || i < 0 || i >= len(m.rows) || m.rows[i].header != "" {
+		return nil
+	}
+	m.cursor = i
+	if r := m.rows[i]; r.change != nil && c.X == 2 { // lettre d'état (voir viewList)
+		k := "s"
+		if r.staged {
+			k = "u"
+		}
+		return m.handleKey(tea.KeyPressMsg{Code: rune(k[0]), Text: k})
+	}
+	if c.Double {
+		return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	}
+	return nil
 }
 
 func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
@@ -414,7 +444,7 @@ func (m *Model) viewSummary(width int) []string {
 	if branch == "" {
 		branch = i18n.T("HEAD détaché (") + s.Commit + ")"
 	}
-	line := t.Dim.Render(i18n.T("branche ")) + t.Value.Render(branch)
+	line := panel.Zone("branch", t.Dim.Render(i18n.T("branche "))+t.Value.Render(branch))
 	if s.Upstream != "" {
 		line += t.Dim.Render(" → " + s.Upstream)
 		switch {
@@ -506,12 +536,12 @@ func (m *Model) viewList(w, h int) string {
 		if i == m.cursor {
 			line = lipgloss.NewStyle().Background(t.P.Surface0).Width(w).Render(line)
 		}
-		lines = append(lines, line)
+		lines = append(lines, panel.Row(fmt.Sprint("row:", i), w, line))
 	}
 	if len(lines) == 0 {
 		lines = append(lines, t.Dim.Render(i18n.T("Aucun commit pour l'instant.")))
 	}
-	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
+	return panel.Zone("list", lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n")))
 }
 
 // ago présente une date de façon relative (« il y a 5 min »).
@@ -578,7 +608,7 @@ func (m *Model) viewDetail(w, h int) string {
 
 	body := scroll.Render(lines[m.detailOff:end], textW, viewH, len(lines), m.detailOff,
 		lipgloss.NewStyle().Foreground(t.P.Surface1), lipgloss.NewStyle().Foreground(t.P.Accent))
-	return box.Render(head + "\n" + body)
+	return panel.Zone("detail", box.Render(head+"\n"+body))
 }
 
 // lineStyle choisit la couleur d'une ligne de diff ou de commit.

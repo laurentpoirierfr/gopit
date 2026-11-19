@@ -468,8 +468,77 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m, m.key(msg.String())
+
+	case panel.ClickMsg:
+		return m, m.click(msg)
+
+	case panel.WheelMsg:
+		switch {
+		case m.choices != nil || m.typing:
+		case m.outView:
+			m.scrollOut(msg.Delta)
+		default:
+			if _, ok := panel.Index(msg.Zones, "var:"); ok {
+				m.cursor = min(max(0, m.cursor+msg.Delta), max(0, len(m.rows())-1))
+			}
+		}
 	}
 	return m, nil
+}
+
+// click : programme proposé (double clic : le déboguer), niveau de la pile
+// (double clic : l'ouvrir), variable (la flèche ou un double clic la déplie
+// ou la replie) ; la sortie s'ouvre en plein écran d'un clic et se referme
+// par « ← ».
+func (m *Model) click(c panel.ClickMsg) tea.Cmd {
+	if c.Drag || m.typing {
+		return nil
+	}
+	if m.choices != nil {
+		if i, ok := panel.Index(c.Zones, "choice:"); ok && i >= 0 && i < len(m.choices) {
+			m.choiceSel = i
+			if c.Double {
+				return m.key("enter")
+			}
+		}
+		return nil
+	}
+	if m.outView {
+		if panel.Has(c.Zones, "back") {
+			m.outView = false
+		}
+		return nil
+	}
+	if panel.Has(c.Zones, "output") {
+		m.outView = true
+		return nil
+	}
+	if i, ok := panel.Index(c.Zones, "frame:"); ok && i >= 0 && i < len(m.frames) {
+		if c.Double {
+			return m.key("o")
+		}
+		if m.status == paused && i != m.frameSel {
+			m.frameSel = i
+			return m.selectFrame()
+		}
+		return nil
+	}
+	rows := m.rows()
+	i, ok := panel.Index(c.Zones, "var:")
+	if !ok || i < 0 || i >= len(rows) {
+		return nil
+	}
+	m.cursor = i
+	n := rows[i]
+	arrow := c.X >= 2*n.depth && c.X < 2*n.depth+2
+	if n.v.Ref != 0 && (arrow || c.Double) {
+		if n.expanded {
+			n.expanded = false
+			return nil
+		}
+		return m.expand(n)
+	}
+	return nil
 }
 
 // onEvent traite un événement de Delve.
@@ -764,7 +833,7 @@ func (m *Model) View(width, height int) string {
 			if i == m.choiceSel {
 				line = lipgloss.NewStyle().Background(t.P.Surface1).Foreground(t.P.Text).Render("▶ " + c)
 			}
-			b = append(b, line)
+			b = append(b, panel.Row(fmt.Sprint("choice:", i), width, line))
 		}
 		b = append(b, "", t.Dim.Render(i18n.T("Le choix est retenu ; c permet d'en changer.")))
 		return lipgloss.NewStyle().Height(height).MaxHeight(height).Render(strings.Join(b, "\n"))
@@ -785,7 +854,7 @@ func (m *Model) View(width, height int) string {
 			mark = lipgloss.NewStyle().Foreground(t.P.Yellow).Render("▶ ")
 		}
 		loc := fmt.Sprintf("%s:%d", m.rel(f.Source.Path), f.Line)
-		b = append(b, ansi.Truncate(mark+t.Text.Render(f.Name)+t.Dim.Render("  "+loc), width, "…"))
+		b = append(b, panel.Row(fmt.Sprint("frame:", i), width, ansi.Truncate(mark+t.Text.Render(f.Name)+t.Dim.Render("  "+loc), width, "…")))
 	}
 	b = append(b, "")
 
@@ -806,17 +875,17 @@ func (m *Model) View(width, height int) string {
 		shown = 1
 	}
 	for i := m.offset; i < len(rows) && shown < m.varsH; i++ {
-		b = append(b, m.viewVar(rows[i], i == m.cursor, width))
+		b = append(b, panel.Row(fmt.Sprint("var:", i), width, m.viewVar(rows[i], i == m.cursor, width)))
 		shown++
 	}
 	for ; shown < m.varsH; shown++ {
 		b = append(b, "")
 	}
 
-	b = append(b, "", t.Label.Render(i18n.T("Sortie"))+t.Dim.Render(i18n.T("  (s : plein écran)")))
+	b = append(b, "", panel.Zone("output", t.Label.Render(i18n.T("Sortie"))+t.Dim.Render(i18n.T("  (s : plein écran)"))))
 	out := m.allOutput()
 	for i := max(0, len(out)-(outH-1)); i < len(out); i++ {
-		b = append(b, m.outLine(i, out[i], width))
+		b = append(b, panel.Zone("output", m.outLine(i, out[i], width)))
 	}
 	return lipgloss.NewStyle().Height(height).MaxHeight(height).Render(strings.Join(b, "\n"))
 }
@@ -905,7 +974,7 @@ func (m *Model) viewOutput(w, h int) string {
 		m.outOff = max(0, len(out)-bodyH)
 	}
 	m.outOff = min(m.outOff, max(0, len(out)-bodyH))
-	title := t.Label.Render(i18n.T("Sortie du programme"))
+	title := panel.Zone("back", t.Dim.Render("← ")+t.Label.Render(i18n.T("Sortie du programme")))
 	pos := ""
 	if len(out) > bodyH {
 		pos = t.Dim.Render(fmt.Sprintf(i18n.T("  lignes %d–%d / %d"), m.outOff+1, min(len(out), m.outOff+bodyH), len(out)))

@@ -77,6 +77,10 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		m.facts[msg.key] = fact{val: msg.val, err: msg.err, done: true}
 	case panel.LangMsg, panel.RepoChangedMsg: // texte traduit, ou autre branche
 		return m, m.load()
+	case panel.ClickMsg:
+		if to, ok := panel.In(msg.Zones, "goto:"); ok && !msg.Drag {
+			return m, func() tea.Msg { return panel.GotoMsg{Title: to} }
+		}
 	case tea.KeyPressMsg:
 		if msg.String() == "r" {
 			return m, tea.Batch(m.load(), panel.Flash(i18n.T("Accueil actualisé"), false))
@@ -91,6 +95,10 @@ func (m *Model) View(width, height int) string {
 
 	row := func(label, value string) string {
 		return t.Label.Render(fmt.Sprintf("%-*s", labelW, label)) + value
+	}
+	// Ligne qui mène à un module d'un clic.
+	link := func(module, label, value string) string {
+		return panel.Zone("goto:"+module, row(label, value)+t.Dim.Render("  →"))
 	}
 	val := func(key string) string {
 		f := m.facts[key]
@@ -115,14 +123,14 @@ func (m *Model) View(width, height int) string {
 		row(i18n.T("Répertoire"), t.Text.Render(p.Root)),
 		row(i18n.T("Version Go (go.mod)"), goVer),
 		row(i18n.T("Go installé"), val(factToolchain)),
-		row(i18n.T("Dépendances"), t.Value.Render(fmt.Sprintf(i18n.T("%d directes"), p.Requires))+
+		link("Modules", i18n.T("Dépendances"), t.Value.Render(fmt.Sprintf(i18n.T("%d directes"), p.Requires))+
 			t.Dim.Render(fmt.Sprintf(i18n.T(" · %d indirectes"), p.Indirect))),
-		row(i18n.T("Paquets"), val(factPackages)),
-		row(i18n.T("Fichiers"), val(factFiles)),
-		row("Git", val(factGit)),
+		link("Docs", i18n.T("Paquets"), val(factPackages)),
+		link("Éditeur", i18n.T("Fichiers"), val(factFiles)),
+		link("Git", "Git", val(factGit)),
 		"",
 		t.Label.Render(i18n.T("Modules du cockpit")),
-		t.Dim.Render(i18n.T("Choisis un module dans la colonne de gauche (↑↓ ou son numéro).")),
+		t.Dim.Render(i18n.T("Choisis un module dans la colonne de gauche (↑↓, son numéro ou un clic), ou clique sur une ligne marquée →.")),
 	}
 	return lipgloss.NewStyle().MaxWidth(width).MaxHeight(height).Render(strings.Join(lines, "\n"))
 }

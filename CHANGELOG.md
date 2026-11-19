@@ -27,6 +27,12 @@ montre ce qui sera publié).
   effacement par mot (`Ctrl+Retour arrière`, `Ctrl+Suppr`), fermeture
   automatique des parenthèses et guillemets (désactivable), parenthèse
   correspondante surlignée et `Ctrl+M` pour y aller.
+- Souris dans tous les modules : clic pour choisir une ligne, double clic
+  comme Entrée (ouvrir, lancer, déplier), molette sur la liste ou le volet
+  survolé, éléments du bilan cliquables (filtres, cache, couverture,
+  référence, branche), liens de l'accueil vers les modules, palette
+  cliquable. Les modules marquent ce qui se clique (`panel.Zone`) et le
+  cadre leur indique les zones sous la souris.
 - Fenêtre « À propos » en carte de profil : l'avatar GitHub de l'auteur dans
   un cercle (haute définition dans Kitty et Ghostty, sinon en demi-blocs).
 

@@ -57,6 +57,15 @@ to the first `go.mod`. If there is none, it offers to create a module
 | `e` | open the external editor on the project |
 | `q` / `Ctrl+Q` | quit (asks for confirmation if files are unsaved); `Ctrl+C` quits too, except in the editor where it copies |
 
+**With the mouse**, everything works too: clicking a module in the left
+column shows it; in lists (diagnostics, tests, docs packages and symbols,
+Git files and commits, dependencies, benchmarks, debugger call stack and
+variables, palette), a click selects the line and a double click acts like
+`Enter` (open, run, expand); the wheel scrolls the list or pane under the
+mouse. The summary items at the top of modules (filter, cache, coverage,
+baseline, branch…) change with a click, and on the home screen, lines
+marked `→` lead to their module.
+
 ## Preferences
 
 Settings (last module shown, coverage, cache, filters, benchmark
@@ -178,7 +187,10 @@ To add a module: create `internal/panels/<name>` implementing
 `panel.Panel`, then register it in `app.New`. A module with text input also
 implements `panel.Capturer` to receive every key, `panel.Commander` to show
 up in the palette (Ctrl+P) and `panel.Persister` to keep its settings from
-one session to the next. Texts are written in French, wrapped in
+one session to the next. For the mouse, it wraps what can be clicked with
+`panel.Zone` (or `panel.Row` for a list line) when rendering, and receives
+the zones under the mouse in `panel.ClickMsg` and `panel.WheelMsg`, without
+computing its layout. Texts are written in French, wrapped in
 `i18n.T("…")` where they are displayed, and translated in
 `internal/i18n/en.go` and `es.go`; `go test ./internal/i18n` reports any
 untranslated message. To open a file, a module returns

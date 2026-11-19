@@ -137,8 +137,44 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 	case tea.KeyPressMsg:
 		cmd := m.handleKey(msg)
 		return m, tea.Batch(cmd, m.ensureLoad())
+
+	case panel.ClickMsg:
+		return m, tea.Batch(m.click(msg), m.ensureLoad())
+
+	case panel.WheelMsg:
+		switch {
+		case panel.Has(msg.Zones, "detail"):
+			m.detailOff = max(0, m.detailOff+msg.Delta)
+		case panel.Has(msg.Zones, "list"):
+			m.move(msg.Delta)
+			return m, m.ensureLoad()
+		}
 	}
 	return m, nil
+}
+
+// click choisit l'élément cliqué ; un double clic ouvre le paquet (comme
+// Entrée), un clic sur « ← Symboles de » revient aux paquets.
+func (m *Model) click(c panel.ClickMsg) tea.Cmd {
+	if c.Drag {
+		return nil
+	}
+	m.filtering = false
+	if panel.Has(c.Zones, "back") && m.mode == modeSymbols {
+		m.closePkg()
+		return nil
+	}
+	i, ok := panel.Index(c.Zones, "row:")
+	if !ok || i < 0 || i >= len(m.items) || !m.items[i].selectable() {
+		return nil
+	}
+	if m.cursor != i {
+		m.cursor, m.detailOff = i, 0
+	}
+	if c.Double {
+		return m.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	}
+	return nil
 }
 
 func (m *Model) handleKey(k tea.KeyPressMsg) tea.Cmd {
@@ -357,7 +393,7 @@ func (m *Model) View(width, height int) string {
 	case m.query != "":
 		bar = t.Label.Render(i18n.T("Filtre : ")) + t.Value.Render(m.query) + t.Dim.Render(i18n.T("  (Échap pour effacer)"))
 	case m.mode == modeSymbols:
-		bar = t.Dim.Render(i18n.T("Symboles de ")) + t.Value.Render(m.open.ImportPath) + t.Dim.Render(i18n.T("  ·  / pour filtrer"))
+		bar = panel.Zone("back", t.Dim.Render("← "+i18n.T("Symboles de "))+t.Value.Render(m.open.ImportPath)) + t.Dim.Render(i18n.T("  ·  / pour filtrer"))
 	default:
 		bar = t.Dim.Render(fmt.Sprintf(i18n.T("%d paquets du module · %d de la bibliothèque standard  ·  / pour rechercher"), len(m.module), len(m.std)))
 	}
@@ -440,12 +476,12 @@ func (m *Model) viewList(w, h int) string {
 		if i == m.cursor {
 			line = lipgloss.NewStyle().Background(t.P.Surface0).Width(w).Render(line)
 		}
-		lines = append(lines, line)
+		lines = append(lines, panel.Row(fmt.Sprint("row:", i), w, line))
 	}
 	if len(lines) == 0 {
 		lines = append(lines, t.Dim.Render(i18n.T("Aucun résultat")))
 	}
-	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
+	return panel.Zone("list", lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n")))
 }
 
 func (m *Model) viewDetail(w, h int) string {
@@ -476,7 +512,7 @@ func (m *Model) viewDetail(w, h int) string {
 			view = append(view[:h-1:h-1], lipgloss.PlaceHorizontal(w, lipgloss.Right, pos))
 		}
 	}
-	return box.Render(strings.Join(view, "\n"))
+	return panel.Zone("detail", box.Render(strings.Join(view, "\n")))
 }
 
 // render convertit la documentation en texte coloré, avec un cache par

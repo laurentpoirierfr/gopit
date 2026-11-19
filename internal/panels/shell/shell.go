@@ -217,12 +217,8 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 			m.emu.Paste(msg.Content)
 		}
 
-	case tea.MouseWheelMsg:
-		if tea.Mouse(msg).Button == tea.MouseWheelUp {
-			m.scroll(3)
-		} else {
-			m.scroll(-3)
-		}
+	case panel.WheelMsg:
+		m.scroll(-msg.Delta)
 
 	case panel.ClickMsg: // un clic dans le terminal y rend la main au shell
 		if !msg.Drag && m.emu != nil && !m.exited {

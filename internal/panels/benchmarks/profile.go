@@ -160,12 +160,12 @@ func (m *Model) viewProfile(width, height int) string {
 	if m.pr.byCum {
 		sort = i18n.T("coût cumulé")
 	}
-	head := t.Value.Render(i18n.T("Profil ")+r.Kind) + t.Dim.Render(" · ") + t.Text.Render(m.pr.target) +
+	head := panel.Zone("back", t.Dim.Render("← ")+t.Value.Render(i18n.T("Profil ")+r.Kind)) + t.Dim.Render(" · ") + t.Text.Render(m.pr.target) +
 		t.Dim.Render(i18n.T(" · total ")) + t.Value.Render(r.Format(r.Total))
 	if r.Duration > 0 {
 		head += t.Dim.Render(fmt.Sprintf(i18n.T(" sur %.2fs"), r.Duration.Seconds()))
 	}
-	head += t.Dim.Render(i18n.T("   │   tri : ")) + t.Value.Render(sort)
+	head += t.Dim.Render("   │   ") + panel.Zone("sort", t.Dim.Render(i18n.T("tri : "))+t.Value.Render(sort))
 	if m.pr.mineOnly {
 		head += t.Dim.Render(" · ") + t.Value.Render(i18n.T("module seulement"))
 	}
@@ -211,12 +211,12 @@ func (m *Model) viewFuncs(w, h int) string {
 		if i == p.cursor {
 			line = lipgloss.NewStyle().Background(t.P.Surface0).Width(w).Render(line)
 		}
-		lines = append(lines, line)
+		lines = append(lines, panel.Row(fmt.Sprint("func:", i), w, line))
 	}
 	if len(p.funcs) == 0 {
 		lines = append(lines, t.Dim.Render(i18n.T("Aucune fonction (f : afficher tout)")))
 	}
-	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
+	return panel.Zone("funcs", lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n")))
 }
 
 // heat colore une part du total : rouge au-delà de 20 %, jaune au-delà de 5 %.

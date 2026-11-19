@@ -83,6 +83,10 @@ func Saved(path string) tea.Cmd {
 // BranchPickerMsg demande au cadre d'ouvrir la liste des branches git.
 type BranchPickerMsg struct{}
 
+// GotoMsg demande d'afficher le module de titre Title (titre non traduit,
+// celui que renvoie Panel.Title).
+type GotoMsg struct{ Title string }
+
 // RepoChangedMsg est diffusé après un changement de branche : les fichiers
 // du projet ont pu changer sur le disque.
 type RepoChangedMsg struct{}
@@ -178,9 +182,11 @@ type Guard interface {
 // ClickMsg est un clic (ou un glissement, bouton gauche enfoncé) dans la
 // zone du module, en coordonnées relatives à cette zone (celle de View).
 type ClickMsg struct {
-	X, Y  int
-	Drag  bool
-	Shift bool
+	X, Y   int
+	Drag   bool
+	Shift  bool
+	Double bool     // deuxième clic rapide sur la même zone (ouvrir, comme Entrée)
+	Zones  []string // zones sous la souris (voir Zone), de la plus précise à la plus large
 }
 
 // ─── Débogage ────────────────────────────────────────────────────────────────

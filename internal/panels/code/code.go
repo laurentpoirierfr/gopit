@@ -430,9 +430,8 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 		}
 		m.paste(msg.Content)
 		return nil
-	case tea.MouseWheelMsg:
-		mo := tea.Mouse(msg)
-		m.wheel(mo.Button == tea.MouseWheelUp, mo.X < m.treeW)
+	case panel.WheelMsg:
+		m.wheel(msg.Delta < 0, msg.X < m.treeW)
 	case panel.ClickMsg:
 		m.compl = nil
 		m.click(msg)

@@ -135,6 +135,36 @@ func (m *Model) filterPalette() {
 	p.cursor, p.offset = 0, 0
 }
 
+// paletteClick exécute la commande cliquée ; un clic hors de la palette la
+// ferme.
+func (m *Model) paletteClick(x, y int) tea.Cmd {
+	p := &m.pal
+	i, ok := panel.Index(panel.ZonesAt(m.palZones, x-m.palX, y-m.palY), "pal:")
+	if !ok {
+		if x < m.palX || y < m.palY || x >= m.palX+m.palW || y >= m.palY+m.palH {
+			p.open = false
+		}
+		return nil
+	}
+	if i >= 0 && i < len(p.matches) {
+		p.cursor = i
+		return m.paletteKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	}
+	return nil
+}
+
+// paletteWheel fait défiler la liste de la palette.
+func (m *Model) paletteWheel(d int) {
+	p := &m.pal
+	p.cursor = min(max(0, p.cursor+d), max(0, len(p.matches)-1))
+	if p.cursor < p.offset {
+		p.offset = p.cursor
+	}
+	if p.cursor >= p.offset+paletteRows {
+		p.offset = p.cursor - paletteRows + 1
+	}
+}
+
 func (m *Model) paletteKey(k tea.KeyPressMsg) tea.Cmd {
 	p := &m.pal
 	switch s := k.String(); s {
@@ -169,7 +199,14 @@ func (m *Model) paletteKey(k tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+// viewPalette dessine la palette et retient ses zones cliquables.
 func (m *Model) viewPalette() string {
+	box, zones := panel.Scan(m.viewPaletteRaw())
+	m.palZones = zones
+	return box
+}
+
+func (m *Model) viewPaletteRaw() string {
 	t := m.th
 	p := &m.pal
 	w := min(76, m.w-6)
@@ -195,12 +232,13 @@ func (m *Model) viewPalette() string {
 		left := " " + module + it.title
 		gap := max(1, inner-lipgloss.Width(left)-lipgloss.Width(key)-1)
 		text := left + strings.Repeat(" ", gap) + key + " "
+		zone := fmt.Sprint("pal:", i)
 		if i == p.cursor {
-			lines = append(lines, line(lipgloss.NewStyle().Background(t.P.Accent).Foreground(t.P.Base).Bold(true).Render(text)))
+			lines = append(lines, panel.Zone(zone, line(lipgloss.NewStyle().Background(t.P.Accent).Foreground(t.P.Base).Bold(true).Render(text))))
 			continue
 		}
-		lines = append(lines, line(bg.Foreground(t.P.Subtext).Render(" "+module)+bg.Foreground(t.P.Text).Render(it.title)+
-			bg.Render(strings.Repeat(" ", gap))+bg.Foreground(t.P.Overlay0).Render(key+" ")))
+		lines = append(lines, panel.Zone(zone, line(bg.Foreground(t.P.Subtext).Render(" "+module)+bg.Foreground(t.P.Text).Render(it.title)+
+			bg.Render(strings.Repeat(" ", gap))+bg.Foreground(t.P.Overlay0).Render(key+" "))))
 	}
 	if len(p.matches) == 0 {
 		lines = append(lines, line(bg.Foreground(t.P.Overlay0).Render(i18n.T(" Aucune commande"))))

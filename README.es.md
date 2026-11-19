@@ -58,6 +58,16 @@ hasta el primer `go.mod`. Si no lo encuentra, propone crear un módulo
 | `e` | abrir el editor externo en el proyecto |
 | `q` / `Ctrl+Q` | salir (pide confirmación si quedan archivos sin guardar); `Ctrl+C` también sale, salvo en el editor, donde copia |
 
+**Con el ratón** también se puede hacer todo: un clic en un módulo de la
+columna izquierda lo muestra; en las listas (diagnósticos, tests, paquetes
+y símbolos de la documentación, archivos y commits de Git, dependencias,
+benchmarks, pila de llamadas y variables del depurador, paleta), un clic
+elige la línea y un doble clic actúa como `Intro` (abrir, ejecutar,
+desplegar); la rueda desplaza la lista o el panel bajo el ratón. Los
+elementos del resumen en la parte superior de los módulos (filtro, caché,
+cobertura, referencia, rama…) cambian con un clic, y en la pantalla de
+inicio, las líneas marcadas con `→` llevan a su módulo.
+
 ## Preferencias
 
 Los ajustes (último módulo mostrado, cobertura, caché, filtros, repeticiones
@@ -183,7 +193,10 @@ Para añadir un módulo: crear `internal/panels/<nombre>` que implemente
 `panel.Panel` y registrarlo en `app.New`. Un módulo con entrada de texto
 implementa también `panel.Capturer` para recibir todas las teclas,
 `panel.Commander` para aparecer en la paleta (Ctrl+P) y `panel.Persister`
-para conservar sus ajustes de una sesión a otra. Los textos se escriben en
+para conservar sus ajustes de una sesión a otra. Para el ratón, envuelve al
+dibujar lo que se puede pulsar con `panel.Zone` (o `panel.Row` para una
+línea de lista) y recibe en `panel.ClickMsg` y `panel.WheelMsg` las zonas
+bajo el ratón, sin calcular su disposición. Los textos se escriben en
 francés, envueltos en `i18n.T("…")` donde se muestran, y se traducen en
 `internal/i18n/en.go` y `es.go`; `go test ./internal/i18n` señala cualquier
 mensaje sin traducir. Para abrir un archivo, un módulo devuelve

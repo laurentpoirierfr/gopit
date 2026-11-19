@@ -452,8 +452,9 @@ func (m *Model) overlays(base string) string {
 	}
 	if m.pal.open {
 		box := m.viewPalette()
-		layers = append(layers, lipgloss.NewLayer(box).
-			X(max(0, (m.w-lipgloss.Width(box))/2)).Y(max(0, min(4, m.h-lipgloss.Height(box)))).Z(3))
+		m.palW, m.palH = lipgloss.Width(box), lipgloss.Height(box)
+		m.palX, m.palY = max(0, (m.w-m.palW)/2), max(0, min(4, m.h-m.palH))
+		layers = append(layers, lipgloss.NewLayer(box).X(m.palX).Y(m.palY).Z(3))
 	}
 	if len(layers) == 1 {
 		return base

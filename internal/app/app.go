@@ -72,15 +72,21 @@ type Model struct {
 	flashErr bool
 	flashID  int
 
-	pal        palette        // palette de commandes (palette.go)
-	menu       menuState      // barre de menus (menu.go)
-	modal      modalKind      // fenêtre d'aide ouverte
-	sidebar    bool           // barre latérale des modules
-	hideHints  bool           // ligne des raccourcis masquée
-	external   bool           // ouvrir les fichiers dans l'éditeur externe
-	quitArmed  bool           // fichiers non enregistrés : quitter une 2e fois
-	langSet    bool           // langue choisie dans les menus : à enregistrer
-	dragging   bool           // glissement de la souris commencé dans le module
+	pal        palette     // palette de commandes (palette.go)
+	menu       menuState   // barre de menus (menu.go)
+	modal      modalKind   // fenêtre d'aide ouverte
+	sidebar    bool        // barre latérale des modules
+	hideHints  bool        // ligne des raccourcis masquée
+	external   bool        // ouvrir les fichiers dans l'éditeur externe
+	quitArmed  bool        // fichiers non enregistrés : quitter une 2e fois
+	langSet    bool        // langue choisie dans les menus : à enregistrer
+	dragging   bool        // glissement de la souris commencé dans le module
+	zones      []panel.Seg // zones cliquables du module affiché (dernier rendu)
+	lastClick  time.Time   // double clic
+	lastZone   string
+	palZones   []panel.Seg // zones de la palette, à sa position (palX, palY)
+	palX, palY int
+	palW, palH int
 	cfg        *config.Config // préférences, enregistrées en quittant
 	git        *gitx.Status   // branche courante (nil : pas de dépôt)
 	gitGen     int            // numéro de la dernière lecture de l'état du dépôt
@@ -180,6 +186,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case panel.BranchPickerMsg:
 		return m, m.openBranches()
 
+	case panel.GotoMsg:
+		for i, p := range m.panels {
+			if p.Title() == msg.Title {
+				m.cur, m.focus = i, focusContent
+			}
+		}
+		return m, nil
+
 	case branchesMsg:
 		if msg.err != nil {
 			return m, m.setFlash(i18n.T("Branches : ")+msg.err.Error(), true)
@@ -238,7 +252,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		mo := tea.Mouse(msg)
 		if m.dragging && mo.Button == tea.MouseLeft {
 			x, y := m.contentPos(mo.X, mo.Y)
-			return m, m.toPanel(panel.ClickMsg{X: x, Y: y, Drag: true})
+			return m, m.toPanel(panel.ClickMsg{X: x, Y: y, Drag: true, Zones: panel.ZonesAt(m.zones, x, y)})
 		}
 		return m, nil
 
@@ -248,12 +262,32 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.MouseWheelMsg:
 		// La molette fait défiler le module affiché (et lui seul), en
-		// coordonnées relatives à sa zone.
-		if m.pal.open || m.menu.open >= 0 || m.modal != modalNone {
+		// coordonnées relatives à sa zone ; ou la palette ouverte.
+		if m.pal.open {
+			if tea.Mouse(msg).Button == tea.MouseWheelUp {
+				m.paletteWheel(-1)
+			} else {
+				m.paletteWheel(1)
+			}
 			return m, nil
 		}
-		msg.X, msg.Y = m.contentPos(msg.X, msg.Y)
-		return m, m.toPanel(msg)
+		if m.menu.open >= 0 || m.modal != modalNone {
+			return m, nil
+		}
+		mo := tea.Mouse(msg)
+		x, y := m.contentPos(mo.X, mo.Y)
+		if x < 0 || y < 0 {
+			return m, nil
+		}
+		w := panel.WheelMsg{X: x, Y: y, Delta: 3, Zones: panel.ZonesAt(m.zones, x, y)}
+		switch mo.Button {
+		case tea.MouseWheelUp:
+			w.Delta = -3
+		case tea.MouseWheelDown:
+		default:
+			return m, nil
+		}
+		return m, m.toPanel(w)
 	}
 
 	// Les autres messages (résultats asynchrones…) vont à tous les panneaux.
@@ -402,7 +436,7 @@ func (m *Model) handleClick(x, y int, shift bool) tea.Cmd {
 	m.dragging = false
 	switch {
 	case m.pal.open:
-		return nil
+		return m.paletteClick(x, y)
 	case m.modal != modalNone:
 		m.modal = modalNone
 		return nil
@@ -426,7 +460,18 @@ func (m *Model) handleClick(x, y int, shift bool) tea.Cmd {
 	m.focus = focusContent
 	if px, py := m.contentPos(x, y); px >= 0 && py >= 0 {
 		m.dragging = true
-		return m.toPanel(panel.ClickMsg{X: px, Y: py, Shift: shift})
+		zones := panel.ZonesAt(m.zones, px, py)
+		zone := ""
+		if len(zones) > 0 {
+			zone = zones[0]
+		}
+		now := time.Now()
+		double := zone != "" && zone == m.lastZone && now.Sub(m.lastClick) < 400*time.Millisecond
+		m.lastClick, m.lastZone = now, zone
+		if double {
+			m.lastZone = "" // un troisième clic recommence
+		}
+		return m.toPanel(panel.ClickMsg{X: px, Y: py, Shift: shift, Double: double, Zones: zones})
 	}
 	return nil
 }
@@ -672,7 +717,9 @@ func (m *Model) viewContent(h int) string {
 	p := m.panels[m.cur]
 
 	header := t.Title.Render(p.Icon() + "  " + i18n.T(p.Title()))
-	content := header + "\n\n" + p.View(iw, max(1, ih-2))
+	body, zones := panel.Scan(p.View(iw, max(1, ih-2)))
+	m.zones = zones
+	content := header + "\n\n" + body
 
 	box := t.Panel
 	if m.focus == focusContent {

@@ -308,8 +308,55 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m, m.handleKey(msg.String())
+
+	case panel.ClickMsg:
+		return m, m.click(msg)
+
+	case panel.WheelMsg:
+		switch {
+		case m.pr.open && panel.Has(msg.Zones, "funcs"):
+			m.pr.cursor = min(max(m.pr.cursor+msg.Delta, 0), max(0, len(m.pr.funcs)-1))
+		case !m.pr.open && panel.Has(msg.Zones, "list"):
+			m.move(msg.Delta)
+		}
 	}
 	return m, nil
+}
+
+// click choisit le benchmark (ou la fonction du profil) cliqué ; un double
+// clic le relance (ou ouvre la fonction dans l'éditeur). Un clic dans le
+// bilan fait comme la touche indiquée (b, n, t ; tri et retour du profil).
+func (m *Model) click(c panel.ClickMsg) tea.Cmd {
+	if c.Drag {
+		return nil
+	}
+	if m.pr.open {
+		switch {
+		case panel.Has(c.Zones, "back"):
+			return m.profileKey("esc")
+		case panel.Has(c.Zones, "sort"):
+			return m.profileKey("s")
+		}
+		if i, ok := panel.Index(c.Zones, "func:"); ok && i >= 0 && i < len(m.pr.funcs) {
+			m.pr.cursor = i
+			if c.Double {
+				return m.profileKey("enter")
+			}
+		}
+		return nil
+	}
+	for zone, key := range map[string]string{"base": "b", "count": "n", "time": "t"} {
+		if panel.Has(c.Zones, zone) {
+			return m.handleKey(key)
+		}
+	}
+	if i, ok := panel.Index(c.Zones, "row:"); ok && i >= 0 && i < len(m.rows) && m.rows[i].res != nil {
+		m.cursor = i
+		if c.Double {
+			return m.handleKey("enter")
+		}
+	}
+	return nil
 }
 
 // useful indique si une ligne de sortie (hors résultats) mérite d'être
@@ -569,12 +616,12 @@ func (m *Model) viewSummary() string {
 		parts = append(parts, t.Text.Render(l.Label)+t.Dim.Render(" · "+l.Time.Format("02/01 15:04:05")))
 	}
 	if b := m.baseline(); b != nil {
-		parts = append(parts, t.Dim.Render(i18n.T("référence "))+t.Value.Render(b.Time.Format("02/01 15:04:05")))
+		parts = append(parts, panel.Zone("base", t.Dim.Render(i18n.T("référence "))+t.Value.Render(b.Time.Format("02/01 15:04:05"))))
 	} else if len(m.runs) > 0 {
-		parts = append(parts, t.Dim.Render(i18n.T("sans référence")))
+		parts = append(parts, panel.Zone("base", t.Dim.Render(i18n.T("sans référence"))))
 	}
-	parts = append(parts, t.Dim.Render("-count=")+t.Value.Render(fmt.Sprint(m.count()))+
-		t.Dim.Render(" -benchtime=")+t.Value.Render(m.benchTime()),
+	parts = append(parts, panel.Zone("count", t.Dim.Render("-count=")+t.Value.Render(fmt.Sprint(m.count())))+
+		panel.Zone("time", t.Dim.Render(" -benchtime=")+t.Value.Render(m.benchTime())),
 		t.Dim.Render(fmt.Sprintf(i18n.T("%d exécution(s) enregistrée(s)"), len(m.runs))))
 	if m.histErr != nil {
 		parts = append(parts, t.Err.Render(i18n.T("historique : ")+m.histErr.Error()))
@@ -626,9 +673,9 @@ func (m *Model) viewList(w, h int) string {
 		if i == m.cursor {
 			line = lipgloss.NewStyle().Background(t.P.Surface0).Width(w).Render(line)
 		}
-		lines = append(lines, line)
+		lines = append(lines, panel.Row(fmt.Sprint("row:", i), w, line))
 	}
-	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
+	return panel.Zone("list", lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n")))
 }
 
 func (m *Model) viewDetail(w, h int) string {
