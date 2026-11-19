@@ -688,4 +688,5 @@ var en = map[string]string{
 	"Imports laissés tels quels à l'enregistrement":                   "Imports left as is on save",
 	"Organiser les imports (gopls)":                                   "Organize imports (gopls)",
 	"Organiser les imports à l'enregistrement (activer / désactiver)": "Organize imports on save (toggle)",
+	"Import ajouté : ":                                                "Import added: ",
 }

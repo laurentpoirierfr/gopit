@@ -129,7 +129,7 @@ ou un clic ; `Échap` pour en sortir).
 | `Ctrl+/` | commenter / décommenter |
 | `Alt+Maj+F` | formater sans enregistrer |
 | `Alt+Maj+O` | organiser les imports sans enregistrer |
-| `Ctrl+Espace` | complétion (gopls), aussi après un `.` : `↑` `↓` pour choisir, `Entrée` ou `Tab` pour insérer, `Échap` pour fermer |
+| `Ctrl+Espace` | complétion (gopls), aussi après un `.` : `↑` `↓` pour choisir, `Entrée` ou `Tab` pour insérer, `Échap` pour fermer ; elle propose aussi les paquets pas encore importés (`strings.Rep` → `Repeat`, marqué `from "strings"`) et ajoute l'import en insérant |
 | `F12` ou `Ctrl+]` | aller à la définition du symbole sous le curseur (aussi `d` en lecture) |
 | `Ctrl+T` | revenir à la position d'avant le saut |
 | `Ctrl+K` | documentation du symbole sous le curseur (aussi `K` en lecture) |

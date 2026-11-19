@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -163,7 +164,7 @@ func (m *Model) complKey(s string) (handled bool, cmd tea.Cmd) {
 	case "pgdown":
 		c.sel = min(len(c.shown)-1, c.sel+complRows)
 	case "enter", "tab":
-		m.acceptCompletion()
+		return true, m.acceptCompletion()
 	case "esc":
 		m.compl = nil
 	default:
@@ -179,19 +180,51 @@ func (m *Model) complKey(s string) (handled bool, cmd tea.Cmd) {
 	return true, nil
 }
 
-// acceptCompletion remplace le mot commencé par la proposition choisie.
-func (m *Model) acceptCompletion() {
+// acceptCompletion remplace le mot commencé par la proposition choisie ;
+// si elle vient d'un paquet pas encore importé, l'import est ajouté en même
+// temps (une seule étape d'annulation).
+func (m *Model) acceptCompletion() tea.Cmd {
 	c, d := m.compl, m.doc()
 	m.compl = nil
 	if d == nil || len(c.shown) == 0 {
-		return
+		return nil
 	}
 	it := c.items[c.shown[c.sel]]
 	cur := d.buf.Cursor()
-	d.buf.SetCursor(c.start, false)
-	d.buf.SetCursor(cur, true)
-	d.buf.Insert(it.Text)
 	m.follow = true
+	if len(it.Extra) == 0 || strings.Contains(it.Text, "\n") {
+		d.buf.SetCursor(c.start, false)
+		d.buf.SetCursor(cur, true)
+		d.buf.Insert(it.Text)
+		return nil
+	}
+	edits := append([]lsp.TextEdit{{Path: d.path, Start: lsp.Pos(c.start), End: lsp.Pos(cur), NewText: it.Text}}, it.Extra...)
+	// Lignes ajoutées au-dessus du mot (le bloc d'imports) : le curseur suit.
+	delta := 0
+	for _, e := range it.Extra {
+		if e.End.Line < c.start.Line {
+			delta += strings.Count(e.NewText, "\n") - (e.End.Line - e.Start.Line)
+		}
+	}
+	d.buf.SetTextAt(lsp.Apply(d.buf.String(), d.path, edits),
+		textbuf.Pos{Line: c.start.Line + delta, Col: c.start.Col + utf8.RuneCountInString(it.Text)})
+	if pkg := importedPath(it.Extra); pkg != "" {
+		return panel.Flash(i18n.T("Import ajouté : ")+pkg, false)
+	}
+	return nil
+}
+
+// importedPath renvoie le chemin entre guillemets ajouté par les
+// modifications d'une proposition (l'import), ou "".
+func importedPath(edits []lsp.TextEdit) string {
+	for _, e := range edits {
+		if i := strings.IndexByte(e.NewText, '"'); i >= 0 {
+			if j := strings.IndexByte(e.NewText[i+1:], '"'); j >= 0 {
+				return e.NewText[i : i+j+2]
+			}
+		}
+	}
+	return ""
 }
 
 // kindMark renvoie la lettre et la couleur qui résument la nature d'une

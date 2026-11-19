@@ -27,6 +27,8 @@ montre ce qui sera publié).
   effacement par mot (`Ctrl+Retour arrière`, `Ctrl+Suppr`), fermeture
   automatique des parenthèses et guillemets (désactivable), parenthèse
   correspondante surlignée et `Ctrl+M` pour y aller.
+- Éditeur : la complétion propose les paquets pas encore importés et
+  ajoute l'import en insérant (une seule étape d'annulation).
 - Éditeur : imports organisés par gopls à l'enregistrement (manquants
   ajoutés, inutilisés retirés, triés, comme goimports), avec gofmt en une
   seule étape d'annulation, le curseur suivant son texte ; désactivable

@@ -338,6 +338,9 @@ type Item struct {
 	// HasStart est faux si le serveur ne l'a pas précisé.
 	Start    Pos
 	HasStart bool
+	// Extra sont les modifications à faire ailleurs dans le fichier avec
+	// cette proposition (ex. l'import d'un paquet pas encore importé).
+	Extra []TextEdit
 }
 
 // Completion renvoie les propositions de complétion en p. trigger est le
@@ -364,6 +367,7 @@ func (c *Client) Completion(ctx context.Context, path string, p Pos, trigger str
 			Insert  *wireRange `json:"insert"` // InsertReplaceEdit
 			NewText string     `json:"newText"`
 		} `json:"textEdit"`
+		AdditionalTextEdits []wireEdit `json:"additionalTextEdits"`
 	}
 	var items []wireItem
 	if len(raw) > 0 && raw[0] == '{' {
@@ -397,6 +401,10 @@ func (c *Client) Completion(ctx context.Context, path string, p Pos, trigger str
 		}
 		if it.Text == "" {
 			it.Text = w.Label
+		}
+		for _, e := range w.AdditionalTextEdits {
+			it.Extra = append(it.Extra, TextEdit{Path: path, Start: c.fromWire(path, e.Range.Start),
+				End: c.fromWire(path, e.Range.End), NewText: e.NewText})
 		}
 		out = append(out, it)
 	}
