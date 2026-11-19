@@ -254,6 +254,30 @@ func (d *driver) lineOf(file, text string) int {
 	return 1
 }
 
+// edit insère text après la première occurrence de after dans file (relatif
+// au dépôt) et renvoie de quoi remettre le fichier tel qu'il était.
+func (d *driver) edit(file, after, text string) (restore func(), err error) {
+	path := filepath.Join(d.root, file)
+	st, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	orig, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	i := strings.Index(string(orig), after)
+	if i < 0 {
+		return nil, fmt.Errorf("%s : « %s » introuvable", file, strings.TrimSpace(after))
+	}
+	i += len(after)
+	changed := string(orig[:i]) + text + string(orig[i:])
+	if err := os.WriteFile(path, []byte(changed), st.Mode().Perm()); err != nil {
+		return nil, err
+	}
+	return func() { _ = os.WriteFile(path, orig, st.Mode().Perm()) }, nil
+}
+
 func (d *driver) open(file, text string) {
 	d.send(panel.OpenMsg{File: filepath.Join(d.root, file), Line: d.lineOf(file, text)})
 }
@@ -350,8 +374,18 @@ var scenarios = []scenario{
 		return err
 	}},
 	{"6", "Git", func(d *driver, shot func(string) error) error {
+		// Une modification en cours, pour montrer un diff (et non le détail
+		// d'un commit, qui afficherait l'adresse de l'auteur) ; le fichier
+		// est remis tel quel ensuite.
+		restore, err := d.edit("CHANGELOG.md", "## [Non publié]\n\n### Ajouté\n\n",
+			"- Une nouvelle entrée, en cours de rédaction.\n")
+		if err != nil {
+			return err
+		}
+		defer restore()
 		d.key("6")
-		if err := d.waitFor("état du dépôt", time.Minute, contains("Commits récents")); err != nil {
+		d.key("r") // relire l'état du dépôt
+		if err := d.waitFor("diff du fichier modifié", time.Minute, contains("Modifiés (1)", "CHANGELOG.md", "@@")); err != nil {
 			return err
 		}
 		return shot("06-git")
