@@ -10,7 +10,6 @@ package modules
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -406,10 +405,7 @@ func (m *Model) openWeb() tea.Cmd {
 	if vs := m.vulnsOf(mod); len(vs) > 0 {
 		url = vs[0].URL() // la vulnérabilité la plus grave
 	}
-	if err := exec.Command("xdg-open", url).Start(); err != nil {
-		return panel.Flash(i18n.T("Impossible d'ouvrir le navigateur : ")+err.Error(), true)
-	}
-	return panel.Flash(i18n.T("Ouverture de ")+url, false)
+	return panel.Browse(url)
 }
 
 func (m *Model) move(d int) {

@@ -7,6 +7,9 @@ package code
 import (
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/laurentpoirierfr/gopit/internal/i18n"
 	"github.com/laurentpoirierfr/gopit/internal/panel"
 	"github.com/laurentpoirierfr/gopit/internal/textbuf"
 )
@@ -146,4 +149,26 @@ func (m *Model) bracketMarks(d *doc) map[int][]int {
 	marks[at.Line] = append(marks[at.Line], at.Col)
 	marks[other.Line] = append(marks[other.Line], other.Col)
 	return marks
+}
+
+// ApplyText applique une correction (module Diagnostics) au fichier, ouvert
+// au besoin : son contenu devient msg.Text, en une étape d'annulation, sans
+// enregistrer. Si le texte n'est plus celui sur lequel la correction a été
+// calculée (modifié depuis), rien n'est fait.
+func (m *Model) ApplyText(msg panel.ApplyMsg) tea.Cmd {
+	if cmd := m.OpenFile(msg.Path, msg.Line); cmd != nil {
+		return cmd // ouverture impossible
+	}
+	d := m.doc()
+	if d == nil || d.image != nil {
+		return nil
+	}
+	if d.buf.String() != msg.Base {
+		return panel.Flash(i18n.T("Le fichier a changé depuis l'analyse : enregistre-le, puis relance les diagnostics"), true)
+	}
+	d.buf.SetText(msg.Text)
+	d.buf.SetCursor(textbuf.Pos{Line: max(0, msg.Line-1)}, false)
+	d.buf.MoveCursor(textbuf.LineStart, 1, false)
+	m.center = true
+	return panel.Flash(i18n.T("Correction appliquée : ")+msg.Title+i18n.T(" — Ctrl+S pour enregistrer, Ctrl+Z pour annuler"), false)
 }

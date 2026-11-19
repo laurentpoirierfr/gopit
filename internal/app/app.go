@@ -186,6 +186,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case panel.BranchPickerMsg:
 		return m, m.openBranches()
 
+	case panel.ApplyMsg:
+		return m, m.applyFix(msg)
+
 	case panel.GotoMsg:
 		for i, p := range m.panels {
 			if p.Title() == msg.Title {
@@ -488,6 +491,34 @@ func (m *Model) openFile(file string, line int) tea.Cmd {
 		}
 	}
 	return editor.Open(m.proj.Root, file, line)
+}
+
+// applyFix applique une correction : dans l'éditeur intégré, qui s'affiche ;
+// avec un éditeur externe, directement dans le fichier.
+func (m *Model) applyFix(msg panel.ApplyMsg) tea.Cmd {
+	if !m.external {
+		for i, p := range m.panels {
+			if a, ok := p.(panel.TextApplier); ok {
+				m.cur, m.focus = i, focusContent
+				return a.ApplyText(msg)
+			}
+		}
+	}
+	st, err := os.Stat(msg.Path)
+	if err == nil {
+		var cur []byte
+		if cur, err = os.ReadFile(msg.Path); err == nil && string(cur) != msg.Base {
+			return m.setFlash(i18n.T("Le fichier a changé depuis l'analyse : relance les diagnostics"), true)
+		}
+	}
+	if err == nil {
+		err = os.WriteFile(msg.Path, []byte(msg.Text), st.Mode().Perm())
+	}
+	if err != nil {
+		return m.setFlash(i18n.T("Correction : ")+err.Error(), true)
+	}
+	return tea.Batch(m.setFlash(i18n.T("Correction appliquée et enregistrée : ")+msg.Title, false),
+		m.broadcast(panel.SavedMsg{Path: msg.Path}))
 }
 
 // show affiche dans l'éditeur la ligne où le programme débogué est arrêté.

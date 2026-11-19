@@ -24,6 +24,7 @@ func at(t *testing.T, m *Model, id string) panel.ClickMsg {
 }
 
 func TestMouse(t *testing.T) {
+	t.Setenv("GOPIT_GOPLS", "off") // pas de recherche de corrections
 	root := t.TempDir()
 	m := New(theme.New(), &project.Project{Root: root})
 	a, b := filepath.Join(root, "a.go"), filepath.Join(root, "b.go")

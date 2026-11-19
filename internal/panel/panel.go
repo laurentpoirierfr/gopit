@@ -83,6 +83,22 @@ func Saved(path string) tea.Cmd {
 // BranchPickerMsg demande au cadre d'ouvrir la liste des branches git.
 type BranchPickerMsg struct{}
 
+// ApplyMsg demande de remplacer le contenu du fichier Path (Base, tel qu'il
+// était) par Text, une correction : dans l'éditeur intégré, sans
+// enregistrer, curseur à la ligne Line. Si le texte a changé depuis, rien
+// n'est fait.
+type ApplyMsg struct {
+	Path, Base, Text string
+	Line             int
+	Title            string
+}
+
+// TextApplier est implémenté par l'éditeur intégré, qui applique les
+// corrections (ApplyMsg).
+type TextApplier interface {
+	ApplyText(msg ApplyMsg) tea.Cmd
+}
+
 // GotoMsg demande d'afficher le module de titre Title (titre non traduit,
 // celui que renvoie Panel.Title).
 type GotoMsg struct{ Title string }

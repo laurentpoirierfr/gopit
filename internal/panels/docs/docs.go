@@ -5,7 +5,6 @@ package docs
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -308,10 +307,7 @@ func (m *Model) openWeb() tea.Cmd {
 	if sym != nil {
 		url += "#" + sym.Name
 	}
-	if err := exec.Command("xdg-open", url).Start(); err != nil {
-		return panel.Flash(i18n.T("Impossible d'ouvrir le navigateur : ")+err.Error(), true)
-	}
-	return panel.Flash(i18n.T("Ouverture de ")+url, false)
+	return panel.Browse(url)
 }
 
 func (m *Model) selected() *item {

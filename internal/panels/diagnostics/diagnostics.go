@@ -87,11 +87,20 @@ type Model struct {
 
 	autoGen int  // dernier enregistrement reçu
 	quiet   bool // analyse relancée automatiquement : pas de bilan affiché
+
+	fixer     *fixer               // gopls pour les corrections (fix.go), à la demande
+	fixes     map[string]*fixState // par diagnostic (key)
+	fixSel    int                  // correction affichée, parmi celles du diagnostic
+	fixOK     int                  // gopls disponible : 0 inconnu, 1 oui, -1 non
+	fixFor    string               // diagnostic auquel se rapporte fixSel et detailOff
+	ruleDocs  map[string]ruleDoc   // documentation des règles (explain.go), à la demande
+	detailOff int                  // défilement du détail
+	active    bool                 // le module a été utilisé : chercher les corrections
 }
 
 func New(th *theme.Theme, p *project.Project) *Model {
 	return &Model{th: th, proj: p, results: map[string][]diag.Diagnostic{},
-		state: map[string]*toolState{}, source: map[string][]string{}}
+		state: map[string]*toolState{}, source: map[string][]string{}, fixes: map[string]*fixState{}}
 }
 
 func (m *Model) Title() string { return i18n.N("Diagnostics") }
@@ -104,6 +113,7 @@ func (m *Model) Init() tea.Cmd { return m.runAll() }
 func (m *Model) Hints() []panel.Hint {
 	return []panel.Hint{
 		{Key: "a", Desc: i18n.T("relancer")}, {Key: "Entrée", Desc: i18n.T("ouvrir")},
+		{Key: "f", Desc: i18n.T("corriger")}, {Key: "w", Desc: i18n.T("doc de la règle")}, {Key: "Maj+↑↓", Desc: i18n.T("défiler")},
 		{Key: "s", Desc: i18n.T("gravité")}, {Key: "t", Desc: i18n.T("outil")},
 	}
 }
@@ -127,6 +137,7 @@ func (m *Model) runAll() tea.Cmd {
 	m.cancel = cancel
 	m.gen++
 	m.source = map[string][]string{}
+	m.fixes = map[string]*fixState{} // le code a pu changer
 	gen, root := m.gen, m.proj.Root
 
 	cmds := []tea.Cmd{spin(gen)}
@@ -163,27 +174,55 @@ func (m *Model) merge() {
 // ─── Update ──────────────────────────────────────────────────────────────────
 
 func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
+	cmd := m.update(msg)
+	switch msg.(type) {
+	case tea.KeyPressMsg, panel.ClickMsg, panel.WheelMsg:
+		m.active = true
+	}
+	if d := m.selected(); d != nil && key(d) != m.fixFor {
+		m.fixFor, m.fixSel, m.detailOff = key(d), 0, 0 // autre diagnostic : sa première correction
+	}
+	if m.active { // corrections du diagnostic choisi, s'il a changé
+		return m, tea.Batch(cmd, m.ensureFix(), m.ensureRuleDocs())
+	}
+	return m, cmd
+}
+
+func (m *Model) update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
+	case fixesMsg:
+		if st := m.fixes[msg.key]; st != nil {
+			*st = fixState{fixes: msg.fixes, rule: msg.rule, err: msg.err}
+		}
+		return nil
+
+	case ruleDocsMsg:
+		m.ruleDocs = msg.docs
+		if m.ruleDocs == nil {
+			m.ruleDocs = map[string]ruleDoc{} // gopls absent : pas d'explications
+		}
+		return nil
+
 	case toolDoneMsg:
 		if msg.gen != m.gen {
-			return m, nil
+			return nil
 		}
 		m.results[msg.tool] = msg.diags
 		m.state[msg.tool] = &toolState{err: msg.err, dur: msg.dur, count: len(msg.diags)}
 		m.merge()
 		if m.running() {
-			return m, nil
+			return nil
 		}
 		m.cancel = nil
 		if m.quiet {
 			m.quiet = false
-			return m, nil
+			return nil
 		}
 		e, w, i := diag.Counts(m.all)
 		if e+w+i == 0 {
-			return m, panel.Flash(i18n.T("Diagnostics : aucun problème"), false)
+			return panel.Flash(i18n.T("Diagnostics : aucun problème"), false)
 		}
-		return m, panel.Flash(fmt.Sprintf(i18n.T("Diagnostics : %d erreur(s), %d avertissement(s), %d info(s)"), e, w, i), e > 0)
+		return panel.Flash(fmt.Sprintf(i18n.T("Diagnostics : %d erreur(s), %d avertissement(s), %d info(s)"), e, w, i), e > 0)
 
 	case panel.SavedMsg:
 		// Fichier Go (ou go.mod) enregistré dans l'éditeur : l'analyse est
@@ -192,38 +231,41 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 		if base := filepath.Base(msg.Path); strings.HasSuffix(base, ".go") || base == "go.mod" || base == "go.sum" {
 			m.autoGen++
 			gen := m.autoGen
-			return m, tea.Tick(autoDelay, func(time.Time) tea.Msg { return autoMsg{gen} })
+			return tea.Tick(autoDelay, func(time.Time) tea.Msg { return autoMsg{gen} })
 		}
 
 	case panel.RepoChangedMsg: // autre branche : le code a changé
 		m.autoGen++
 		gen := m.autoGen
-		return m, tea.Tick(autoDelay, func(time.Time) tea.Msg { return autoMsg{gen} })
+		return tea.Tick(autoDelay, func(time.Time) tea.Msg { return autoMsg{gen} })
 
 	case autoMsg:
 		if msg.gen == m.autoGen {
 			m.quiet = true
-			return m, m.runAll()
+			return m.runAll()
 		}
 
 	case spinMsg:
 		if msg.gen == m.gen && m.running() {
 			m.spin++
-			return m, spin(msg.gen)
+			return spin(msg.gen)
 		}
 
 	case tea.KeyPressMsg:
-		return m, m.handleKey(msg.String())
+		return m.handleKey(msg.String())
 
 	case panel.ClickMsg:
-		return m, m.click(msg)
+		return m.click(msg)
 
 	case panel.WheelMsg:
-		if panel.Has(msg.Zones, "list") {
+		switch {
+		case panel.Has(msg.Zones, "list"):
 			m.move(msg.Delta)
+		case panel.Has(msg.Zones, "detail"):
+			m.detailOff = max(0, m.detailOff+msg.Delta)
 		}
 	}
-	return m, nil
+	return nil
 }
 
 // click choisit le diagnostic cliqué (le premier du fichier, sur un
@@ -231,6 +273,14 @@ func (m *Model) Update(msg tea.Msg) (panel.Panel, tea.Cmd) {
 func (m *Model) click(c panel.ClickMsg) tea.Cmd {
 	if c.Drag {
 		return nil
+	}
+	switch {
+	case panel.Has(c.Zones, "fix:apply"):
+		return m.handleKey("f")
+	case panel.Has(c.Zones, "fix:next"):
+		return m.handleKey("n")
+	case panel.Has(c.Zones, "doc:web"):
+		return m.handleKey("w")
 	}
 	if panel.Has(c.Zones, "sev") {
 		return m.handleKey("s")
@@ -262,6 +312,25 @@ func (m *Model) handleKey(s string) tea.Cmd {
 	case "enter", "o":
 		if d := m.selected(); d != nil {
 			return panel.Open(d.File, d.Line)
+		}
+	case "f": // appliquer la correction (ou la chercher)
+		if x, _ := m.currentFix(); x != nil {
+			return m.applyFix()
+		}
+		if d := m.selected(); d != nil {
+			if st := m.fixes[key(d)]; st != nil && !st.loading {
+				return panel.Flash(i18n.T("Pas de correction automatique pour ce diagnostic"), false)
+			}
+		}
+	case "w":
+		return m.openRuleDoc()
+	case "shift+up":
+		m.detailOff = max(0, m.detailOff-1)
+	case "shift+down":
+		m.detailOff++
+	case "n": // correction suivante
+		if _, n := m.currentFix(); n > 1 {
+			m.fixSel = (m.fixSel + 1) % n
 		}
 	case "s":
 		m.sevFilter = (m.sevFilter + 1) % len(sevFilters)
@@ -527,8 +596,61 @@ func (m *Model) viewDetail(w, h int) string {
 		lines = append(lines, t.Label.Render(fmt.Sprintf("%-13s", i18n.T("Règle")))+t.Text.Render(d.Code))
 	}
 	lines = append(lines, t.Label.Render(fmt.Sprintf("%-13s", i18n.T("Signalé par")))+t.Text.Render(strings.Join(d.Tools, ", ")), "")
+	if fx := m.viewFix(d, w); fx != nil {
+		lines = append(lines, fx...)
+		lines = append(lines, "")
+	}
+	if ex := m.viewExplain(d, w, 14); ex != nil {
+		lines = append(lines, ex...)
+		lines = append(lines, "")
+	}
 	lines = append(lines, m.excerpt(d, w)...)
-	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
+	m.detailOff = min(m.detailOff, max(0, len(lines)-h))
+	return panel.Zone("detail", lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(strings.Join(lines[m.detailOff:], "\n")))
+}
+
+// viewFix renvoie la section « Correction proposée » du diagnostic d : état
+// de la recherche, ou aperçu de la correction et boutons.
+func (m *Model) viewFix(d *diag.Diagnostic, w int) []string {
+	t := m.th
+	st := m.fixes[key(d)]
+	head := t.Label.Render(i18n.T("Correction"))
+	switch {
+	case st == nil && strings.HasSuffix(d.File, ".go") && (d.Code == "gofmt" || m.canFix()):
+		return []string{head + t.Dim.Render(i18n.T("  f : en chercher une (gopls)"))}
+	case st == nil:
+		return nil
+	case st.loading:
+		return []string{head + t.Dim.Render(i18n.T("  recherche avec gopls…"))}
+	case st.err != nil && len(st.fixes) == 0:
+		return []string{ansi.Truncate(head+t.Dim.Render("  ")+t.Err.Render(st.err.Error()), w, "…")}
+	case len(st.fixes) == 0:
+		return []string{head + t.Dim.Render(i18n.T("  aucune correction automatique"))}
+	}
+	x, n := m.currentFix()
+	apply := panel.Zone("fix:apply", lipgloss.NewStyle().Foreground(t.P.Base).Background(t.P.Green).Bold(true).Render(i18n.T(" f appliquer ")))
+	title := head + "  " + apply
+	if n > 1 {
+		title += " " + panel.Zone("fix:next", t.Dim.Render(fmt.Sprintf(i18n.T("n suivante (%d/%d)"), m.fixSel%n+1, n)))
+	}
+	out := []string{ansi.Truncate(title, w, "…"), ansi.Truncate(t.Value.Render(x.title), w, "…")}
+	del := lipgloss.NewStyle().Foreground(t.P.Red)
+	add := lipgloss.NewStyle().Foreground(t.P.Green)
+	for _, l := range x.preview(1, 10) {
+		code := strings.ReplaceAll(l.text, "\t", "    ")
+		num := fmt.Sprintf("%5d ", l.num)
+		switch l.op {
+		case '-':
+			out = append(out, ansi.Truncate(t.Dim.Render(num)+del.Render("- "+code), w, "…"))
+		case '+':
+			out = append(out, ansi.Truncate(t.Dim.Render(num)+add.Render("+ "+code), w, "…"))
+		case '…':
+			out = append(out, t.Dim.Render("      ⋮"))
+		default:
+			out = append(out, ansi.Truncate(t.Dim.Render(num+"  "+code), w, "…"))
+		}
+	}
+	return out
 }
 
 // excerpt renvoie quelques lignes de code autour du diagnostic.

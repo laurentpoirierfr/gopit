@@ -189,3 +189,35 @@ func TestMultiClick(t *testing.T) {
 		t.Fatalf("triple clic : %q", got)
 	}
 }
+
+func TestApplyText(t *testing.T) {
+	m, dir := newModel(t)
+	path := filepath.Join(dir, "a.go")
+	base := "package a\n\nvar x int = 1\n"
+	if err := os.WriteFile(path, []byte(base), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fixed := "package a\n\nvar x = 1\n"
+	cmd := m.ApplyText(panel.ApplyMsg{Path: path, Base: base, Text: fixed, Line: 3, Title: "Remove redundant type"})
+	b := m.doc().buf
+	if b.String() != fixed || !b.Dirty() || b.Cursor().Line != 2 || !m.editing {
+		t.Fatalf("appliquée : %q dirty=%v %v", b.String(), b.Dirty(), b.Cursor())
+	}
+	if f, ok := cmd().(panel.FlashMsg); !ok || !strings.Contains(f.Text, "Remove redundant type") {
+		t.Errorf("message : %#v", cmd())
+	}
+	b.Undo()
+	if b.String() != base {
+		t.Errorf("annulée en une fois : %q", b.String())
+	}
+	// Texte modifié depuis l'analyse : rien n'est fait.
+	press(m, "x")
+	before := b.String()
+	cmd = m.ApplyText(panel.ApplyMsg{Path: path, Base: base, Text: fixed, Line: 3})
+	if b.String() != before {
+		t.Error("correction appliquée sur un texte modifié")
+	}
+	if f, ok := cmd().(panel.FlashMsg); !ok || !f.Error {
+		t.Errorf("erreur attendue : %#v", cmd())
+	}
+}

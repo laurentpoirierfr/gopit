@@ -27,6 +27,11 @@ montre ce qui sera publié).
   effacement par mot (`Ctrl+Retour arrière`, `Ctrl+Suppr`), fermeture
   automatique des parenthèses et guillemets (désactivable), parenthèse
   correspondante surlignée et `Ctrl+M` pour y aller.
+- Diagnostics : correction proposée par gopls (corrections rapides, analyses
+  staticcheck comprises) ou par gofmt, en aperçu avant/après, appliquée dans
+  l'éditeur avec `f` (sans enregistrer, annulable) ; explication de la règle
+  (documentation des analyseurs, exemples compris) et `w` pour la page en
+  ligne. Avec un éditeur externe, la correction est écrite dans le fichier.
 - Souris dans tous les modules : clic pour choisir une ligne, double clic
   comme Entrée (ouvrir, lancer, déplier), molette sur la liste ou le volet
   survolé, éléments du bilan cliquables (filtres, cache, couverture,

@@ -49,6 +49,8 @@ type Diagnostic struct {
 	Severity   Severity
 	Source     string // compiler, vet, staticcheck…
 	Message    string
+
+	raw json.RawMessage // tel que reçu : renvoyé au serveur pour ses corrections
 }
 
 // Diagnostics est la liste complète des problèmes d'un fichier (elle
@@ -78,7 +80,8 @@ type Client struct {
 	done   chan struct{}
 	enc    string // encodage des colonnes : utf-8, utf-16 ou utf-32
 
-	onDiag func(Diagnostics)
+	settings map[string]any // réglages du serveur (workspace/configuration)
+	onDiag   func(Diagnostics)
 }
 
 type response struct {
@@ -103,6 +106,12 @@ type message struct {
 // onDiag est appelée (depuis une autre goroutine) à chaque publication de
 // diagnostics.
 func Start(ctx context.Context, root string, onDiag func(Diagnostics)) (*Client, error) {
+	return StartWith(ctx, root, nil, onDiag)
+}
+
+// StartWith est Start avec des réglages pour le serveur (ex. pour gopls :
+// {"staticcheck": true}).
+func StartWith(ctx context.Context, root string, settings map[string]any, onDiag func(Diagnostics)) (*Client, error) {
 	cmd := exec.Command("gopls", "serve")
 	cmd.Dir = root
 	in, err := cmd.StdinPipe()
@@ -118,6 +127,7 @@ func Start(ctx context.Context, root string, onDiag func(Diagnostics)) (*Client,
 	}
 	c := newClient(in, out, onDiag)
 	c.cmd = cmd
+	c.settings = settings
 	go func() { _ = cmd.Wait() }()
 	if err := c.initialize(ctx, root); err != nil {
 		c.Close()
@@ -151,6 +161,17 @@ func (c *Client) initialize(ctx context.Context, root string) error {
 				"completion": map[string]any{
 					"completionItem": map[string]any{"snippetSupport": false},
 				},
+				"codeAction": map[string]any{
+					"codeActionLiteralSupport": map[string]any{
+						"codeActionKind": map[string]any{"valueSet": []string{"quickfix", "refactor", "source"}},
+					},
+					"dataSupport":    true,
+					"resolveSupport": map[string]any{"properties": []string{"edit"}},
+				},
+			},
+			"workspace": map[string]any{
+				"configuration": true,
+				"workspaceEdit": map[string]any{"documentChanges": true},
 			},
 		},
 	}
@@ -568,6 +589,9 @@ func (c *Client) answer(id json.RawMessage, method string, params json.RawMessag
 		items := make([]any, len(p.Items))
 		for i := range items {
 			items[i] = map[string]any{}
+			if c.settings != nil {
+				items[i] = c.settings
+			}
 		}
 		result = items
 	}
@@ -576,13 +600,8 @@ func (c *Client) answer(id json.RawMessage, method string, params json.RawMessag
 
 func (c *Client) publish(params json.RawMessage) {
 	var p struct {
-		URI         string `json:"uri"`
-		Diagnostics []struct {
-			Range    wireRange `json:"range"`
-			Severity Severity  `json:"severity"`
-			Source   string    `json:"source"`
-			Message  string    `json:"message"`
-		} `json:"diagnostics"`
+		URI         string            `json:"uri"`
+		Diagnostics []json.RawMessage `json:"diagnostics"`
 	}
 	if json.Unmarshal(params, &p) != nil || c.onDiag == nil {
 		return
@@ -592,14 +611,23 @@ func (c *Client) publish(params json.RawMessage) {
 		return
 	}
 	ds := Diagnostics{Path: path, Items: make([]Diagnostic, 0, len(p.Diagnostics))}
-	for _, d := range p.Diagnostics {
+	for _, raw := range p.Diagnostics {
+		var d struct {
+			Range    wireRange `json:"range"`
+			Severity Severity  `json:"severity"`
+			Source   string    `json:"source"`
+			Message  string    `json:"message"`
+		}
+		if json.Unmarshal(raw, &d) != nil {
+			continue
+		}
 		sev := d.Severity
 		if sev == 0 {
 			sev = Error
 		}
 		ds.Items = append(ds.Items, Diagnostic{
 			Start: c.fromWire(path, d.Range.Start), End: c.fromWire(path, d.Range.End),
-			Severity: sev, Source: d.Source, Message: d.Message,
+			Severity: sev, Source: d.Source, Message: d.Message, raw: raw,
 		})
 	}
 	c.onDiag(ds)
